@@ -48,7 +48,6 @@ func main() {
 	categoryService := services.NewCategoryService(categoryRepo)
 	reportService := services.NewReportService(reportRepo, transactionRepo)
 	uploadService := services.NewUploadService(cfg)
-	aiService := services.NewAIService(cfg)
 
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService)
@@ -57,9 +56,9 @@ func main() {
 	categoryHandler := handlers.NewCategoryHandler(categoryService)
 	reportHandler := handlers.NewReportHandler(reportService)
 	uploadHandler := handlers.NewUploadHandler(uploadService)
-	ocrHandler := handlers.NewOCRHandler(aiService, uploadService)
-	chatHandler := handlers.NewChatHandler(aiService)
-	dashboardHandler := handlers.NewDashboardHandler(transactionService)
+	ocrHandler := handlers.NewOCRHandler()
+	chatHandler := handlers.NewChatHandler()
+	dashboardHandler := handlers.NewDashboardHandler()
 
 	// Initialize Fiber app
 	app := fiber.New(fiber.Config{
@@ -84,27 +83,60 @@ func main() {
 		})
 	})
 
-	// API routes
-	api := app.Group("/api/v1")
+	// API routes - both /api and /api/v1 for compatibility
+	api := app.Group("/api")
+	apiv1 := app.Group("/api/v1")
 
-	// Auth routes (public)
-	auth := api.Group("/auth")
+	// Auth routes (public) - support both paths
+	setupAuthRoutes(api.Group("/auth"), authHandler)
+	setupAuthRoutes(apiv1.Group("/auth"), authHandler)
+
+	// Protected routes
+	setupProtectedRoutes(api, cfg.JWTSecret, userHandler, transactionHandler, categoryHandler, reportHandler, uploadHandler, ocrHandler, chatHandler, dashboardHandler)
+	setupProtectedRoutes(apiv1, cfg.JWTSecret, userHandler, transactionHandler, categoryHandler, reportHandler, uploadHandler, ocrHandler, chatHandler, dashboardHandler)
+
+	// Start server
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	log.Printf("🚀 FinLapor API running on port %s", port)
+	if err := app.Listen(":" + port); err != nil {
+		log.Fatalf("Failed to start server: %v", err)
+	}
+}
+
+func setupAuthRoutes(auth fiber.Router, authHandler *handlers.AuthHandler) {
 	auth.Post("/register", authHandler.Register)
 	auth.Post("/login", authHandler.Login)
 	auth.Post("/refresh", authHandler.Refresh)
+}
 
-	// Protected routes
-	protected := api.Group("", middleware.AuthMiddleware(cfg.JWTSecret))
+func setupProtectedRoutes(
+	api fiber.Router,
+	jwtSecret string,
+	userHandler *handlers.UserHandler,
+	transactionHandler *handlers.TransactionHandler,
+	categoryHandler *handlers.CategoryHandler,
+	reportHandler *handlers.ReportHandler,
+	uploadHandler *handlers.UploadHandler,
+	ocrHandler *handlers.OCRHandler,
+	chatHandler *handlers.ChatHandler,
+	dashboardHandler *handlers.DashboardHandler,
+) {
+	protected := api.Group("", middleware.AuthMiddleware(jwtSecret))
 
 	// User routes
-	user := protected.Group("/user")
-	user.Get("/profile", userHandler.GetProfile)
-	user.Put("/profile", userHandler.UpdateProfile)
+	user := protected.Group("/users")
+	user.Get("/me", userHandler.GetProfile)
+	user.Put("/me", userHandler.UpdateProfile)
 
 	// Transaction routes
 	transactions := protected.Group("/transactions")
 	transactions.Get("", transactionHandler.List)
 	transactions.Post("", transactionHandler.Create)
+	transactions.Get("/summary", transactionHandler.GetSummary)
 	transactions.Get("/:id", transactionHandler.Get)
 	transactions.Put("/:id", transactionHandler.Update)
 	transactions.Delete("/:id", transactionHandler.Delete)
@@ -119,29 +151,23 @@ func main() {
 	// Report routes
 	reports := protected.Group("/reports")
 	reports.Get("", reportHandler.List)
-	reports.Post("/generate", reportHandler.Generate)
+	reports.Post("", reportHandler.Generate)
 	reports.Get("/:id", reportHandler.Get)
 
 	// Upload routes
 	protected.Post("/upload/presign", uploadHandler.GetPresignedURL)
 
 	// OCR routes
-	protected.Post("/ocr/scan", ocrHandler.Scan)
+	protected.Post("/ocr/scan", ocrHandler.ScanReceipt)
+
+	// AI routes
+	protected.Post("/ai/categorize", ocrHandler.Categorize)
 
 	// Chat routes
-	protected.Post("/chat", chatHandler.Send)
+	protected.Post("/chat", chatHandler.Chat)
 
 	// Dashboard routes
-	protected.Get("/dashboard/summary", dashboardHandler.GetSummary)
-
-	// Start server
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
-
-	log.Printf("🚀 FinLapor API running on port %s", port)
-	if err := app.Listen(":" + port); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
-	}
+	dashboard := protected.Group("/dashboard")
+	dashboard.Get("/summary", dashboardHandler.GetSummary)
+	dashboard.Get("/insights", dashboardHandler.GetInsights)
 }

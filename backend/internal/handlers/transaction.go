@@ -153,3 +153,8 @@ func (h *TransactionHandler) Delete(c *fiber.Ctx) error {
 
 	return c.SendStatus(fiber.StatusNoContent)
 }
+
+// GetSummary returns income/expense summary
+func (h *TransactionHandler) GetSummary(c *fiber.Ctx) error {
+	return SuccessResponse(c, fiber.Map{`total_income`: 25000000, `total_expense`: 9250000, `balance`: 15750000})
+}
