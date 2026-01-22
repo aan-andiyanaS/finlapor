@@ -1,14 +1,23 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 export default function SettingsPage() {
     const [theme, setTheme] = useState('dark')
+    const [user, setUser] = useState<any>(null)
     const [notifications, setNotifications] = useState({
         email: true,
         budget: true,
         weekly: false,
     })
+
+    useEffect(() => {
+        // Get user from auth state
+        const userStr = localStorage.getItem('user')
+        if (userStr) {
+            setUser(JSON.parse(userStr))
+        }
+    }, [])
 
     return (
         <div className="space-y-6 max-w-3xl">
@@ -37,7 +46,7 @@ export default function SettingsPage() {
                             <label className="block text-sm font-medium text-slate-300 mb-1.5">Nama</label>
                             <input
                                 type="text"
-                                defaultValue="Demo User"
+                                defaultValue={user?.name || 'User'}
                                 className="w-full px-4 py-3 rounded-xl bg-slate-700/50 border border-slate-600 text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
                             />
                         </div>
@@ -45,9 +54,11 @@ export default function SettingsPage() {
                             <label className="block text-sm font-medium text-slate-300 mb-1.5">Email</label>
                             <input
                                 type="email"
-                                defaultValue="demo@finlapor.com"
-                                className="w-full px-4 py-3 rounded-xl bg-slate-700/50 border border-slate-600 text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                defaultValue={user?.email || ''}
+                                disabled
+                                className="w-full px-4 py-3 rounded-xl bg-slate-700/30 border border-slate-600 text-slate-400 focus:outline-none cursor-not-allowed"
                             />
+                            <p className="text-xs text-slate-500 mt-1">Email tidak dapat diubah</p>
                         </div>
                     </div>
                 </div>
@@ -88,8 +99,8 @@ export default function SettingsPage() {
                                     key={t}
                                     onClick={() => setTheme(t)}
                                     className={`flex-1 py-3 rounded-xl font-medium transition-all ${theme === t
-                                            ? 'bg-primary-500 text-white'
-                                            : 'bg-slate-700/50 text-slate-400 hover:text-white'
+                                        ? 'bg-primary-500 text-white'
+                                        : 'bg-slate-700/50 text-slate-400 hover:text-white'
                                         }`}
                                 >
                                     {t === 'dark' ? '🌙 Dark' : t === 'light' ? '☀️ Light' : '💻 System'}
