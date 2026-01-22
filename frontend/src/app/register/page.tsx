@@ -21,21 +21,40 @@ export default function RegisterPage() {
         const password = formData.get('password') as string
         const confirmPassword = formData.get('confirmPassword') as string
 
+
         if (password !== confirmPassword) {
             setError('Password tidak cocok')
             setIsLoading(false)
             return
         }
 
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 1000))
+        try {
+            const response = await fetch('http://localhost:8080/api/auth/register', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ name, email, password, mode }),
+            })
 
-        // Mock registration
-        if (name && email && password) {
-            localStorage.setItem('user', JSON.stringify({ email, name, mode }))
+            const data = await response.json()
+
+            if (!response.ok) {
+                setError(data.error?.message || 'Registrasi gagal. Coba lagi.')
+                setIsLoading(false)
+                return
+            }
+
+            // Store auth data
+            localStorage.setItem('token', data.data.access_token)
+            localStorage.setItem('refreshToken', data.data.refresh_token)
+            localStorage.setItem('user', JSON.stringify(data.data.user))
+
+            // Redirect to dashboard
             router.push('/dashboard')
-        } else {
-            setError('Semua field harus diisi')
+        } catch (error) {
+            console.error('Register error:', error)
+            setError('Terjadi kesalahan. Pastikan backend running.')
         }
 
         setIsLoading(false)
@@ -68,8 +87,8 @@ export default function RegisterPage() {
                                 type="button"
                                 onClick={() => setMode('personal')}
                                 className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${mode === 'personal'
-                                        ? 'bg-primary-500 text-white'
-                                        : 'text-slate-400 hover:text-white'
+                                    ? 'bg-primary-500 text-white'
+                                    : 'text-slate-400 hover:text-white'
                                     }`}
                             >
                                 👤 Personal
@@ -78,8 +97,8 @@ export default function RegisterPage() {
                                 type="button"
                                 onClick={() => setMode('business')}
                                 className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${mode === 'business'
-                                        ? 'bg-primary-500 text-white'
-                                        : 'text-slate-400 hover:text-white'
+                                    ? 'bg-primary-500 text-white'
+                                    : 'text-slate-400 hover:text-white'
                                     }`}
                             >
                                 🏢 Bisnis/UMKM

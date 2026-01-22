@@ -14,19 +14,38 @@ export default function LoginPage() {
         setIsLoading(true)
         setError('')
 
+
         const formData = new FormData(e.currentTarget)
         const email = formData.get('email') as string
         const password = formData.get('password') as string
 
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 1000))
+        try {
+            const response = await fetch('http://localhost:8080/api/auth/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ email, password }),
+            })
 
-        // Mock login - accept any email/password for demo
-        if (email && password) {
-            localStorage.setItem('user', JSON.stringify({ email, name: 'Demo User' }))
+            const data = await response.json()
+
+            if (!response.ok) {
+                setError(data.error?.message || 'Login gagal. Periksa email dan password Anda.')
+                setIsLoading(false)
+                return
+            }
+
+            // Store auth data
+            localStorage.setItem('token', data.data.access_token)
+            localStorage.setItem('refreshToken', data.data.refresh_token)
+            localStorage.setItem('user', JSON.stringify(data.data.user))
+
+            // Redirect to dashboard
             router.push('/dashboard')
-        } else {
-            setError('Email dan password harus diisi')
+        } catch (error) {
+            console.error('Login error:', error)
+            setError('Terjadi kesalahan. Pastikan backend running.')
         }
 
         setIsLoading(false)
@@ -142,10 +161,10 @@ export default function LoginPage() {
                     </p>
                 </div>
 
-                {/* Demo hint */}
+                {/* Demo Account Hint */}
                 <div className="mt-4 p-3 rounded-xl bg-primary-500/10 border border-primary-500/20 text-center">
                     <p className="text-primary-300 text-sm">
-                        💡 <strong>Demo:</strong> Gunakan email & password apapun untuk login
+                        💡 <strong>Demo:</strong> demo@finlapor.airi.click / demo123
                     </p>
                 </div>
             </div>
