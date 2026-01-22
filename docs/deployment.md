@@ -938,3 +938,164 @@ sudo systemctl reload nginx
 Jika ada pertanyaan atau masalah:
 - Buat issue di [GitHub](https://github.com/aan-andiyanaS/finlapor/issues)
 - Email: support@finlapor.com
+
+# APPENDIX A: Deploy dengan Private Subnet + API Gateway (Advanced)
+
+> **🤔 Mengapa opsi ini?**
+> - **Lebih aman**: Backend tidak terekspos langsung ke internet
+> - **Enterprise-grade**: Sesuai AWS Well-Architected Framework
+> - **Compliance**: Diperlukan untuk sertifikasi (PCI-DSS, HIPAA)
+
+## A.1 Perbandingan Arsitektur
+
+| Aspek | Public Subnet (Basic) | Private Subnet (Advanced) |
+|-------|----------------------|---------------------------|
+| **Keamanan** | Backend terekspos internet | Backend tersembunyi |
+| **Biaya** | ~$9/bulan | ~$13-45/bulan |
+| **Use Case** | Development, MVP | Production, Enterprise |
+
+## A.2 Setup VPC dengan NAT Gateway
+
+1. **VPC** → Create VPC → "VPC and more"
+2. Konfigurasi:
+   - Name: `finlapor-vpc-secure`
+   - Private subnets: 2
+   - NAT gateways: In 1 AZ
+
+> **🤔 Mengapa NAT Gateway?**
+> - Instance di private subnet tidak bisa akses internet tanpa NAT
+> - Diperlukan untuk download packages dan pull Docker images
+
+## A.3 Security Group (Private Backend)
+
+| Port | Source | Mengapa? |
+|------|--------|----------|
+| 8080 | API Gateway SG | Hanya dari API Gateway |
+| 5432 | 10.0.0.0/16 | Database internal |
+| 22 | Bastion SG | SSH via Bastion |
+
+> **🤔 Mengapa tidak ada 0.0.0.0/0?**
+> - Backend tidak menerima traffic dari internet langsung
+> - Semua traffic harus melalui API Gateway
+
+## A.4 Setup Bastion Host
+
+> **🤔 Mengapa Bastion?**
+> - Instance di private subnet tidak punya public IP
+> - Bastion = jump server untuk SSH ke backend
+
+1. Launch **t3.nano** di PUBLIC subnet
+2. SSH command:
+```bash
+ssh -J ec2-user@BASTION_IP ec2-user@BACKEND_PRIVATE_IP -i key.pem
+```
+
+## A.5 Backend di Private Subnet
+
+```
+Subnet: PRIVATE subnet
+Auto-assign public IP: Disable
+Security group: finlapor-backend-private-sg
+```
+
+## A.6 Setup API Gateway
+
+> **🤔 Mengapa API Gateway?**
+> - Entry point satu-satunya ke backend
+> - Rate limiting, authorization, caching
+> - Cost: $1 per juta requests
+
+### A.6.1 Create VPC Link
+```
+Name: finlapor-vpc-link
+VPC: finlapor-vpc-secure
+Subnets: Private subnets
+```
+
+### A.6.2 Create HTTP API
+```
+API name: finlapor-api
+```
+
+### A.6.3 Integration
+```
+Type: Private resource
+VPC Link: finlapor-vpc-link
+URL: http://BACKEND_PRIVATE_IP:8080/{proxy}
+```
+
+### A.6.4 Route
+```
+Route: ANY /{proxy+}
+```
+
+### A.6.5 Deploy
+- Stage: `production`
+- Copy Invoke URL
+
+## A.7 Custom Domain
+
+1. **ACM** → Request certificate: `api.finlapor.com`
+2. **API Gateway** → Custom domain names → Create
+3. **CloudFlare DNS**: CNAME `api` → API Gateway domain
+
+## A.8 Diagram Arsitektur
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                        AWS VPC                          │
+│  ┌──────────────┐         ┌─────────────────────────┐  │
+│  │ PUBLIC       │   SSH   │      PRIVATE            │  │
+│  │   Bastion    │────────►│  Backend EC2            │  │
+│  │   (t3.nano)  │         │  + Go API               │  │
+│  └──────────────┘         │  + PostgreSQL (Docker)  │  │
+│        ▲                  │  + Redis (Docker)       │  │
+│      SSH                  └───────────▲─────────────┘  │
+│   (My IP)                             │ VPC Link       │
+│                                       │                │
+│  ┌────────────────────────────────────┴──────────────┐ │
+│  │              AWS API Gateway                       │ │
+│  │              api.finlapor.com                      │ │
+│  └────────────────────────┬──────────────────────────┘ │
+└───────────────────────────┼────────────────────────────┘
+                            │
+                            ▼
+               ┌─────────────────────┐
+               │   CloudFlare CDN    │
+               │   finlapor.com      │
+               └──────────┬──────────┘
+                          │
+                          ▼
+                   ┌─────────────┐
+                   │    USER     │
+                   └─────────────┘
+```
+
+## A.9 Cost Summary
+
+| Item | Per Bulan |
+|------|-----------|
+| Backend EC2 (t3.micro) | ~$8.50 |
+| Bastion EC2 (t3.nano) | ~$3.80 |
+| API Gateway (1M req) | ~$1.00 |
+| NAT Gateway (opsional) | ~$32.00 |
+| **Total (dengan NAT)** | **~$45/bulan** |
+| **Total (tanpa NAT)** | **~$13/bulan** |
+
+> **💡 Tips Hemat**: Matikan NAT Gateway setelah setup selesai, gunakan VPC Endpoints untuk akses S3
+
+## A.10 Checklist
+
+- [ ] VPC dengan public + private subnets
+- [ ] NAT Gateway atau VPC Endpoints
+- [ ] Security Groups yang ketat
+- [ ] Bastion Host di public subnet
+- [ ] Backend EC2 di private subnet (no public IP)
+- [ ] VPC Link untuk API Gateway
+- [ ] HTTP API dengan routes
+- [ ] Custom domain dengan ACM certificate
+- [ ] DNS pointing ke API Gateway
+
+---
+
+Dengan Appendix A ini, arsitektur FinLapor **sinkron dengan architecture.md** dan siap untuk production!
