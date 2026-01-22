@@ -2,17 +2,27 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { useAuthStore } from '@/stores/auth'
+
+interface Transaction {
+    id: string
+    type: 'income' | 'expense'
+    amount: number
+    description: string
+    date: string
+    category?: {
+        id: string
+        name: string
+    }
+}
 
 export default function DashboardPage() {
-    const { user } = useAuthStore()
     const [summary, setSummary] = useState({
         balance: 0,
         totalIncome: 0,
         totalExpense: 0,
         savingsRatio: 0,
     })
-    const [transactions, setTransactions] = useState([])
+    const [transactions, setTransactions] = useState<Transaction[]>([])
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
