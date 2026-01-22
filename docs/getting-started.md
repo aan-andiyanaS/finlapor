@@ -176,7 +176,7 @@ finlapor/
 ├── frontend/          # Next.js frontend
 ├── backend/           # Go backend
 ├── ai-service/        # Python Lambda functions
-├── database/          # SQL migrations & seeds
+├── database/          # SQL migrations (no seeds - production ready)
 ├── docs/              # Dokumentasi
 ├── docker-compose.yml # Docker configuration
 ├── Makefile           # Automation scripts
@@ -192,8 +192,8 @@ finlapor/
 ```bash
 # Pastikan Docker Desktop sudah running
 
-# Start PostgreSQL dan Redis
-docker-compose up -d postgres redis
+# Start PostgreSQL, Redis, dan MinIO
+docker-compose up -d postgres redis minio
 
 # Verifikasi container berjalan
 docker ps
@@ -202,62 +202,23 @@ docker ps
 # CONTAINER ID   IMAGE              STATUS         PORTS
 # xxxx           postgres:16-alpine Up xx seconds  0.0.0.0:5432->5432/tcp
 # xxxx           redis:7-alpine     Up xx seconds  0.0.0.0:6379->6379/tcp
+# xxxx           minio/minio        Up xx seconds  0.0.0.0:9000-9001->9000-9001/tcp
 ```
 
-### 4.2 Tanpa Docker (Install Lokal)
-
-#### PostgreSQL
-
-**Windows:**
-1. Download dari https://www.postgresql.org/download/windows/
-2. Run installer
-3. Set password untuk user `postgres`
-4. Port default: 5432
-
-**macOS:**
-```bash
-brew install postgresql@16
-brew services start postgresql@16
-createdb finlapor
-```
-
-**Linux:**
-```bash
-sudo apt install postgresql postgresql-contrib
-sudo systemctl start postgresql
-sudo -u postgres createdb finlapor
-```
-
-#### Redis
-
-**Windows:**
-- Download dari https://github.com/microsoftarchive/redis/releases
-- Atau gunakan WSL
-
-**macOS:**
-```bash
-brew install redis
-brew services start redis
-```
-
-**Linux:**
-```bash
-sudo apt install redis-server
-sudo systemctl start redis
-```
-
-### 4.3 Setup Database
+### 4.2 Setup Database
 
 ```bash
-# Jika menggunakan Docker
+# Windows PowerShell
+Get-Content database\migrations\001_initial.sql | docker exec -i finlapor-postgres-1 psql -U postgres -d finlapor
+
+# Linux/macOS  
 docker exec -i finlapor-postgres-1 psql -U postgres -d finlapor < database/migrations/001_initial.sql
 
 # Jika install lokal
 psql -U postgres -d finlapor -f database/migrations/001_initial.sql
-
-# (Opsional) Load sample data
-docker exec -i finlapor-postgres-1 psql -U postgres -d finlapor < database/seeds/seed.sql
 ```
+
+> **Note**: Database akan di-setup dengan schema production-ready **tanpa demo data**. User pertama yang register akan menjadi user baru di sistem. Tidak ada lagi demo user `demo@finlapor.com`.
 
 ---
 
@@ -306,14 +267,16 @@ JWT_SECRET=super-secret-jwt-key-change-this-in-production
 PORT=8080
 APP_ENV=development
 
-# S3 / MinIO (opsional untuk development)
+# S3 / MinIO
 S3_ENDPOINT=http://localhost:9000
 S3_ACCESS_KEY=minioadmin
 S3_SECRET_KEY=minioadmin
 S3_BUCKET=finlapor
 
-# AI Service (opsional)
+# AI Service (optional - kosongkan untuk mode fallback)
 HF_TOKEN=
+HF_OCR_MODEL=naver-clova-ix/donut-base-finetuned-cord-v2
+HF_LLM_MODEL=mistralai/Mistral-7B-Instruct-v0.2
 
 # Frontend
 FRONTEND_URL=http://localhost:3000
@@ -372,7 +335,7 @@ Buka **3 terminal** terpisah:
 **Terminal 1 - Database:**
 ```bash
 cd finlapor
-docker-compose up postgres redis
+docker-compose up postgres redis minio
 ```
 
 **Terminal 2 - Backend:**
@@ -416,6 +379,7 @@ make logs
 | Frontend | http://localhost:3000 | Web application |
 | Backend API | http://localhost:8080 | REST API |
 | API Health | http://localhost:8080/health | Health check |
+| MinIO Console | http://localhost:9001 | File storage (minioadmin/minioadmin) |
 
 ---
 
@@ -430,7 +394,7 @@ curl http://localhost:8080/health
 # Response:
 # {"status":"ok","timestamp":"2026-01-22T..."}
 
-# Register user
+# Register user BARU (tidak ada demo user lagi)
 curl -X POST http://localhost:8080/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{"email":"test@test.com","password":"password123","name":"Test User"}'
@@ -444,9 +408,11 @@ curl -X POST http://localhost:8080/api/auth/login \
 ### 8.2 Test Frontend
 
 1. Buka http://localhost:3000
-2. Klik "Masuk" atau "Daftar"
-3. Untuk demo, masukkan email/password apapun
-4. Anda akan masuk ke dashboard
+2. Klik **"Daftar"** untuk membuat akun baru
+3. Isi form registrasi dengan data valid
+4. Setelah register, Anda akan langsung login dan masuk ke dashboard
+
+> **Note**: Tidak ada demo user lagi. Anda harus **register** untuk membuat akun pertama. Ini adalah prodction-ready setup!
 
 ### 8.3 Unit Tests
 
@@ -490,7 +456,7 @@ docker logs finlapor-redis-1
 
 # Hapus dan buat ulang
 docker-compose down -v
-docker-compose up -d postgres redis
+docker-compose up -d postgres redis minio
 ```
 
 ### Go modules error
@@ -543,7 +509,10 @@ git clone https://github.com/aan-andiyanaS/finlapor.git
 cd finlapor
 
 # Start database
-docker-compose up -d postgres redis
+docker-compose up -d postgres redis minio
+
+# Run migration
+Get-Content database\migrations\001_initial.sql | docker exec -i finlapor-postgres-1 psql -U postgres -d finlapor
 
 # Start backend (terminal 1)
 cd backend && go run cmd/server/main.go
@@ -552,6 +521,7 @@ cd backend && go run cmd/server/main.go
 cd frontend && npm install && npm run dev
 
 # Buka browser: http://localhost:3000
+# Register user baru - tidak ada demo user!
 ```
 
 ---
