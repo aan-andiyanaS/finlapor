@@ -1,0 +1,96 @@
+name: Deploy to Staging
+
+on:
+  push:
+    branches: [ develop ]
+  workflow_dispatch:
+
+jobs:
+  deploy-backend:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+      
+      - name: Build backend
+        working-directory: backend
+        run: go build -o main cmd/server/main.go
+      
+      - name: Deploy to EC2 Staging
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY_STAGING }}
+          EC2_HOST: ${{ secrets.EC2_HOST_STAGING }}
+          EC2_USER: ec2-user
+        run: |
+          # Setup SSH
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H $EC2_HOST >> ~/.ssh/known_hosts
+          
+          # Stop service
+          ssh -i ~/.ssh/id_rsa $EC2_USER@$EC2_HOST "sudo systemctl stop finlapor || true"
+          
+          # Backup current binary
+          ssh -i ~/.ssh/id_rsa $EC2_USER@$EC2_HOST "cd /home/ec2-user/finlapor/backend && cp main main.backup-$(date +%Y%m%d-%H%M%S) || true"
+          
+          # Upload new binary
+          scp -i ~/.ssh/id_rsa backend/main $EC2_USER@$EC2_HOST:/home/ec2-user/finlapor/backend/
+          
+          # Start service
+          ssh -i ~/.ssh/id_rsa $EC2_USER@$EC2_HOST "sudo systemctl start finlapor"
+          
+          # Wait for service to start
+          sleep 10
+      
+      - name: Health Check
+        env:
+          STAGING_URL: ${{ secrets.STAGING_API_URL }}
+        run: |
+          for i in {1..5}; do
+            if curl -f ${STAGING_URL}/health; then
+              echo "Health check passed"
+              exit 0
+            fi
+            echo "Attempt $i failed, retrying..."
+            sleep 5
+          done
+          echo "Health check failed after 5 attempts"
+          exit 1
+
+  deploy-frontend:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+      
+      - name: Build frontend
+        working-directory: frontend
+        env:
+          NEXT_PUBLIC_API_URL: ${{ secrets.STAGING_API_URL }}
+        run: npm run build
+      
+      - name: Deploy to CloudFlare Pages Staging
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npm install -g wrangler
+          cd frontend
+          npx wrangler pages deploy out --project-name finlapor-staging --branch staging

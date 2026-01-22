@@ -1,0 +1,208 @@
+name: Deploy to Production
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to deploy (e.g., v1.0.0)'
+        required: true
+        type: string
+
+jobs:
+  backup-database:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Create database backup
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PROD }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          # Install PostgreSQL client
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+          
+          # Create backup
+          timestamp=$(date +%Y%m%d_%H%M%S)
+          pg_dump $DATABASE_URL | gzip > backup_${timestamp}.sql.gz
+          
+          # Upload to S3
+          aws s3 cp backup_${timestamp}.sql.gz s3://finlapor-backups/production/
+          
+          # Verify backup
+          if [ ! -s backup_${timestamp}.sql.gz ]; then
+            echo "Backup file is empty or doesn't exist!"
+            exit 1
+          fi
+          
+          echo "Backup completed: backup_${timestamp}.sql.gz"
+
+  deploy-backend:
+    runs-on: ubuntu-latest
+    needs: [backup-database]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+      
+      - name: Build backend
+        working-directory: backend
+        run: |
+          go build -ldflags="-s -w" -o main cmd/server/main.go
+          chmod +x main
+      
+      - name: Deploy to EC2 Production
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY_PROD }}
+          EC2_HOST: ${{ secrets.EC2_HOST_PROD }}
+          EC2_USER: ec2-user
+        run: |
+          # Setup SSH
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H $EC2_HOST >> ~/.ssh/known_hosts
+          
+          # Create backup of current binary
+          ssh -i ~/.ssh/id_rsa $EC2_USER@$EC2_HOST "cd /home/ec2-user/finlapor/backend && cp main main.backup-$(date +%Y%m%d-%H%M%S)"
+          
+          # Stop service
+          ssh -i ~/.ssh/id_rsa $EC2_USER@$EC2_HOST "sudo systemctl stop finlapor"
+          
+          # Upload new binary
+          scp -i ~/.ssh/id_rsa backend/main $EC2_USER@$EC2_HOST:/home/ec2-user/finlapor/backend/
+          
+          # Start service
+          ssh -i ~/.ssh/id_rsa $EC2_USER@$EC2_HOST "sudo systemctl start finlapor"
+          
+          # Wait for startup
+          sleep 15
+      
+      - name: Health Check
+        env:
+          PROD_URL: ${{ secrets.PROD_API_URL }}
+        run: |
+          for i in {1..10}; do
+            if curl -f ${PROD_URL}/health; then
+              echo "✅ Production health check passed"
+              exit 0
+            fi
+            echo "Attempt $i failed, retrying..."
+            sleep 10
+          done
+          echo "❌ Production health check failed after 10 attempts"
+          exit 1
+      
+      - name: Monitor error rate
+        env:
+          PROD_URL: ${{ secrets.PROD_API_URL }}
+        run: |
+          echo "Monitoring production for 2 minutes..."
+          sleep 120
+          
+          # Check if service is still healthy
+          if ! curl -f ${PROD_URL}/health; then
+            echo "❌ Service became unhealthy, triggering rollback"
+            exit 1
+          fi
+          
+          echo "✅ Production deployment stable"
+
+  deploy-frontend:
+    runs-on: ubuntu-latest
+    needs: [deploy-backend]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+      
+      - name: Build frontend
+        working-directory: frontend
+        env:
+          NEXT_PUBLIC_API_URL: ${{ secrets.PROD_API_URL }}
+        run: npm run build
+      
+      - name: Deploy to CloudFlare Pages Production
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npm install -g wrangler
+          cd frontend
+          npx wrangler pages deploy out --project-name finlapor --branch production
+
+  notify:
+    runs-on: ubuntu-latest
+    needs: [deploy-backend, deploy-frontend]
+    if: always()
+    
+    steps:
+      - name: Send notification
+        env:
+          WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          STATUS="${{ job.status }}"
+          VERSION="${{ github.ref_name }}"
+          
+          if [ "$STATUS" == "success" ]; then
+            MESSAGE="✅ Production deployment $VERSION completed successfully!"
+          else
+            MESSAGE="❌ Production deployment $VERSION failed!"
+          fi
+          
+          curl -X POST $WEBHOOK_URL \
+            -H 'Content-Type: application/json' \
+            -d "{\"text\":\"$MESSAGE\"}" || echo "Notification failed, but continuing"
+
+  rollback:
+    runs-on: ubuntu-latest
+    needs: [deploy-backend, deploy-frontend]
+    if: failure()
+    
+    steps:
+      - name: Automatic rollback
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY_PROD }}
+          EC2_HOST: ${{ secrets.EC2_HOST_PROD }}
+          EC2_USER: ec2-user
+        run: |
+          # Setup SSH
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H $EC2_HOST >> ~/.ssh/known_hosts
+          
+          echo "⚠️ Deployment failed, initiating automatic rollback..."
+          
+          # Get latest backup
+          BACKUP=$(ssh -i ~/.ssh/id_rsa $EC2_USER@$EC2_HOST "ls -t /home/ec2-user/finlapor/backend/main.backup-* | head -1")
+          
+          # Stop service
+          ssh -i ~/.ssh/id_rsa $EC2_USER@$EC2_HOST "sudo systemctl stop finlapor"
+          
+          # Restore backup
+          ssh -i ~/.ssh/id_rsa $EC2_USER@$EC2_HOST "cd /home/ec2-user/finlapor/backend && cp $BACKUP main"
+          
+          # Start service
+          ssh -i ~/.ssh/id_rsa $EC2_USER@$EC2_HOST "sudo systemctl start finlapor"
+          
+          echo "✅ Rollback completed"
