@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"github.com/yourusername/finlapor/backend/internal/services"
 )
 
@@ -128,43 +129,43 @@ func (h *ChatHandler) Chat(c *fiber.Ctx) error {
 	})
 }
 
-// DashboardHandler handles dashboard data
-type DashboardHandler struct{}
+// DashboardHandler handles dashboard data from real database
+type DashboardHandler struct {
+	txService *services.TransactionService
+}
 
-func NewDashboardHandler() *DashboardHandler {
-	return &DashboardHandler{}
+func NewDashboardHandler(txService *services.TransactionService) *DashboardHandler {
+	return &DashboardHandler{txService: txService}
 }
 
 func (h *DashboardHandler) GetSummary(c *fiber.Ctx) error {
-	summary := fiber.Map{
-		"total_balance":  15750000,
-		"total_income":   25000000,
-		"total_expense":  9250000,
-		"savings_rate":   63,
-		"monthly_change": 12.5,
-		"recent_transactions": []fiber.Map{
-			{"id": "1", "type": "expense", "category": "Makanan", "amount": 85000, "description": "Makan siang", "date": "2026-01-22"},
-			{"id": "2", "type": "income", "category": "Gaji", "amount": 15000000, "description": "Gaji Januari", "date": "2026-01-01"},
-			{"id": "3", "type": "expense", "category": "Transport", "amount": 150000, "description": "Bensin", "date": "2026-01-20"},
-		},
-		"category_breakdown": []fiber.Map{
-			{"name": "Makanan", "amount": 2500000, "percentage": 27},
-			{"name": "Transport", "amount": 1500000, "percentage": 16},
-			{"name": "Belanja", "amount": 2000000, "percentage": 22},
-			{"name": "Hiburan", "amount": 1000000, "percentage": 11},
-			{"name": "Tagihan", "amount": 1500000, "percentage": 16},
-			{"name": "Lainnya", "amount": 750000, "percentage": 8},
-		},
+	userIDStr := c.Locals("userID").(string)
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		return ErrorResponse(c, fiber.StatusBadRequest, "INVALID_USER", "Invalid user ID")
 	}
+
+	// Get real summary from database
+	summary, err := h.txService.GetSummary(userID)
+	if err != nil {
+		return ErrorResponse(c, fiber.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
+	}
+
+	// Get recent transactions
+	recentTx, err := h.txService.List(userID, 1, 5)
+	if err != nil {
+		return ErrorResponse(c, fiber.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
+	}
+
+	summary["recent_transactions"] = recentTx
 
 	return SuccessResponse(c, summary)
 }
 
 func (h *DashboardHandler) GetInsights(c *fiber.Ctx) error {
+	// TODO: Generate AI insights from transaction data
 	insights := []fiber.Map{
-		{"type": "warning", "title": "Pengeluaran Makanan Tinggi", "message": "15% lebih tinggi dari rata-rata"},
-		{"type": "success", "title": "Target Tabungan Tercapai", "message": "63% dari target bulanan"},
-		{"type": "info", "title": "Tagihan Akan Jatuh Tempo", "message": "Listrik dalam 5 hari"},
+		{"type": "info", "title": "Selamat Datang", "message": "Mulai catat transaksi Anda untuk mendapatkan insights keuangan!"},
 	}
 
 	return SuccessResponse(c, insights)

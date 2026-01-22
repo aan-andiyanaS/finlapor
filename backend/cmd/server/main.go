@@ -58,7 +58,7 @@ func main() {
 	uploadHandler := handlers.NewUploadHandler(uploadService)
 	ocrHandler := handlers.NewOCRHandler()
 	chatHandler := handlers.NewChatHandler()
-	dashboardHandler := handlers.NewDashboardHandler()
+	dashboardHandler := handlers.NewDashboardHandler(transactionService)
 
 	// Initialize Fiber app
 	app := fiber.New(fiber.Config{

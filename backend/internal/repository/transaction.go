@@ -1,8 +1,6 @@
 package repository
 
 import (
-	"time"
-
 	"github.com/google/uuid"
 	"github.com/yourusername/finlapor/backend/internal/models"
 	"gorm.io/gorm"
@@ -20,36 +18,20 @@ func (r *TransactionRepository) Create(tx *models.Transaction) error {
 	return r.db.Create(tx).Error
 }
 
-func (r *TransactionRepository) FindByID(id uuid.UUID) (*models.Transaction, error) {
+func (r *TransactionRepository) GetByID(id uuid.UUID) (*models.Transaction, error) {
 	var tx models.Transaction
 	err := r.db.Preload("Category").First(&tx, "id = ?", id).Error
-	if err != nil {
-		return nil, err
-	}
-	return &tx, nil
+	return &tx, err
 }
 
-func (r *TransactionRepository) FindByUserID(userID uuid.UUID, limit, offset int) ([]models.Transaction, int64, error) {
+func (r *TransactionRepository) GetByUserID(userID uuid.UUID, limit, offset int) ([]models.Transaction, error) {
 	var transactions []models.Transaction
-	var total int64
-
-	r.db.Model(&models.Transaction{}).Where("user_id = ?", userID).Count(&total)
-
-	err := r.db.Preload("Category").
+	err := r.db.
+		Preload("Category").
 		Where("user_id = ?", userID).
 		Order("date DESC").
 		Limit(limit).
 		Offset(offset).
-		Find(&transactions).Error
-
-	return transactions, total, err
-}
-
-func (r *TransactionRepository) FindByUserIDAndDateRange(userID uuid.UUID, start, end time.Time) ([]models.Transaction, error) {
-	var transactions []models.Transaction
-	err := r.db.Preload("Category").
-		Where("user_id = ? AND date >= ? AND date <= ?", userID, start, end).
-		Order("date DESC").
 		Find(&transactions).Error
 	return transactions, err
 }
@@ -62,16 +44,22 @@ func (r *TransactionRepository) Delete(id uuid.UUID) error {
 	return r.db.Delete(&models.Transaction{}, "id = ?", id).Error
 }
 
-func (r *TransactionRepository) GetSummary(userID uuid.UUID, start, end time.Time) (float64, float64, error) {
-	var income, expense float64
+func (r *TransactionRepository) GetSummary(userID uuid.UUID) (map[string]interface{}, error) {
+	var totalIncome, totalExpense float64
 
 	r.db.Model(&models.Transaction{}).
-		Where("user_id = ? AND type = ? AND date >= ? AND date <= ?", userID, "income", start, end).
-		Select("COALESCE(SUM(amount), 0)").Scan(&income)
+		Where("user_id = ? AND type = ?", userID, "income").
+		Select("COALESCE(SUM(amount), 0)").
+		Scan(&totalIncome)
 
 	r.db.Model(&models.Transaction{}).
-		Where("user_id = ? AND type = ? AND date >= ? AND date <= ?", userID, "expense", start, end).
-		Select("COALESCE(SUM(amount), 0)").Scan(&expense)
+		Where("user_id = ? AND type = ?", userID, "expense").
+		Select("COALESCE(SUM(amount), 0)").
+		Scan(&totalExpense)
 
-	return income, expense, nil
+	return map[string]interface{}{
+		"total_income":  totalIncome,
+		"total_expense": totalExpense,
+		"balance":       totalIncome - totalExpense,
+	}, nil
 }
