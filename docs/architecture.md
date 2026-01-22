@@ -160,7 +160,7 @@ finlapor/
 │
 ├── 📂 database/
 │   ├── migrations/                 # SQL migrations
-│   └── seeds/                      # Sample data
+│   └── migrations/                 # SQL migrations (production-ready)
 │
 ├── 📂 docker/
 │   ├── Dockerfile.frontend
@@ -290,6 +290,24 @@ CREATE TABLE transactions (
 
 ---
 
+
+### VPC Endpoints for Cost Optimization
+
+For the Private Subnet deployment, VPC Endpoints can be used instead of NAT Gateway:
+
+- **S3 Gateway Endpoint**: FREE (no data transfer charges)
+- **Saves**: ~$32/month (no NAT Gateway needed)
+- **Benefits**: Direct, secure access to S3 from private subnet
+
+### Bastion Host for Private Subnet
+
+When using Private Subnet architecture:
+
+- **Bastion Host**: EC2 t3.nano (~$3.80/month) in public subnet
+- **Purpose**: SSH access to backend in private subnet via jump host
+- **Security**: Only your IP can SSH to bastion
+
+
 ## 💰 Cost Estimation
 
 | Service | Monthly Cost |
@@ -311,3 +329,5 @@ CREATE TABLE transactions (
 - [Go Fiber Documentation](https://docs.gofiber.io/)
 - [AWS Lambda Documentation](https://docs.aws.amazon.com/lambda/)
 - [Hugging Face Inference API](https://huggingface.co/docs/api-inference/)
+
+
