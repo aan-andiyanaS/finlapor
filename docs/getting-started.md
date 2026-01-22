@@ -1,238 +1,564 @@
-# 🚀 Getting Started
+# Panduan Memulai (Getting Started)
 
-Panduan lengkap untuk memulai development FinLapor. Ikuti langkah-langkah berikut dengan teliti.
-
----
-
-## 📋 Prerequisites
-
-Pastikan Anda sudah menginstall:
-
-| Software | Versi Minimum | Cek Versi |
-|----------|---------------|-----------|
-| Node.js | 18.0+ | `node --version` |
-| npm | 9.0+ | `npm --version` |
-| Go | 1.21+ | `go version` |
-| Docker | 24.0+ | `docker --version` |
-| Docker Compose | 2.0+ | `docker compose version` |
-| Git | 2.0+ | `git --version` |
+Panduan lengkap untuk setup environment development FinLapor di komputer lokal Anda.
 
 ---
 
-## 📥 Step 1: Clone Repository
+## Daftar Isi
+
+1. [Prasyarat](#1-prasyarat)
+2. [Instalasi Tools](#2-instalasi-tools)
+3. [Clone Repository](#3-clone-repository)
+4. [Setup Database](#4-setup-database)
+5. [Setup Backend](#5-setup-backend)
+6. [Setup Frontend](#6-setup-frontend)
+7. [Menjalankan Aplikasi](#7-menjalankan-aplikasi)
+8. [Testing](#8-testing)
+9. [Troubleshooting](#9-troubleshooting)
+
+---
+
+## 1. Prasyarat
+
+### Spesifikasi Minimum
+
+| Komponen | Minimum | Recommended |
+|----------|---------|-------------|
+| RAM | 4 GB | 8 GB+ |
+| Storage | 10 GB | 20 GB+ |
+| OS | Windows 10/11, macOS, Linux | - |
+
+### Software yang Dibutuhkan
+
+| Software | Versi | Fungsi |
+|----------|-------|--------|
+| Node.js | 18+ | Frontend runtime |
+| Go | 1.21+ | Backend runtime |
+| Docker | 20+ | Database containerization |
+| Git | Latest | Version control |
+| VS Code | Latest | Code editor (opsional) |
+
+---
+
+## 2. Instalasi Tools
+
+### 2.1 Windows
+
+#### Install Node.js
+
+1. **Buka** https://nodejs.org/
+2. **Download** versi LTS (20.x)
+3. **Jalankan** installer
+4. **Centang** semua opsi default
+5. **Verify**:
+   ```powershell
+   node --version
+   # Output: v20.x.x
+   
+   npm --version
+   # Output: 10.x.x
+   ```
+
+#### Install Go
+
+1. **Buka** https://go.dev/dl/
+2. **Download** `go1.21.x.windows-amd64.msi`
+3. **Jalankan** installer
+4. **Restart** terminal/PowerShell
+5. **Verify**:
+   ```powershell
+   go version
+   # Output: go version go1.21.x windows/amd64
+   ```
+
+#### Install Docker Desktop
+
+1. **Buka** https://www.docker.com/products/docker-desktop/
+2. **Download** Docker Desktop for Windows
+3. **Jalankan** installer
+4. **Restart** komputer jika diminta
+5. **Buka** Docker Desktop
+6. **Tunggu** sampai Docker engine running (icon hijau)
+7. **Verify**:
+   ```powershell
+   docker --version
+   # Output: Docker version 24.x.x
+   
+   docker-compose --version
+   # Output: Docker Compose version v2.x.x
+   ```
+
+#### Install Git
+
+1. **Buka** https://git-scm.com/download/win
+2. **Download** 64-bit installer
+3. **Jalankan** installer
+4. **Pilih** opsi default (Next terus)
+5. **Verify**:
+   ```powershell
+   git --version
+   # Output: git version 2.x.x
+   ```
+
+### 2.2 macOS
 
 ```bash
-# Clone repository
-git clone https://github.com/yourusername/finlapor.git
+# Install Homebrew (jika belum ada)
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
-# Masuk ke direktori project
+# Install Node.js
+brew install node@20
+
+# Install Go
+brew install go
+
+# Install Docker Desktop
+brew install --cask docker
+
+# Install Git
+brew install git
+
+# Verify semua
+node --version && npm --version && go version && docker --version && git --version
+```
+
+### 2.3 Linux (Ubuntu/Debian)
+
+```bash
+# Update packages
+sudo apt update && sudo apt upgrade -y
+
+# Install Node.js
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt install -y nodejs
+
+# Install Go
+wget https://go.dev/dl/go1.21.6.linux-amd64.tar.gz
+sudo rm -rf /usr/local/go
+sudo tar -C /usr/local -xzf go1.21.6.linux-amd64.tar.gz
+echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
+source ~/.bashrc
+
+# Install Docker
+curl -fsSL https://get.docker.com | sudo sh
+sudo usermod -aG docker $USER
+newgrp docker
+
+# Install Git
+sudo apt install git -y
+
+# Verify semua
+node --version && npm --version && go version && docker --version && git --version
+```
+
+---
+
+## 3. Clone Repository
+
+### 3.1 Via HTTPS
+
+```bash
+git clone https://github.com/aan-andiyanaS/finlapor.git
 cd finlapor
 ```
 
----
-
-## ⚙️ Step 2: Setup Environment Variables
-
-### 2.1 Copy file environment template
+### 3.2 Via SSH (jika sudah setup SSH key)
 
 ```bash
-# Di root project
-cp .env.example .env
+git clone git@github.com:aan-andiyanaS/finlapor.git
+cd finlapor
 ```
 
-### 2.2 Edit file .env
+### 3.3 Struktur Folder
 
-Buka file `.env` dan sesuaikan nilai-nilai berikut:
+```
+finlapor/
+├── frontend/          # Next.js frontend
+├── backend/           # Go backend
+├── ai-service/        # Python Lambda functions
+├── database/          # SQL migrations & seeds
+├── docs/              # Dokumentasi
+├── docker-compose.yml # Docker configuration
+├── Makefile           # Automation scripts
+└── README.md          # Overview project
+```
+
+---
+
+## 4. Setup Database
+
+### 4.1 Menggunakan Docker (Recommended)
+
+```bash
+# Pastikan Docker Desktop sudah running
+
+# Start PostgreSQL dan Redis
+docker-compose up -d postgres redis
+
+# Verifikasi container berjalan
+docker ps
+
+# Output yang diharapkan:
+# CONTAINER ID   IMAGE              STATUS         PORTS
+# xxxx           postgres:16-alpine Up xx seconds  0.0.0.0:5432->5432/tcp
+# xxxx           redis:7-alpine     Up xx seconds  0.0.0.0:6379->6379/tcp
+```
+
+### 4.2 Tanpa Docker (Install Lokal)
+
+#### PostgreSQL
+
+**Windows:**
+1. Download dari https://www.postgresql.org/download/windows/
+2. Run installer
+3. Set password untuk user `postgres`
+4. Port default: 5432
+
+**macOS:**
+```bash
+brew install postgresql@16
+brew services start postgresql@16
+createdb finlapor
+```
+
+**Linux:**
+```bash
+sudo apt install postgresql postgresql-contrib
+sudo systemctl start postgresql
+sudo -u postgres createdb finlapor
+```
+
+#### Redis
+
+**Windows:**
+- Download dari https://github.com/microsoftarchive/redis/releases
+- Atau gunakan WSL
+
+**macOS:**
+```bash
+brew install redis
+brew services start redis
+```
+
+**Linux:**
+```bash
+sudo apt install redis-server
+sudo systemctl start redis
+```
+
+### 4.3 Setup Database
+
+```bash
+# Jika menggunakan Docker
+docker exec -i finlapor-postgres-1 psql -U postgres -d finlapor < database/migrations/001_initial.sql
+
+# Jika install lokal
+psql -U postgres -d finlapor -f database/migrations/001_initial.sql
+
+# (Opsional) Load sample data
+docker exec -i finlapor-postgres-1 psql -U postgres -d finlapor < database/seeds/seed.sql
+```
+
+---
+
+## 5. Setup Backend
+
+### 5.1 Install Dependencies
+
+```bash
+cd backend
+
+# Download Go modules
+go mod download
+
+# Atau
+go mod tidy
+```
+
+### 5.2 Konfigurasi Environment
+
+```bash
+# Copy template
+cp ../.env.example .env
+
+# Edit .env (sesuaikan dengan setup Anda)
+# Bisa pakai notepad, VS Code, atau nano
+```
+
+**Isi file `.env`:**
 
 ```env
 # Database
-DATABASE_URL=postgres://postgres:password@localhost:5432/finlapor
+DATABASE_URL=postgres://postgres:password@localhost:5432/finlapor?sslmode=disable
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=password
+DB_NAME=finlapor
 
 # Redis
 REDIS_URL=redis://localhost:6379
 
-# JWT Secret (generate random string)
-JWT_SECRET=your-super-secret-key-change-this
+# JWT (ganti dengan string random)
+JWT_SECRET=super-secret-jwt-key-change-this-in-production
 
-# S3/MinIO
+# Server
+PORT=8080
+APP_ENV=development
+
+# S3 / MinIO (opsional untuk development)
 S3_ENDPOINT=http://localhost:9000
 S3_ACCESS_KEY=minioadmin
 S3_SECRET_KEY=minioadmin
 S3_BUCKET=finlapor
 
-# Hugging Face (dapatkan di https://huggingface.co/settings/tokens)
-HF_TOKEN=hf_xxxxxxxxxxxxxxxxxx
+# AI Service (opsional)
+HF_TOKEN=
 
 # Frontend
-NEXT_PUBLIC_API_URL=http://localhost:8080
+FRONTEND_URL=http://localhost:3000
 ```
 
-> 💡 **Tips**: Untuk mendapatkan HF_TOKEN:
-> 1. Daftar di [huggingface.co](https://huggingface.co)
-> 2. Buka Settings → Access Tokens
-> 3. Create new token (read access)
-
----
-
-## 🐳 Step 3: Jalankan dengan Docker (Recommended)
-
-Cara termudah untuk menjalankan semua services:
+### 5.3 Build Backend
 
 ```bash
-# Jalankan semua services
-docker compose up -d
+# Build
+go build -o main cmd/server/main.go
 
-# Cek status
-docker compose ps
-
-# Lihat logs
-docker compose logs -f
-```
-
-### Services yang berjalan:
-
-| Service | URL | Deskripsi |
-|---------|-----|-----------|
-| Frontend | http://localhost:3000 | Web application |
-| Backend | http://localhost:8080 | REST API |
-| PostgreSQL | localhost:5432 | Database |
-| Redis | localhost:6379 | Cache |
-| MinIO | http://localhost:9000 | Object storage |
-| MinIO Console | http://localhost:9001 | Storage admin |
-
-### Stop semua services:
-
-```bash
-docker compose down
-```
-
----
-
-## 💻 Step 4: Development Mode (Tanpa Docker)
-
-Jika Anda ingin mengembangkan dengan hot-reload:
-
-### 4.1 Jalankan Database & Redis (Docker)
-
-```bash
-# Hanya jalankan infrastructure
-docker compose up -d postgres redis minio
-```
-
-### 4.2 Jalankan Backend
-
-```bash
-# Masuk ke folder backend
-cd backend
-
-# Download dependencies
-go mod download
-
-# Jalankan migrations
-go run cmd/migrate/main.go up
-
-# Jalankan server
+# Atau run langsung
 go run cmd/server/main.go
 ```
 
-Backend akan berjalan di http://localhost:8080
+---
 
-### 4.3 Jalankan Frontend (Terminal baru)
+## 6. Setup Frontend
+
+### 6.1 Install Dependencies
 
 ```bash
-# Masuk ke folder frontend
 cd frontend
 
-# Install dependencies
+# Install semua packages
 npm install
 
-# Jalankan development server
+# Ini akan memakan waktu beberapa menit tergantung koneksi internet
+```
+
+### 6.2 Konfigurasi Environment
+
+Buat file `frontend/.env.local`:
+
+```env
+NEXT_PUBLIC_API_URL=http://localhost:8080
+```
+
+### 6.3 Build Frontend (Opsional)
+
+```bash
+# Untuk production build
+npm run build
+
+# Output di folder: out/
+```
+
+---
+
+## 7. Menjalankan Aplikasi
+
+### 7.1 Metode 1: Manual (Development)
+
+Buka **3 terminal** terpisah:
+
+**Terminal 1 - Database:**
+```bash
+cd finlapor
+docker-compose up postgres redis
+```
+
+**Terminal 2 - Backend:**
+```bash
+cd finlapor/backend
+go run cmd/server/main.go
+
+# Output:
+# ✅ Connected to PostgreSQL
+# ✅ Connected to Redis  
+# 🚀 FinLapor API running on port 8080
+```
+
+**Terminal 3 - Frontend:**
+```bash
+cd finlapor/frontend
 npm run dev
+
+# Output:
+# ▲ Next.js 14.1.0
+# - Local: http://localhost:3000
 ```
 
-Frontend akan berjalan di http://localhost:3000
+### 7.2 Metode 2: Menggunakan Makefile
+
+```bash
+# Start semua services
+make dev
+
+# Stop semua services
+make stop
+
+# Lihat logs
+make logs
+```
+
+### 7.3 Akses Aplikasi
+
+| Service | URL | Keterangan |
+|---------|-----|------------|
+| Frontend | http://localhost:3000 | Web application |
+| Backend API | http://localhost:8080 | REST API |
+| API Health | http://localhost:8080/health | Health check |
 
 ---
 
-## ✅ Step 5: Verifikasi Instalasi
+## 8. Testing
 
-### 5.1 Cek Backend Health
+### 8.1 Test Backend API
 
 ```bash
+# Health check
 curl http://localhost:8080/health
+
+# Response:
+# {"status":"ok","timestamp":"2026-01-22T..."}
+
+# Register user
+curl -X POST http://localhost:8080/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@test.com","password":"password123","name":"Test User"}'
+
+# Login
+curl -X POST http://localhost:8080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@test.com","password":"password123"}'
 ```
 
-Response yang diharapkan:
-```json
-{
-  "status": "ok",
-  "timestamp": "2026-01-22T12:00:00Z"
-}
-```
+### 8.2 Test Frontend
 
-### 5.2 Buka Frontend
+1. Buka http://localhost:3000
+2. Klik "Masuk" atau "Daftar"
+3. Untuk demo, masukkan email/password apapun
+4. Anda akan masuk ke dashboard
 
-Buka browser dan akses http://localhost:3000
-
-Anda akan melihat halaman login FinLapor.
-
-### 5.3 Cek MinIO
-
-1. Buka http://localhost:9001
-2. Login dengan `minioadmin` / `minioadmin`
-3. Pastikan bucket `finlapor` sudah ada
-
----
-
-## 🧪 Step 6: Jalankan Tests
-
-### Frontend Tests
+### 8.3 Unit Tests
 
 ```bash
-cd frontend
-npm run test
-```
-
-### Backend Tests
-
-```bash
+# Backend tests
 cd backend
 go test ./...
+
+# Frontend tests
+cd frontend
+npm test
 ```
 
 ---
 
-## 🔧 Troubleshooting
+## 9. Troubleshooting
 
-### Error: Port already in use
+### Port sudah digunakan
 
 ```bash
-# Cek proses yang menggunakan port
+# Windows - cari proses yang menggunakan port
 netstat -ano | findstr :3000
+netstat -ano | findstr :8080
 
-# Kill proses (Windows)
-taskkill /PID <PID> /F
+# Kill proses
+taskkill /PID [PID_NUMBER] /F
+
+# Linux/macOS
+lsof -i :3000
+kill -9 [PID]
 ```
 
-### Error: Database connection refused
+### Docker container tidak start
 
-Pastikan PostgreSQL sudah berjalan:
 ```bash
-docker compose ps postgres
+# Lihat logs
+docker logs finlapor-postgres-1
+docker logs finlapor-redis-1
+
+# Restart Docker Desktop
+
+# Hapus dan buat ulang
+docker-compose down -v
+docker-compose up -d postgres redis
 ```
 
-### Error: Permission denied (Docker)
+### Go modules error
 
-Jalankan terminal sebagai Administrator atau gunakan sudo (Linux/Mac).
+```bash
+# Clear cache
+go clean -modcache
+
+# Re-download
+go mod download
+```
+
+### npm install error
+
+```bash
+# Clear cache
+npm cache clean --force
+
+# Hapus node_modules
+rm -rf node_modules
+rm package-lock.json
+
+# Install ulang
+npm install
+```
+
+### Database connection refused
+
+1. Pastikan Docker Desktop running
+2. Pastikan container postgres running: `docker ps`
+3. Cek credentials di `.env`
+4. Test koneksi:
+   ```bash
+   docker exec -it finlapor-postgres-1 psql -U postgres -d finlapor
+   ```
+
+### Frontend tidak bisa akses API
+
+1. Pastikan backend running di port 8080
+2. Cek CORS di backend
+3. Pastikan `NEXT_PUBLIC_API_URL` benar di `.env.local`
 
 ---
 
-## 📚 Langkah Selanjutnya
+## Quick Start Commands
 
-- [Architecture](architecture.md) - Pelajari arsitektur sistem
-- [API Reference](api-reference.md) - Lihat dokumentasi API
-- [User Manual](user-manual.md) - Pelajari cara menggunakan aplikasi
+```bash
+# Clone & setup
+git clone https://github.com/aan-andiyanaS/finlapor.git
+cd finlapor
+
+# Start database
+docker-compose up -d postgres redis
+
+# Start backend (terminal 1)
+cd backend && go run cmd/server/main.go
+
+# Start frontend (terminal 2)
+cd frontend && npm install && npm run dev
+
+# Buka browser: http://localhost:3000
+```
 
 ---
 
-**Selamat! Anda sudah siap mengembangkan FinLapor! 🎉**
+## Langkah Selanjutnya
+
+1. 📖 Baca [Architecture](./architecture.md) untuk memahami sistem
+2. 📚 Lihat [API Reference](./api-reference.md) untuk endpoints
+3. 🚀 Ikuti [Deployment](./deployment.md) untuk deploy ke production
+4. 📱 Baca [User Manual](./user-manual.md) untuk cara penggunaan

@@ -1,46 +1,80 @@
-# 📚 FinLapor Documentation
+# Dokumentasi FinLapor
 
-Selamat datang di dokumentasi FinLapor! Di sini Anda akan menemukan semua informasi yang dibutuhkan untuk memahami, menggunakan, dan mengembangkan aplikasi FinLapor.
-
----
-
-## 📖 Daftar Isi
-
-| No | Dokumen | Deskripsi |
-|----|---------|-----------|
-| 1 | [Getting Started](getting-started.md) | Panduan instalasi dan setup lengkap |
-| 2 | [Architecture](architecture.md) | Arsitektur sistem dan desain teknis |
-| 3 | [API Reference](api-reference.md) | Dokumentasi lengkap REST API |
-| 4 | [Deployment](deployment.md) | Panduan deployment ke production |
-| 5 | [User Manual](user-manual.md) | Panduan penggunaan untuk end-user |
+Selamat datang di dokumentasi FinLapor! Pilih panduan sesuai kebutuhan Anda.
 
 ---
 
-## 🎯 Untuk Siapa Dokumentasi Ini?
+## 📚 Panduan Tersedia
 
-### 👨‍💻 Developer
-- [Getting Started](getting-started.md) - Setup development environment
-- [Architecture](architecture.md) - Memahami struktur kode
-- [API Reference](api-reference.md) - Integrasi dengan API
-
-### 🚀 DevOps / SysAdmin
-- [Deployment](deployment.md) - Deploy ke production
-- [Architecture](architecture.md) - Infrastruktur requirements
-
-### 👤 End User
-- [User Manual](user-manual.md) - Cara menggunakan aplikasi
+| Dokumen | Untuk Siapa | Isi |
+|---------|-------------|-----|
+| [🚀 Getting Started](./getting-started.md) | Developer | Setup environment development dari awal |
+| [🏗️ Architecture](./architecture.md) | Developer/Architect | Diagram sistem, tech stack, database schema |
+| [📡 API Reference](./api-reference.md) | Developer | Dokumentasi lengkap semua endpoints |
+| [☁️ Deployment](./deployment.md) | DevOps/Developer | Deploy ke AWS & CloudFlare step-by-step |
+| [📱 User Manual](./user-manual.md) | End User | Cara menggunakan aplikasi |
 
 ---
 
-## ❓ Butuh Bantuan?
+## 🗺️ Quick Navigation
 
-Jika Anda memiliki pertanyaan atau menemukan masalah:
+### Untuk Developer Baru
 
-1. Baca dokumentasi yang relevan
-2. Cek [FAQ](faq.md)
-3. Buka issue di GitHub
-4. Hubungi tim support
+1. Baca [Getting Started](./getting-started.md) untuk setup lokal
+2. Pahami [Architecture](./architecture.md) untuk gambaran sistem
+3. Lihat [API Reference](./api-reference.md) saat coding
+
+### Untuk Deploy ke Production
+
+1. Ikuti [Deployment](./deployment.md) section by section:
+   - Setup AWS Account
+   - Setup CloudFlare
+   - Deploy Backend ke EC2
+   - Deploy AI ke Lambda
+   - Deploy Frontend ke CloudFlare Pages
+
+### Untuk End User
+
+1. Baca [User Manual](./user-manual.md) untuk tutorial penggunaan
 
 ---
 
-**Happy Reading! 📖**
+## 🔧 Tech Stack Overview
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        FRONTEND                             │
+│  Next.js 14 + TypeScript + Tailwind CSS + shadcn/ui         │
+│                  (CloudFlare Pages)                         │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                        BACKEND                              │
+│         Go + Fiber + GORM + JWT Authentication              │
+│                     (AWS EC2)                               │
+└─────────────────────────────────────────────────────────────┘
+                              │
+              ┌───────────────┼───────────────┐
+              ▼               ▼               ▼
+        ┌──────────┐   ┌──────────┐   ┌──────────┐
+        │PostgreSQL│   │  Redis   │   │   S3     │
+        │    16    │   │    7     │   │ Storage  │
+        └──────────┘   └──────────┘   └──────────┘
+              
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                       AI SERVICE                            │
+│        Python + HuggingFace (Donut OCR + Mistral LLM)       │
+│                     (AWS Lambda)                            │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 📞 Butuh Bantuan?
+
+- **Bug/Error**: Buat issue di [GitHub](https://github.com/aan-andiyanaS/finlapor/issues)
+- **Questions**: Baca FAQ di [User Manual](./user-manual.md#faq)
+- **Contact**: support@finlapor.com

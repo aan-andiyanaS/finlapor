@@ -1,78 +1,60 @@
-# 💰 FinLapor
+# FinLapor 💰
 
-<div align="center">
+> **AI-Powered Financial Management Platform for Individuals & SMEs**
 
-![FinLapor Logo](docs/assets/logo.png)
+FinLapor adalah aplikasi pengelolaan keuangan berbasis AI yang mendukung **SDG 8** (Decent Work and Economic Growth) dan **SDG 12** (Responsible Consumption and Production).
 
-### Aplikasi Manajemen Keuangan dengan AI
-
-**Scan struk → Otomatis tercatat → Laporan instan**
-
-[![Next.js](https://img.shields.io/badge/Next.js-14-black?logo=next.js)](https://nextjs.org/)
-[![Go](https://img.shields.io/badge/Go-1.21-00ADD8?logo=go)](https://golang.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178C6?logo=typescript)](https://www.typescriptlang.org/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-
-[Demo](https://finlapor.com) • [Dokumentasi](docs/) • [Kontribusi](#kontribusi)
-
-</div>
-
----
-
-## 🎯 Tentang FinLapor
-
-**FinLapor** adalah aplikasi manajemen keuangan berbasis web yang membantu individu dan UMKM mengelola keuangan dengan mudah. Dilengkapi dengan teknologi **AI** untuk scan struk otomatis dan asisten keuangan cerdas.
-
-### Mendukung SDG (Sustainable Development Goals)
-
-| SDG | Kontribusi |
-|-----|-----------|
-| 🎯 **SDG 8** - Decent Work and Economic Growth | Membantu UMKM mengelola keuangan dengan lebih baik |
-| 🌍 **SDG 12** - Responsible Consumption | Tracking pengeluaran untuk konsumsi yang bertanggung jawab |
+![Next.js](https://img.shields.io/badge/Next.js-14-black?style=flat&logo=next.js)
+![Go](https://img.shields.io/badge/Go-1.21-00ADD8?style=flat&logo=go)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?style=flat&logo=postgresql)
+![AWS](https://img.shields.io/badge/AWS-EC2%20%7C%20Lambda%20%7C%20S3-FF9900?style=flat&logo=amazon-aws)
+![CloudFlare](https://img.shields.io/badge/CloudFlare-Pages-F38020?style=flat&logo=cloudflare)
 
 ---
 
 ## ✨ Fitur Utama
 
-### 📷 Scan Struk Otomatis (OCR)
-Upload foto struk/kuitansi, AI akan mengekstrak data secara otomatis:
-- Tanggal transaksi
-- Nama toko/vendor
-- Total belanja
-- Daftar item
-
-### 🤖 Asisten Keuangan AI
-Chatbot cerdas yang bisa:
-- Menjawab pertanyaan tentang keuangan Anda
-- Memberikan insight pengeluaran
-- Saran penghematan personal
-
-### 📊 Dashboard Interaktif
-- Visualisasi pemasukan vs pengeluaran
-- Breakdown per kategori
-- Trend bulanan
-
-### 📈 Laporan Keuangan
-- Laporan Laba Rugi
-- Neraca (untuk mode bisnis)
-- Export ke PDF & Excel
-
-### 🎨 UI Modern
-- Dark/Light theme
-- Responsive (mobile-friendly)
-- Desain profesional namun ramah pengguna
+| Fitur | Deskripsi |
+|-------|-----------|
+| 📊 **Dashboard Interaktif** | Visualisasi keuangan dengan grafik dan statistik real-time |
+| 📷 **Scan Struk Otomatis** | OCR dengan AI untuk ekstraksi data dari foto struk |
+| 💬 **Asisten AI Cerdas** | Chatbot untuk analisis keuangan dan saran personal |
+| 📈 **Laporan Komprehensif** | Generate laporan PDF/Excel dengan satu klik |
+| 🏷️ **Kategorisasi Otomatis** | AI kategorisasi transaksi berdasarkan deskripsi |
+| 🔔 **Budget Alert** | Notifikasi saat pengeluaran melebihi budget |
+| 🌙 **Dark/Light Mode** | Tema yang nyaman untuk mata |
+| 📱 **Responsive Design** | Optimal di desktop, tablet, dan mobile |
 
 ---
 
-## 🏗️ Tech Stack
+## 🛠️ Tech Stack
 
-| Layer | Teknologi |
-|-------|-----------|
-| **Frontend** | Next.js 14, TypeScript, Tailwind CSS, shadcn/ui |
-| **Backend** | Go, Fiber, PostgreSQL, Redis |
-| **AI Service** | AWS Lambda, Hugging Face API |
-| **Storage** | AWS S3 |
-| **Hosting** | CloudFlare Pages, AWS EC2 |
+### Frontend
+- **Framework**: Next.js 14 (TypeScript, Static Export)
+- **Styling**: Tailwind CSS + Custom Design System
+- **State**: Zustand + React Query
+- **UI Components**: shadcn/ui
+
+### Backend
+- **Language**: Go 1.21
+- **Framework**: Fiber v2
+- **ORM**: GORM
+- **Auth**: JWT
+
+### Database & Cache
+- **Database**: PostgreSQL 16
+- **Cache**: Redis 7
+
+### AI & ML
+- **Runtime**: AWS Lambda (Python)
+- **OCR Model**: Donut (HuggingFace)
+- **LLM**: Mistral 7B Instruct
+
+### Infrastructure
+- **Frontend Hosting**: CloudFlare Pages
+- **Backend Hosting**: AWS EC2
+- **Object Storage**: AWS S3
+- **CDN & Security**: CloudFlare
 
 ---
 
@@ -85,79 +67,208 @@ Chatbot cerdas yang bisa:
 - Git
 
 ### 1. Clone Repository
+
 ```bash
-git clone https://github.com/yourusername/finlapor.git
+git clone https://github.com/aan-andiyanaS/finlapor.git
 cd finlapor
 ```
 
-### 2. Setup Environment
+### 2. Start Database (Docker)
+
 ```bash
-cp .env.example .env
-# Edit .env dengan konfigurasi Anda
+docker-compose up -d postgres redis
 ```
 
-### 3. Jalankan dengan Docker
+### 3. Run Backend
+
 ```bash
-docker-compose up -d
+cd backend
+cp ../.env.example .env
+# Edit .env sesuaikan database credentials
+go run cmd/server/main.go
 ```
 
-### 4. Akses Aplikasi
-- Frontend: http://localhost:3000
-- Backend API: http://localhost:8080
-- MinIO Console: http://localhost:9001
+### 4. Run Frontend
 
-📖 Untuk panduan lengkap, lihat [Getting Started](docs/getting-started.md)
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+### 5. Open App
+
+```
+Frontend: http://localhost:3000
+Backend:  http://localhost:8080
+```
 
 ---
 
-## 📁 Struktur Project
+## 📁 Project Structure
 
 ```
 finlapor/
-├── frontend/          # Next.js application
-├── backend/           # Go API server
-├── ai-service/        # Python Lambda functions
-├── database/          # Migrations & seeds
-├── docker/            # Docker configurations
-├── docs/              # Documentation
-├── scripts/           # Utility scripts
-└── docker-compose.yml
+├── frontend/                 # Next.js 14 Frontend
+│   ├── src/
+│   │   ├── app/             # App Router pages
+│   │   │   ├── login/       # Login page
+│   │   │   ├── register/    # Registration page
+│   │   │   └── dashboard/   # Dashboard & features
+│   │   └── components/      # Reusable components
+│   └── package.json
+│
+├── backend/                  # Go Backend
+│   ├── cmd/server/          # Main entry point
+│   └── internal/
+│       ├── config/          # Configuration
+│       ├── handlers/        # HTTP handlers
+│       ├── middleware/      # Auth middleware
+│       ├── models/          # Database models
+│       ├── repository/      # Data access layer
+│       └── services/        # Business logic
+│
+├── ai-service/              # Python Lambda Functions
+│   ├── lambda_function.py   # Main handler
+│   └── serverless.yml       # Deployment config
+│
+├── database/                # Database files
+│   ├── migrations/          # SQL migrations
+│   └── seeds/               # Sample data
+│
+├── docs/                    # Documentation
+│   ├── getting-started.md   # Setup guide
+│   ├── architecture.md      # System design
+│   ├── api-reference.md     # API documentation
+│   ├── deployment.md        # Production deployment
+│   └── user-manual.md       # End user guide
+│
+├── docker-compose.yml       # Docker configuration
+├── Makefile                 # Automation scripts
+└── README.md                # This file
 ```
 
 ---
 
-## 📖 Dokumentasi
+## 📚 Documentation
 
-| Dokumen | Deskripsi |
-|---------|-----------|
-| [Getting Started](docs/getting-started.md) | Panduan instalasi lengkap |
-| [Architecture](docs/architecture.md) | Arsitektur sistem |
-| [API Reference](docs/api-reference.md) | Dokumentasi API |
-| [Deployment](docs/deployment.md) | Panduan deployment |
-| [User Manual](docs/user-manual.md) | Panduan pengguna |
-
----
-
-## 🤝 Kontribusi
-
-Kontribusi sangat diterima! Silakan baca [CONTRIBUTING.md](CONTRIBUTING.md) untuk panduan.
+| Document | Description |
+|----------|-------------|
+| [Getting Started](./docs/getting-started.md) | Panduan lengkap setup development |
+| [Architecture](./docs/architecture.md) | Diagram sistem dan tech stack |
+| [API Reference](./docs/api-reference.md) | Dokumentasi semua endpoints |
+| [Deployment](./docs/deployment.md) | Setup AWS, CloudFlare, production |
+| [User Manual](./docs/user-manual.md) | Panduan penggunaan aplikasi |
 
 ---
 
-## 📄 Lisensi
+## 🔧 Available Commands
 
-Project ini dilisensikan di bawah [MIT License](LICENSE).
+### Using Makefile
+
+```bash
+make dev          # Start all services
+make stop         # Stop all services
+make build        # Build for production
+make test         # Run tests
+make logs         # View logs
+make migrate-up   # Run database migrations
+make seed         # Load sample data
+```
+
+### Manual Commands
+
+```bash
+# Database
+docker-compose up -d postgres redis
+docker-compose down
+
+# Backend
+cd backend && go run cmd/server/main.go
+cd backend && go build -o main cmd/server/main.go
+
+# Frontend
+cd frontend && npm run dev
+cd frontend && npm run build
+```
 
 ---
 
-## 👨‍💻 Author
+## 🌐 API Endpoints
 
-Made with ❤️ for SDGs
+### Authentication
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/auth/register` | Register user |
+| POST | `/api/auth/login` | Login |
+| POST | `/api/auth/refresh` | Refresh token |
+
+### Transactions
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/transactions` | List transactions |
+| POST | `/api/transactions` | Create transaction |
+| PUT | `/api/transactions/:id` | Update transaction |
+| DELETE | `/api/transactions/:id` | Delete transaction |
+
+### AI Features
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/ocr/scan` | Scan receipt with OCR |
+| POST | `/api/chat` | AI chat assistant |
+
+[Full API Reference →](./docs/api-reference.md)
 
 ---
 
-<div align="center">
+## 💰 Cost Estimation
 
-**[⬆ Kembali ke atas](#-finlapor)**
+| Service | Monthly Cost |
+|---------|-------------|
+| AWS EC2 t3.micro | ~$8.50 |
+| AWS S3 (5GB) | ~$0.12 |
+| AWS Lambda | Free tier |
+| CloudFlare Pages | Free |
+| **Total** | **~$9-10/month** |
 
-</div>
+---
+
+## 🎯 SDG Alignment
+
+### SDG 8: Decent Work and Economic Growth
+- Membantu UMKM mengelola keuangan dengan efisien
+- Menyediakan insight bisnis untuk pertumbuhan
+
+### SDG 12: Responsible Consumption and Production
+- Tracking pengeluaran untuk konsumsi yang bertanggung jawab
+- Analisis pola konsumsi dengan AI
+
+---
+
+## 🤝 Contributing
+
+1. Fork repository
+2. Create feature branch (`git checkout -b feature/amazing`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing`)
+5. Open Pull Request
+
+---
+
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE) file
+
+---
+
+## 👥 Team
+
+**FinLapor** - Semester 7 UAS Project
+
+---
+
+## 📞 Support
+
+- 📧 Email: support@finlapor.com
+- 🐛 Issues: [GitHub Issues](https://github.com/aan-andiyanaS/finlapor/issues)
+- 📖 Docs: [Documentation](./docs/)
