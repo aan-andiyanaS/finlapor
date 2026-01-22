@@ -66,7 +66,7 @@ export default function ReportsPage() {
         }, 1500)
     }
 
-    const hasData = summary && (summary.totalIncome > 0 || summary.totalExpense > 0)
+    const hasData = summary && (summary.totalIncome > 0 || summary.totalExpense > 0 || transactions.length > 0)
 
     return (
         <div className="space-y-6">
@@ -103,8 +103,8 @@ export default function ReportsPage() {
                                     key={type.id}
                                     onClick={() => setSelectedType(type.id)}
                                     className={`p-4 rounded-xl text-left transition-all ${selectedType === type.id
-                                            ? 'bg-primary-500/20 border-2 border-primary-500'
-                                            : 'bg-slate-700/50 border-2 border-transparent hover:border-slate-600'
+                                        ? 'bg-primary-500/20 border-2 border-primary-500'
+                                        : 'bg-slate-700/50 border-2 border-transparent hover:border-slate-600'
                                         }`}
                                 >
                                     <span className="text-2xl">{type.icon}</span>
