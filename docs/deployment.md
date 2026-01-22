@@ -1,6 +1,6 @@
 # Panduan Deployment FinLapor
 
-Panduan lengkap untuk deploy FinLapor ke production menggunakan CloudFlare Pages, AWS EC2, dan AWS Lambda.
+Panduan lengkap untuk deploy FinLapor ke production menggunakan CloudFlare Pages dan AWS.
 
 > 📌 **Repository**: https://github.com/aan-andiyanaS/finlapor.git
 
@@ -11,7 +11,9 @@ Panduan lengkap untuk deploy FinLapor ke production menggunakan CloudFlare Pages
 1. [Persiapan Awal](#1-persiapan-awal)
 2. [Setup AWS Account](#2-setup-aws-account)
 3. [Setup CloudFlare Account](#3-setup-cloudflare-account)
-4. [Deploy Backend ke AWS EC2](#4-deploy-backend-ke-aws-ec2)
+4. [Pilih Arsitektur Deployment](#4-pilih-arsitektur-deployment)
+   - [Opsi A: Public Subnet (Sederhana)](#opsi-a-public-subnet-sederhana)
+   - [Opsi B: Private Subnet + API Gateway (Advanced)](#opsi-b-private-subnet--api-gateway-advanced)
 5. [Deploy AI Service ke AWS Lambda](#5-deploy-ai-service-ke-aws-lambda)
 6. [Deploy Frontend ke CloudFlare Pages](#6-deploy-frontend-ke-cloudflare-pages)
 7. [Setup Domain & SSL](#7-setup-domain--ssl)
@@ -24,522 +26,264 @@ Panduan lengkap untuk deploy FinLapor ke production menggunakan CloudFlare Pages
 ### 1.1 Tools yang Dibutuhkan
 
 > **🤔 Mengapa perlu tools ini?**
-> - **Node.js**: Untuk build frontend Next.js dan menjalankan npm commands
-> - **Go**: Backend FinLapor ditulis dalam Go, perlu compiler untuk build
-> - **Docker**: Menjalankan database PostgreSQL tanpa install langsung di sistem
-> - **AWS CLI**: Berkomunikasi dengan AWS dari terminal (deploy, configure)
-> - **Git**: Version control dan push code ke repository
+> - **Node.js**: Untuk build frontend Next.js
+> - **Go**: Backend ditulis dalam Go
+> - **Docker**: Menjalankan database tanpa install langsung
+> - **AWS CLI**: Deploy ke AWS dari terminal
+> - **Git**: Version control
 
 ```bash
-# Check Node.js (minimal v18)
-node --version
-
-# Check Go (minimal v1.21)
-go version
-
-# Check Docker
-docker --version
-
-# Check AWS CLI
-aws --version
-
-# Check Git
+node --version    # minimal v18
+go version        # minimal v1.21
+docker --version  # minimal v20
+aws --version     # AWS CLI v2
 git --version
 ```
 
 ### 1.2 Akun yang Dibutuhkan
 
-> **🤔 Mengapa perlu akun ini?**
-> - **GitHub**: Menyimpan source code dan integrasi CI/CD dengan CloudFlare
-> - **AWS**: Menjalankan backend (EC2), database, storage (S3), dan AI (Lambda)
-> - **CloudFlare**: Hosting frontend gratis dengan CDN global untuk kecepatan akses
-> - **HuggingFace**: Menyediakan AI models gratis untuk OCR dan LLM
-
 | Layanan | URL | Gratis? | Fungsi |
 |---------|-----|---------|--------|
 | GitHub | https://github.com | ✅ Ya | Repository code |
 | AWS | https://aws.amazon.com | ✅ Free tier 12 bulan | Backend & infrastructure |
-| CloudFlare | https://cloudflare.com | ✅ Ya (plan gratis) | Frontend hosting & CDN |
-| HuggingFace | https://huggingface.co | ✅ Ya | AI models (OCR, LLM) |
+| CloudFlare | https://cloudflare.com | ✅ Ya | Frontend hosting & CDN |
+| HuggingFace | https://huggingface.co | ✅ Ya | AI models (opsional) |
 
-### 1.3 Estimasi Biaya Bulanan
+### 1.3 Perbandingan Biaya
 
-> **🤔 Mengapa murah?**
-> - Menggunakan **free tier** AWS selama 12 bulan pertama
-> - CloudFlare Pages **gratis unlimited** untuk static sites
-> - Lambda **gratis** 1 juta requests/bulan
-> - Arsitektur dioptimasi untuk **cost-efficiency**
-
-| Layanan | Biaya | Keterangan |
-|---------|-------|------------|
-| AWS EC2 t3.micro | ~$8.50/bulan | Setelah free tier habis |
-| AWS S3 (5GB) | ~$0.12/bulan | Storage file |
-| AWS Lambda | Gratis | 1M requests free |
-| CloudFlare Pages | Gratis | Unlimited sites |
-| **Total** | **~$9-10/bulan** | |
+| Arsitektur | Biaya/Bulan | Keamanan | Kompleksitas |
+|------------|-------------|----------|--------------|
+| **Public Subnet** | ~$9-10 | Standar | Mudah |
+| **Private Subnet** | ~$13-45 | Tinggi | Kompleks |
 
 ---
 
 ## 2. Setup AWS Account
 
-> **🤔 Mengapa AWS?**
-> AWS adalah cloud provider terbesar dengan:
-> - **Free tier 12 bulan** untuk belajar dan prototype
-> - **Layanan lengkap** (compute, storage, serverless, database)
-> - **Region Singapore (ap-southeast-1)** dekat dengan Indonesia = latency rendah
-> - **Dokumentasi** dan komunitas yang besar
-
 ### 2.1 Membuat Akun AWS
 
 > **🤔 Mengapa perlu akun sendiri?**
-> Setiap akun AWS mendapat **free tier terpisah**. Dengan akun sendiri, Anda mendapat:
-> - 750 jam/bulan EC2 t2.micro/t3.micro gratis
-> - 5GB S3 storage gratis
-> - 1 juta Lambda requests gratis
+> Setiap akun mendapat free tier terpisah: 750 jam EC2, 5GB S3, 1M Lambda requests.
 
-1. **Buka** https://aws.amazon.com
-2. **Klik** "Create an AWS Account" (pojok kanan atas)
-3. **Isi form**:
-   - Email address: email aktif Anda
-   - Password: minimal 8 karakter
-   - AWS account name: `finlapor-production`
-4. **Verifikasi email** yang dikirim AWS
-5. **Pilih** "Personal" account type
-6. **Isi data diri** (nama, alamat, nomor HP)
-7. **Masukkan kartu kredit/debit**
-   > ⚠️ **Catatan**: Kartu hanya untuk verifikasi, tidak dicharge jika tetap di free tier
-8. **Verifikasi** nomor HP via SMS
-9. **Pilih** Support Plan: "Basic Support - Free"
-10. **Selesai!** Anda akan masuk ke AWS Console
+1. Buka https://aws.amazon.com
+2. Klik "Create an AWS Account"
+3. Isi email, password, nama akun: `finlapor-production`
+4. Verifikasi email
+5. Pilih "Personal" account
+6. Masukkan kartu kredit (untuk verifikasi, tidak dicharge)
+7. Pilih "Basic Support - Free"
 
-### 2.2 Setup IAM User (Keamanan)
+### 2.2 Setup IAM User
 
-> **🤔 Mengapa perlu IAM User?**
-> - **Root account** memiliki akses penuh ke SEMUA hal, sangat berbahaya jika bocor
-> - **IAM User** bisa dibatasi aksesnya (least privilege principle)
-> - **Best practice** keamanan: jangan gunakan root untuk operasi sehari-hari
-> - Jika IAM User bocor, bisa dihapus tanpa kehilangan akun
+> **🤔 Mengapa IAM User?**
+> Root account berbahaya jika bocor. IAM User bisa dibatasi aksesnya.
 
-> ⚠️ **PENTING**: Jangan gunakan root account untuk operasi sehari-hari!
-
-1. **Buka** AWS Console → Services → IAM
-2. **Klik** "Users" di sidebar kiri
-3. **Klik** "Create user"
-4. **Isi**:
-   - User name: `finlapor-admin`
-   - ✅ Check "Provide user access to AWS Management Console"
-   - ✅ Check "I want to create an IAM user"
-   - Password: buat password baru
-5. **Klik** "Next"
-6. **Pilih** "Attach policies directly"
-7. **Cari dan centang**:
-   > **🤔 Mengapa policies ini?**
-   > - `AmazonEC2FullAccess`: Untuk membuat dan mengelola server EC2
-   > - `AmazonS3FullAccess`: Untuk upload file ke S3
-   > - `AWSLambda_FullAccess`: Untuk deploy AI service
-   > - `AmazonAPIGatewayAdministrator`: Untuk expose Lambda ke internet
-   > - `IAMFullAccess`: Untuk membuat role Lambda
-   
+1. AWS Console → IAM → Users → Create user
+2. User name: `finlapor-admin`
+3. Attach policies:
    - `AmazonEC2FullAccess`
    - `AmazonS3FullAccess`
    - `AWSLambda_FullAccess`
    - `AmazonAPIGatewayAdministrator`
    - `IAMFullAccess`
-8. **Klik** "Next" → "Create user"
-9. **Download** credentials (simpan dengan aman!)
+4. Download credentials (simpan aman!)
 
 ### 2.3 Setup AWS CLI
 
-> **🤔 Mengapa perlu AWS CLI?**
-> - **Deploy dari terminal** tanpa buka browser
-> - **Automasi** dengan scripts
-> - **Serverless Framework** membutuhkan CLI untuk deploy Lambda
-
 ```bash
-# Install AWS CLI (Windows - download dari website)
-# https://awscli.amazonaws.com/AWSCLIV2.msi
-
-# Atau via PowerShell
-msiexec.exe /i https://awscli.amazonaws.com/AWSCLIV2.msi
-
-# Konfigurasi
 aws configure
+# AWS Access Key ID: [dari IAM]
+# AWS Secret Access Key: [dari IAM]
+# Default region: ap-southeast-1
+# Output format: json
 ```
 
-Masukkan saat diminta:
+### 2.4 Setup S3 Bucket
+
+> **🤔 Mengapa S3?**
+> Storage untuk file (foto struk, laporan PDF). Murah: $0.023/GB/bulan.
+
+1. S3 → Create bucket
+2. Name: `finlapor-storage-[random]`
+3. Region: ap-southeast-1
+4. Uncheck "Block all public access"
+5. Setup CORS:
+```json
+[{"AllowedHeaders":["*"],"AllowedMethods":["GET","PUT","POST"],"AllowedOrigins":["https://finlapor.com","http://localhost:3000"]}]
 ```
-AWS Access Key ID: [dari step 2.2]
-AWS Secret Access Key: [dari step 2.2]
-Default region name: ap-southeast-1
-Default output format: json
-```
-
-> **🤔 Mengapa region `ap-southeast-1`?**
-> - Region **Singapore** paling dekat dengan Indonesia
-> - Latency rendah = aplikasi lebih cepat diakses user Indonesia
-> - Semua layanan AWS tersedia di region ini
-
-### 2.4 Setup VPC (Virtual Private Cloud)
-
-> **🤔 Mengapa perlu VPC?**
-> - **Isolasi jaringan**: Server Anda terpisah dari server orang lain
-> - **Keamanan**: Kontrol traffic masuk/keluar dengan Security Groups
-> - **Subnet**: Public untuk yang perlu diakses internet, Private untuk database
-> - **Best practice**: Semua production workload harus dalam VPC
-
-1. **Buka** AWS Console → VPC
-2. **Klik** "Create VPC"
-3. **Pilih** "VPC and more" (wizard)
-4. **Isi**:
-   ```
-   Name tag: finlapor-vpc
-   IPv4 CIDR block: 10.0.0.0/16
-   Number of Availability Zones: 2
-   Number of public subnets: 2
-   Number of private subnets: 2
-   NAT gateways: None (untuk hemat biaya)
-   VPC endpoints: None
-   ```
-   > **🤔 Mengapa 2 Availability Zones?**
-   > - **High availability**: Jika 1 data center down, yang lain masih jalan
-   > - **Redundancy**: Data tersebar di 2 lokasi fisik berbeda
-5. **Klik** "Create VPC"
-
-### 2.5 Setup Security Groups
-
-> **🤔 Mengapa perlu Security Groups?**
-> - **Firewall** untuk EC2 instance
-> - **Whitelist** port yang boleh diakses
-> - **Default deny**: Semua traffic diblok kecuali yang di-allow
-> - **Mencegah** akses tidak sah ke server
-
-#### Security Group untuk EC2 Backend:
-
-1. **Buka** EC2 → Security Groups → "Create security group"
-2. **Isi**:
-   ```
-   Name: finlapor-backend-sg
-   Description: Security group for FinLapor backend
-   VPC: finlapor-vpc
-   ```
-3. **Inbound rules** (klik "Add rule"):
-   | Type | Port | Source | Mengapa? |
-   |------|------|--------|----------|
-   | SSH | 22 | My IP | Untuk remote access ke server |
-   | Custom TCP | 8080 | 0.0.0.0/0 | API diakses dari mana saja |
-   | PostgreSQL | 5432 | 10.0.0.0/16 | Database hanya internal VPC |
-   | Custom TCP | 6379 | 10.0.0.0/16 | Redis hanya internal VPC |
-4. **Klik** "Create security group"
-
-### 2.6 Setup S3 Bucket
-
-> **🤔 Mengapa perlu S3?**
-> - **Object storage** untuk file (foto struk, laporan PDF)
-> - **Murah**: $0.023/GB/bulan
-> - **Scalable**: Unlimited storage
-> - **Durability**: 99.999999999% (11 nines) - hampir tidak mungkin hilang
-> - **CDN integration** dengan CloudFlare
-
-1. **Buka** AWS Console → S3
-2. **Klik** "Create bucket"
-3. **Isi**:
-   ```
-   Bucket name: finlapor-storage-[random-id]
-   Region: Asia Pacific (Singapore) ap-southeast-1
-   Object Ownership: ACLs disabled
-   Block Public Access: ❌ Uncheck "Block all public access"
-   Bucket Versioning: Disable
-   ```
-   > **🤔 Mengapa unblock public access?**
-   > - Agar file bisa diakses via URL (foto struk, gambar)
-   > - Tetap aman karena menggunakan **presigned URLs** dengan expiry
-
-4. **Klik** "Create bucket"
-
-5. **Setup CORS** (untuk upload dari browser):
-   > **🤔 Mengapa perlu CORS?**
-   > - Browser memblok request ke domain berbeda (security)
-   > - CORS mengizinkan frontend di finlapor.com upload ke S3
-
-   - Klik bucket → Permissions → CORS configuration
-   - Paste:
-   ```json
-   [
-     {
-       "AllowedHeaders": ["*"],
-       "AllowedMethods": ["GET", "PUT", "POST", "DELETE"],
-       "AllowedOrigins": ["https://finlapor.com", "http://localhost:3000"],
-       "ExposeHeaders": ["ETag"]
-     }
-   ]
-   ```
 
 ---
 
 ## 3. Setup CloudFlare Account
 
 > **🤔 Mengapa CloudFlare?**
-> - **Gratis** untuk hosting static sites (Next.js export)
-> - **CDN global**: 300+ data centers, user Indonesia akses dari Singapore/Jakarta
-> - **DDoS protection** included
-> - **SSL gratis** otomatis
-> - **Integrasi GitHub**: Auto deploy saat push
-> - **Unlimited bandwidth** di plan gratis
+> Gratis, CDN global, DDoS protection, SSL otomatis.
 
-### 3.1 Membuat Akun CloudFlare
-
-1. **Buka** https://dash.cloudflare.com/sign-up
-2. **Isi email dan password**
-3. **Verifikasi email**
-4. **Login** ke dashboard
-
-### 3.2 Menambahkan Domain (Opsional)
-
-> **🤔 Mengapa perlu custom domain?**
-> - **Professional**: finlapor.com lebih kredibel dari finlapor.pages.dev
-> - **Branding**: Konsisten dengan identitas bisnis
-> - **SEO**: Domain sendiri lebih baik untuk ranking
-
-Jika Anda sudah punya domain:
-
-1. **Klik** "Add a Site"
-2. **Masukkan** nama domain (contoh: `finlapor.com`)
-3. **Pilih** plan "Free"
-4. **CloudFlare** akan scan DNS records
-5. **Update nameservers** di registrar domain Anda:
-   > **🤔 Mengapa ganti nameserver?**
-   > - Agar CloudFlare yang mengelola DNS
-   > - Mendapat fitur CDN, security, dan caching
-   
-   ```
-   NS1: [nameserver dari CloudFlare]
-   NS2: [nameserver dari CloudFlare]
-   ```
-6. **Tunggu** propagasi (biasanya 5-30 menit)
-
-### 3.3 Setup CloudFlare Pages
-
-> **🤔 Mengapa CloudFlare Pages?**
-> - **Build otomatis** saat push ke GitHub
-> - **Preview deployments** untuk setiap pull request
-> - **Rollback** mudah ke versi sebelumnya
-> - **Edge functions** untuk dynamic routing
-
-1. **Buka** CloudFlare Dashboard → Pages
-2. **Klik** "Create a project"
-3. **Pilih** "Connect to Git"
-4. **Authorize** GitHub
-5. **Pilih repository**: `finlapor`
-6. **Konfigurasi build**:
-   ```
-   Project name: finlapor
-   Production branch: main
-   Framework preset: Next.js
-   Build command: cd frontend && npm run build
-   Build output directory: frontend/out
-   Root directory: /
-   ```
-   > **🤔 Mengapa konfigurasi ini?**
-   > - `cd frontend`: Karena frontend ada di subfolder
-   > - `npm run build`: Build Next.js ke static files
-   > - `frontend/out`: Output folder dari next export
-
-7. **Environment variables** (klik "Add variable"):
-   ```
-   NEXT_PUBLIC_API_URL = https://api.finlapor.com
-   ```
-   > **🤔 Mengapa environment variable?**
-   > - Frontend perlu tahu URL backend
-   > - `NEXT_PUBLIC_` prefix agar bisa diakses di client-side
-
-8. **Klik** "Save and Deploy"
-
-### 3.4 Setup Custom Domain di CloudFlare Pages
-
-1. **Buka** Pages → Project → Custom domains
-2. **Klik** "Set up a custom domain"
-3. **Masukkan**: `finlapor.com`
-4. **Klik** "Continue" → "Activate domain"
-5. **Tambahkan** juga: `www.finlapor.com`
-   > **🤔 Mengapa www juga?**
-   > - Beberapa user mengetik dengan www
-   > - Redirect ke domain utama
+1. Buka https://dash.cloudflare.com/sign-up
+2. Buat akun dan verifikasi email
+3. (Opsional) Tambahkan domain → pilih Free plan → update nameservers
 
 ---
 
-## 4. Deploy Backend ke AWS EC2
+## 4. Pilih Arsitektur Deployment
 
-> **🤔 Mengapa EC2?**
-> - **Full control**: Bisa install apapun
-> - **Persistent**: Berjalan 24/7
-> - **Scalable**: Bisa upgrade instance type
-> - **Cost-effective**: t3.micro ~$8.50/bulan (gratis 12 bulan pertama)
-
-### 4.1 Launch EC2 Instance
-
-1. **Buka** AWS Console → EC2 → "Launch Instance"
-2. **Konfigurasi**:
-   ```
-   Name: finlapor-backend
-   
-   AMI: Amazon Linux 2023 AMI (Free tier eligible)
-   ```
-   > **🤔 Mengapa Amazon Linux?**
-   > - Dioptimasi untuk AWS
-   > - Security updates otomatis
-   > - Ringan dan cepat
-   
-   ```
-   Instance type: t3.micro (Free tier eligible)
-   ```
-   > **🤔 Mengapa t3.micro?**
-   > - 2 vCPU, 1GB RAM - cukup untuk aplikasi kecil-menengah
-   > - **Gratis** 750 jam/bulan selama 12 bulan
-   > - Burstable: Bisa pakai extra CPU saat load tinggi
-   
-   ```
-   Key pair: 
-   - Klik "Create new key pair"
-   - Name: finlapor-key
-   - Type: RSA
-   - Format: .pem
-   - Download dan simpan dengan aman!
-   ```
-   > **🤔 Mengapa Key Pair?**
-   > - Untuk **SSH** ke server dengan aman
-   > - Lebih secure daripada password
-   > - **Jangan share** file .pem ini!
-   
-   ```
-   Network settings:
-   - VPC: finlapor-vpc
-   - Subnet: public subnet
-   - Auto-assign public IP: Enable
-   - Security group: finlapor-backend-sg
-   
-   Storage: 20 GB gp3
-   ```
-   > **🤔 Mengapa 20GB?**
-   > - Default 8GB terlalu kecil
-   > - Space untuk OS, app, logs, database backup
-   > - gp3 lebih murah dari gp2
-   
-3. **Klik** "Launch instance"
-4. **Catat** Public IP address
-
-### 4.2 Connect ke EC2
-
-> **🤔 Mengapa SSH?**
-> - **Secure Shell**: Koneksi terenkripsi ke server
-> - **Remote access**: Kelola server dari laptop
-
-```bash
-# Ubah permission key file (Linux/macOS)
-chmod 400 finlapor-key.pem
-
-# Windows PowerShell
-icacls finlapor-key.pem /inheritance:r
-icacls finlapor-key.pem /grant:r "$($env:USERNAME):(R)"
-
-# Connect via SSH
-ssh -i finlapor-key.pem ec2-user@[PUBLIC_IP]
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    PILIH ARSITEKTUR                                 │
+├─────────────────────────────────┬───────────────────────────────────┤
+│      OPSI A: PUBLIC SUBNET      │   OPSI B: PRIVATE SUBNET + API GW │
+├─────────────────────────────────┼───────────────────────────────────┤
+│ ✅ Mudah setup                   │ ✅ Lebih aman                      │
+│ ✅ Biaya rendah (~$9/bulan)      │ ✅ Enterprise-grade                │
+│ ✅ SSH langsung ke server        │ ⚠️ Butuh Bastion Host              │
+│ ⚠️ Backend terekspos internet    │ ⚠️ Biaya lebih tinggi (~$13-45)    │
+│                                 │                                   │
+│ Cocok untuk:                    │ Cocok untuk:                      │
+│ - Development                   │ - Production                      │
+│ - MVP/Demo                      │ - Enterprise                      │
+│ - Proyek UAS                    │ - Compliance (PCI-DSS)            │
+└─────────────────────────────────┴───────────────────────────────────┘
 ```
 
-### 4.3 Install Dependencies di EC2
+---
 
-> **🤔 Mengapa install satu-satu?**
-> - Server EC2 fresh, belum ada software apapun
-> - Kita install hanya yang dibutuhkan (keep it minimal)
+# OPSI A: Public Subnet (Sederhana)
+
+## A.1 Diagram Arsitektur
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                           AWS VPC                               │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │                    PUBLIC SUBNET                          │  │
+│  │                                                           │  │
+│  │   ┌─────────────────────────────────────────────────┐     │  │
+│  │   │              EC2 (t3.micro)                     │     │  │
+│  │   │   ┌─────────┐  ┌─────────┐  ┌─────────┐        │     │  │
+│  │   │   │ Go API  │  │PostgreSQL│  │  Redis  │        │     │  │
+│  │   │   │  :8080  │  │  :5432  │  │  :6379  │        │     │  │
+│  │   │   └─────────┘  └─────────┘  └─────────┘        │     │  │
+│  │   └─────────────────────────────────────────────────┘     │  │
+│  │                          ▲                                │  │
+│  │                          │ Port 8080                      │  │
+│  └──────────────────────────┼────────────────────────────────┘  │
+│                             │                                   │
+└─────────────────────────────┼───────────────────────────────────┘
+                              │
+                              ▼
+                 ┌─────────────────────┐
+                 │   CloudFlare CDN    │──────► User
+                 └─────────────────────┘
+```
+
+## A.2 Setup VPC
+
+1. VPC → Create VPC → "VPC and more"
+2. Konfigurasi:
+   ```
+   Name: finlapor-vpc
+   IPv4 CIDR: 10.0.0.0/16
+   Availability Zones: 2
+   Public subnets: 2
+   Private subnets: 0
+   NAT gateways: None
+   ```
+
+## A.3 Setup Security Group
+
+1. EC2 → Security Groups → Create
+2. Name: `finlapor-backend-sg`
+3. Inbound rules:
+
+| Type | Port | Source | Mengapa? |
+|------|------|--------|----------|
+| SSH | 22 | My IP | Remote access |
+| Custom TCP | 8080 | 0.0.0.0/0 | API access |
+| PostgreSQL | 5432 | 10.0.0.0/16 | Internal DB |
+| Custom TCP | 6379 | 10.0.0.0/16 | Internal Redis |
+
+## A.4 Launch EC2 Instance
+
+1. EC2 → Launch Instance
+2. Konfigurasi:
+   ```
+   Name: finlapor-backend
+   AMI: Amazon Linux 2023
+   Type: t3.micro (free tier)
+   Key pair: Create new → finlapor-key.pem
+   VPC: finlapor-vpc
+   Subnet: Public subnet
+   Auto-assign public IP: Enable
+   Security group: finlapor-backend-sg
+   Storage: 20GB gp3
+   ```
+
+## A.5 Connect & Setup Server
 
 ```bash
-# Update system
+# Connect
+ssh -i finlapor-key.pem ec2-user@[PUBLIC_IP]
+
+# Install dependencies
 sudo yum update -y
-# Mengapa? Security patches dan bug fixes
+sudo yum install git docker -y
+sudo systemctl start docker && sudo systemctl enable docker
+sudo usermod -aG docker ec2-user
 
-# Install Git
-sudo yum install git -y
-# Mengapa? Untuk clone repository dari GitHub
-
-# Install Go 1.21
+# Install Go
 wget https://go.dev/dl/go1.21.6.linux-amd64.tar.gz
 sudo tar -C /usr/local -xzf go1.21.6.linux-amd64.tar.gz
 echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
 source ~/.bashrc
-go version
-# Mengapa? Backend ditulis dalam Go
-
-# Install Docker
-sudo yum install docker -y
-sudo systemctl start docker
-sudo systemctl enable docker
-sudo usermod -aG docker ec2-user
-# Mengapa? Untuk menjalankan PostgreSQL dan Redis dalam container
 
 # Install Docker Compose
 sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
 sudo chmod +x /usr/local/bin/docker-compose
-# Mengapa? Untuk manage multiple containers dengan 1 command
 
-# Logout dan login ulang untuk apply docker group
+# Logout & login ulang
 exit
 ```
 
-### 4.4 Clone dan Setup Project
+## A.6 Deploy Application
 
 ```bash
 # Login ulang
 ssh -i finlapor-key.pem ec2-user@[PUBLIC_IP]
 
-# Clone repository
+# Clone repo
 git clone https://github.com/aan-andiyanaS/finlapor.git
 cd finlapor
 
-# Create .env file
+# Setup environment
 cat > backend/.env << 'EOF'
 DATABASE_URL=postgres://postgres:password@localhost:5432/finlapor?sslmode=disable
 REDIS_URL=redis://localhost:6379
 JWT_SECRET=your-super-secret-jwt-key-min-32-characters
 S3_ENDPOINT=https://s3.ap-southeast-1.amazonaws.com
-S3_ACCESS_KEY=your-aws-access-key
-S3_SECRET_KEY=your-aws-secret-key
+S3_ACCESS_KEY=your-access-key
+S3_SECRET_KEY=your-secret-key
 S3_BUCKET=finlapor-storage-xxxxx
 PORT=8080
 APP_ENV=production
-FRONTEND_URL=https://finlapor.com
 EOF
 
-# Start database dengan Docker
+# Start database
 docker-compose up -d postgres redis
-# Mengapa Docker? Lebih mudah daripada install PostgreSQL manual
-
-# Tunggu database siap
 sleep 10
 
 # Run migrations
 docker exec -i finlapor-postgres-1 psql -U postgres -d finlapor < database/migrations/001_initial.sql
-# Mengapa? Membuat tables yang dibutuhkan aplikasi
 
-# Build backend
+# Build & run
 cd backend
 go build -o main cmd/server/main.go
-# Mengapa build? Binary lebih cepat dari `go run`
-
-# Test run
 ./main
-# Ctrl+C untuk stop setelah verify berjalan
 ```
 
-### 4.5 Setup Systemd Service
-
-> **🤔 Mengapa Systemd?**
-> - **Auto-start**: Aplikasi otomatis jalan saat server reboot
-> - **Auto-restart**: Jika crash, otomatis restart
-> - **Logging**: Logs tersimpan di journald
-> - **Standard**: Cara production-grade menjalankan service di Linux
+## A.7 Setup Systemd Service
 
 ```bash
-# Buat service file
-sudo cat > /etc/systemd/system/finlapor.service << 'EOF'
+sudo tee /etc/systemd/system/finlapor.service << 'EOF'
 [Unit]
 Description=FinLapor Backend API
 After=network.target
@@ -551,212 +295,283 @@ WorkingDirectory=/home/ec2-user/finlapor/backend
 ExecStart=/home/ec2-user/finlapor/backend/main
 Restart=always
 RestartSec=5
-Environment=PORT=8080
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-# Enable dan start service
 sudo systemctl daemon-reload
 sudo systemctl enable finlapor
-# Mengapa enable? Agar auto-start saat boot
-
 sudo systemctl start finlapor
-
-# Check status
-sudo systemctl status finlapor
-
-# View logs
-sudo journalctl -u finlapor -f
 ```
 
-### 4.6 Setup Nginx Reverse Proxy (Opsional)
+## A.8 Update DNS di CloudFlare
 
-> **🤔 Mengapa Nginx?**
-> - **SSL termination**: Handle HTTPS di Nginx, backend tetap HTTP
-> - **Load balancing**: Jika scale ke multiple backends
-> - **Static files**: Serve files langsung tanpa hit backend
-> - **Buffering**: Protect backend dari slow clients
+| Type | Name | Content | Proxy |
+|------|------|---------|-------|
+| A | api | [EC2 Public IP] | ✅ Proxied |
+
+---
+
+# OPSI B: Private Subnet + API Gateway (Advanced)
+
+## B.1 Diagram Arsitektur
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                           AWS VPC                               │
+│  ┌──────────────────┐         ┌──────────────────────────────┐  │
+│  │  PUBLIC SUBNET   │         │      PRIVATE SUBNET          │  │
+│  │                  │         │                              │  │
+│  │  ┌────────────┐  │   SSH   │  ┌────────────────────────┐  │  │
+│  │  │  Bastion   │──┼────────►│  │      EC2 Backend       │  │  │
+│  │  │  (t3.nano) │  │         │  │  ┌────┐ ┌────┐ ┌────┐  │  │  │
+│  │  └────────────┘  │         │  │  │ Go │ │ PG │ │Redis│  │  │  │
+│  │       ▲          │         │  │  └────┘ └────┘ └────┘  │  │  │
+│  │     SSH          │         │  └────────────▲───────────┘  │  │
+│  │   (My IP)        │         │               │ Port 8080    │  │
+│  └──────────────────┘         └───────────────┼──────────────┘  │
+│                                               │ VPC Link       │
+│  ┌────────────────────────────────────────────┴──────────────┐  │
+│  │                    AWS API Gateway                         │  │
+│  │                    api.finlapor.com                        │  │
+│  └────────────────────────────┬──────────────────────────────┘  │
+└───────────────────────────────┼─────────────────────────────────┘
+                                │
+                                ▼
+                   ┌─────────────────────┐
+                   │   CloudFlare CDN    │──────► User
+                   └─────────────────────┘
+```
+
+## B.2 Setup VPC dengan Private Subnet
+
+1. VPC → Create VPC → "VPC and more"
+2. Konfigurasi:
+   ```
+   Name: finlapor-vpc-secure
+   IPv4 CIDR: 10.0.0.0/16
+   Availability Zones: 2
+   Public subnets: 2
+   Private subnets: 2
+   NAT gateways: In 1 AZ (atau None untuk hemat)
+   ```
+
+> **🤔 Mengapa NAT Gateway?**
+> Instance di private subnet butuh NAT untuk akses internet (download packages).
+> Biaya: ~$32/bulan. Bisa dimatikan setelah setup selesai.
+
+## B.3 Security Groups
+
+### Backend Security Group (Private):
+```
+Name: finlapor-backend-private-sg
+```
+
+| Type | Port | Source | Mengapa? |
+|------|------|--------|----------|
+| Custom TCP | 8080 | API Gateway SG | Hanya dari API Gateway |
+| PostgreSQL | 5432 | 10.0.0.0/16 | Internal VPC |
+| Custom TCP | 6379 | 10.0.0.0/16 | Internal Redis |
+| SSH | 22 | Bastion SG | Via Bastion only |
+
+### Bastion Security Group:
+```
+Name: finlapor-bastion-sg
+```
+
+| Type | Port | Source | Mengapa? |
+|------|------|--------|----------|
+| SSH | 22 | My IP | Hanya IP Anda |
+
+## B.4 Launch Bastion Host
+
+> **🤔 Mengapa Bastion?**
+> Instance di private subnet tidak punya public IP. Bastion = jump server.
+
+1. EC2 → Launch Instance
+2. Konfigurasi:
+   ```
+   Name: finlapor-bastion
+   AMI: Amazon Linux 2023
+   Type: t3.nano (~$3.80/bulan)
+   Subnet: PUBLIC subnet
+   Auto-assign public IP: Enable
+   Security group: finlapor-bastion-sg
+   ```
+
+## B.5 Launch Backend di Private Subnet
+
+1. EC2 → Launch Instance
+2. Konfigurasi:
+   ```
+   Name: finlapor-backend-private
+   AMI: Amazon Linux 2023
+   Type: t3.micro
+   Subnet: PRIVATE subnet
+   Auto-assign public IP: Disable
+   Security group: finlapor-backend-private-sg
+   ```
+
+## B.6 SSH via Bastion
 
 ```bash
-# Install Nginx
-sudo yum install nginx -y
+# Metode 1: SSH Jump
+ssh -J ec2-user@[BASTION_PUBLIC_IP] ec2-user@[BACKEND_PRIVATE_IP] -i finlapor-key.pem
 
-# Konfigurasi
-sudo cat > /etc/nginx/conf.d/finlapor.conf << 'EOF'
-server {
-    listen 80;
-    server_name api.finlapor.com;
+# Metode 2: SSH Config
+cat >> ~/.ssh/config << 'EOF'
+Host bastion
+    HostName [BASTION_PUBLIC_IP]
+    User ec2-user
+    IdentityFile ~/.ssh/finlapor-key.pem
 
-    location / {
-        proxy_pass http://127.0.0.1:8080;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_cache_bypass $http_upgrade;
-    }
-}
+Host finlapor-backend
+    HostName [BACKEND_PRIVATE_IP]
+    User ec2-user
+    IdentityFile ~/.ssh/finlapor-key.pem
+    ProxyJump bastion
 EOF
 
-# Start Nginx
-sudo systemctl enable nginx
-sudo systemctl start nginx
+# Lalu cukup:
+ssh finlapor-backend
 ```
+
+## B.7 Setup Backend (sama dengan A.5 & A.6)
+
+SSH ke backend via Bastion, lalu lakukan langkah yang sama:
+- Install dependencies
+- Clone repo
+- Setup environment
+- Start database
+- Build & run
+- Setup systemd
+
+## B.8 Setup API Gateway
+
+### B.8.1 Create VPC Link
+
+1. API Gateway → VPC Links → Create
+2. Konfigurasi:
+   ```
+   Name: finlapor-vpc-link
+   VPC: finlapor-vpc-secure
+   Subnets: Private subnets
+   Security groups: finlapor-backend-private-sg
+   ```
+3. Tunggu status "Available" (5-10 menit)
+
+### B.8.2 Create HTTP API
+
+1. API Gateway → Create API → HTTP API → Build
+2. API name: `finlapor-api`
+
+### B.8.3 Create Integration
+
+1. API → Integrations → Create
+2. Konfigurasi:
+   ```
+   Type: Private resource
+   VPC link: finlapor-vpc-link
+   Method: ANY
+   URL: http://[BACKEND_PRIVATE_IP]:8080/{proxy}
+   ```
+
+### B.8.4 Create Routes
+
+1. Routes → Create
+2. Route: `ANY /{proxy+}`
+3. Integration: pilih integration yang baru dibuat
+
+### B.8.5 Deploy
+
+1. Deploy → Create stage
+2. Stage name: `production`
+3. Copy Invoke URL
+
+### B.8.6 Test
+
+```bash
+curl https://[API_GATEWAY_URL]/health
+```
+
+## B.9 Custom Domain untuk API Gateway
+
+1. ACM → Request certificate: `api.finlapor.com`
+2. Validate via DNS (tambah CNAME di CloudFlare)
+3. API Gateway → Custom domain names → Create
+4. Domain: `api.finlapor.com`
+5. API mappings → Map ke `finlapor-api` stage `production`
+6. CloudFlare DNS: CNAME `api` → API Gateway domain
+
+## B.10 Cost Summary (Private Subnet)
+
+| Item | Per Bulan |
+|------|-----------|
+| EC2 t3.micro (backend) | ~$8.50 |
+| EC2 t3.nano (bastion) | ~$3.80 |
+| API Gateway (1M req) | ~$1.00 |
+| NAT Gateway (opsional) | ~$32.00 |
+| **Total (dengan NAT)** | **~$45/bulan** |
+| **Total (tanpa NAT)** | **~$13/bulan** |
+
+> 💡 **Tips**: Matikan NAT Gateway setelah setup, gunakan VPC Endpoints untuk S3.
 
 ---
 
 ## 5. Deploy AI Service ke AWS Lambda
 
-> **🤔 Mengapa Lambda?**
-> - **Serverless**: Tidak perlu manage server
-> - **Pay per use**: Hanya bayar saat dipanggil
-> - **Auto-scale**: Dari 0 ke 1000+ requests otomatis
-> - **Free tier**: 1 juta requests/bulan gratis
-> - **Python support**: Mudah integrasi dengan HuggingFace
+> Berlaku untuk kedua opsi arsitektur.
 
-### 5.1 Setup HuggingFace Token
+### 5.1 Setup HuggingFace Token (Opsional)
 
-> **🤔 Mengapa HuggingFace?**
-> - **Free AI models**: Akses ke ribuan pre-trained models
-> - **Donut OCR**: Model khusus untuk membaca receipt/struk
-> - **Mistral LLM**: Model bahasa untuk chat assistant
-> - **Inference API**: Tidak perlu host model sendiri
-
-1. **Buka** https://huggingface.co/settings/tokens
-2. **Klik** "New token"
-3. **Isi**:
-   - Name: `finlapor-production`
-   - Role: `read`
-4. **Copy** token yang dihasilkan
+1. Buka https://huggingface.co/settings/tokens
+2. New token → Name: `finlapor` → Role: read
+3. Copy token
 
 ### 5.2 Install Serverless Framework
 
-> **🤔 Mengapa Serverless Framework?**
-> - **Simplify deployment**: 1 command untuk deploy
-> - **Infrastructure as Code**: Konfigurasi dalam YAML
-> - **Multi-cloud**: Support AWS, Azure, GCP
-> - **Plugins**: Otomatis package Python dependencies
-
 ```bash
-# Install Node.js jika belum
-# Windows: https://nodejs.org/
-
-# Install Serverless
 npm install -g serverless
-
-# Verify
-serverless --version
-```
-
-### 5.3 Configure Serverless
-
-```bash
-cd ai-service
-
-# Install plugin
-npm init -y
-npm install serverless-python-requirements
-# Mengapa? Untuk bundle Python packages ke Lambda
-
-# Set AWS credentials
 serverless config credentials --provider aws --key [ACCESS_KEY] --secret [SECRET_KEY]
 ```
 
-### 5.4 Deploy Lambda
+### 5.3 Deploy
 
 ```bash
-# Set environment variable
-export HF_TOKEN=hf_xxxxxxxxxxxxx
+cd ai-service
+npm init -y
+npm install serverless-python-requirements
 
-# Deploy
+export HF_TOKEN=hf_xxxxx  # opsional
 serverless deploy --stage production
-
-# Output akan menampilkan:
-# endpoints:
-#   POST - https://xxxxxxxx.execute-api.ap-southeast-1.amazonaws.com/production/
-```
-
-> **🤔 Apa yang terjadi saat deploy?**
-> 1. Serverless package Python code + dependencies
-> 2. Upload ke S3
-> 3. Create Lambda function
-> 4. Create API Gateway
-> 5. Configure endpoints
-
-### 5.5 Test Lambda
-
-```bash
-# Test health
-curl https://[API_GATEWAY_URL]/health
-
-# Test OCR
-curl -X POST https://[API_GATEWAY_URL]/ \
-  -H "Content-Type: application/json" \
-  -d '{"action": "ocr", "image_url": "https://example.com/receipt.jpg"}'
 ```
 
 ---
 
 ## 6. Deploy Frontend ke CloudFlare Pages
 
-### 6.1 Build Frontend
+### 6.1 Setup di CloudFlare
 
-> **🤔 Mengapa build?**
-> - Next.js perlu di-compile ke static HTML/JS/CSS
-> - Optimize untuk production (minify, tree-shaking)
-> - Output bisa di-serve dari CDN
+1. Pages → Create project → Connect to Git
+2. Select repository: `finlapor`
+3. Konfigurasi:
+   ```
+   Project name: finlapor
+   Production branch: main
+   Build command: cd frontend && npm run build
+   Output directory: frontend/out
+   ```
+4. Environment variables:
+   ```
+   NEXT_PUBLIC_API_URL = https://api.finlapor.com
+   ```
+5. Save and Deploy
 
-```bash
-cd frontend
+### 6.2 Custom Domain
 
-# Install dependencies
-npm install
-
-# Build untuk production
-npm run build
-
-# Output di folder: out/
-```
-
-### 6.2 Deploy via Git (Otomatis)
-
-> **🤔 Mengapa Git integration?**
-> - **CI/CD otomatis**: Push = Deploy
-> - **Preview deployments**: Setiap PR dapat URL preview
-> - **Rollback mudah**: Kembali ke commit sebelumnya
-
-Jika sudah setup CloudFlare Pages dengan GitHub:
-
-```bash
-git add .
-git commit -m "Deploy to production"
-git push origin main
-```
-
-CloudFlare akan otomatis build dan deploy.
-
-### 6.3 Deploy via Wrangler (Manual)
-
-> **🤔 Kapan pakai manual?**
-> - Debugging build issues
-> - Deploy dari CI lain (Jenkins, GitLab)
-> - Quick test tanpa push ke Git
-
-```bash
-# Install Wrangler
-npm install -g wrangler
-
-# Login
-wrangler login
-
-# Deploy
-wrangler pages deploy out --project-name=finlapor
-```
+1. Pages → Project → Custom domains
+2. Add: `finlapor.com` dan `www.finlapor.com`
 
 ---
 
@@ -764,338 +579,59 @@ wrangler pages deploy out --project-name=finlapor
 
 ### 7.1 DNS Records di CloudFlare
 
-> **🤔 Mengapa DNS penting?**
-> - Menghubungkan domain (finlapor.com) ke server (IP address)
-> - **A record**: Domain → IP
-> - **CNAME**: Alias domain
+| Type | Name | Content | Proxy |
+|------|------|---------|-------|
+| A | @ | CloudFlare Pages | Auto |
+| CNAME | api | EC2 IP (Opsi A) / API GW (Opsi B) | ✅ |
+| CNAME | www | finlapor.com | ✅ |
 
-Buka CloudFlare → DNS → Records, tambahkan:
+### 7.2 SSL Settings
 
-| Type | Name | Content | Proxy | Mengapa? |
-|------|------|---------|-------|----------|
-| A | @ | [EC2 Public IP] | ❌ DNS only | Root domain |
-| A | api | [EC2 Public IP] | ✅ Proxied | API dengan CDN |
-| CNAME | www | finlapor.com | ✅ Proxied | www redirect |
-
-### 7.2 SSL/TLS Settings
-
-> **🤔 Mengapa SSL penting?**
-> - **Enkripsi**: Data tidak bisa disadap
-> - **Trust**: Browser menampilkan gembok hijau
-> - **SEO**: Google prefer HTTPS
-> - **Required**: Beberapa fitur browser (geolocation, camera) require HTTPS
-
-1. **Buka** CloudFlare → SSL/TLS
-2. **Pilih** mode: "Full (strict)"
-   > **🤔 Mengapa Full (strict)?**
-   > - Enkripsi penuh dari browser → CloudFlare → server
-   > - Validate certificate di server (paling aman)
-   
-3. **Enable**:
-   - Always Use HTTPS: ✅
-   - Automatic HTTPS Rewrites: ✅
-   - Minimum TLS Version: 1.2
-
-### 7.3 Setup SSL di EC2 (Let's Encrypt)
-
-> **🤔 Mengapa Let's Encrypt?**
-> - **Gratis**: SSL certificate gratis
-> - **Otomatis**: Auto-renewal
-> - **Trusted**: Diterima semua browser
-
-```bash
-# Install Certbot
-sudo yum install certbot python3-certbot-nginx -y
-
-# Generate certificate
-sudo certbot --nginx -d api.finlapor.com
-
-# Auto-renewal (sudah di-setup otomatis)
-sudo systemctl enable certbot-renew.timer
-```
+1. SSL/TLS → Mode: Full (strict)
+2. Enable: Always Use HTTPS, Automatic HTTPS Rewrites
 
 ---
 
 ## 8. Monitoring & Maintenance
 
-### 8.1 CloudFlare Analytics
+### 8.1 CloudWatch Dashboard
 
-> **🤔 Mengapa monitoring?**
-> - **Visibility**: Tahu apa yang terjadi di aplikasi
-> - **Problem detection**: Detect issues sebelum user komplain
-> - **Capacity planning**: Kapan perlu scale
+1. CloudWatch → Create Dashboard
+2. Add widgets: EC2 CPU, Memory, Network, Lambda Invocations
 
-- **Buka** CloudFlare → Analytics
-- Monitor: Requests, Bandwidth, Threats blocked
-
-### 8.2 AWS CloudWatch
-
-> **🤔 Mengapa CloudWatch?**
-> - **Native AWS**: Terintegrasi dengan semua layanan AWS
-> - **Alarms**: Notifikasi saat CPU/Memory tinggi
-> - **Logs**: Centralized logging
-
-1. **Buka** AWS Console → CloudWatch
-2. **Create Dashboard**: `finlapor-monitoring`
-3. **Add widgets**:
-   - EC2 CPU Utilization
-   - EC2 Network In/Out
-   - Lambda Invocations
-   - Lambda Errors
-
-### 8.3 Backup Database
-
-> **🤔 Mengapa backup?**
-> - **Disaster recovery**: Jika data hilang, bisa restore
-> - **Point-in-time recovery**: Kembalikan ke waktu tertentu
-> - **Compliance**: Beberapa regulasi require backup
+### 8.2 Backup Database
 
 ```bash
-# Cron job untuk backup harian jam 2 pagi
-crontab -e
-
-# Tambahkan:
-0 2 * * * docker exec finlapor-postgres-1 pg_dump -U postgres finlapor | gzip > /home/ec2-user/backups/finlapor_$(date +\%Y\%m\%d).sql.gz
+# Cron job harian
+0 2 * * * docker exec finlapor-postgres-1 pg_dump -U postgres finlapor | gzip > ~/backups/finlapor_$(date +\%Y\%m\%d).sql.gz
 ```
 
-### 8.4 Auto Update dari GitHub
-
-> **🤔 Mengapa auto-update?**
-> - **Continuous deployment**: Push code langsung ke production
-> - **Reduce manual work**: Tidak perlu SSH setiap update
+### 8.3 Auto Update
 
 ```bash
-# Script update.sh
 cat > ~/update.sh << 'EOF'
 #!/bin/bash
-cd /home/ec2-user/finlapor
-git pull origin main
-cd backend
-go build -o main cmd/server/main.go
+cd ~/finlapor && git pull origin main
+cd backend && go build -o main cmd/server/main.go
 sudo systemctl restart finlapor
 EOF
-
 chmod +x ~/update.sh
-
-# Jalankan saat ada update
-./update.sh
-```
-
----
-
-## Troubleshooting
-
-### Backend tidak bisa connect ke database
-
-```bash
-# Check status PostgreSQL
-docker ps
-
-# Check logs
-docker logs finlapor-postgres-1
-
-# Restart
-docker-compose restart postgres
-```
-
-### Frontend tidak bisa akses API
-
-1. Check CORS di backend
-2. Check CloudFlare → Firewall → Overview
-3. Pastikan URL API benar di environment
-
-### Lambda timeout
-
-1. Increase timeout di serverless.yml:
-   ```yaml
-   provider:
-     timeout: 60
-   ```
-2. Redeploy: `serverless deploy`
-
-### SSL Certificate Error
-
-```bash
-# Renew certificate
-sudo certbot renew --force-renewal
-sudo systemctl reload nginx
 ```
 
 ---
 
 ## Quick Reference
 
-| Service | URL |
-|---------|-----|
-| Frontend | https://finlapor.com |
-| API | https://api.finlapor.com |
-| Repository | https://github.com/aan-andiyanaS/finlapor |
+| Item | Public Subnet | Private Subnet |
+|------|---------------|----------------|
+| API URL | http://[EC2_IP]:8080 | https://api.finlapor.com |
+| SSH | `ssh -i key.pem ec2-user@[IP]` | `ssh -J bastion backend` |
+| Biaya | ~$9/bulan | ~$13-45/bulan |
+| Keamanan | Standar | Tinggi |
 
 ---
 
 ## Support
 
-Jika ada pertanyaan atau masalah:
-- Buat issue di [GitHub](https://github.com/aan-andiyanaS/finlapor/issues)
+- GitHub Issues: https://github.com/aan-andiyanaS/finlapor/issues
 - Email: support@finlapor.com
-
-# APPENDIX A: Deploy dengan Private Subnet + API Gateway (Advanced)
-
-> **🤔 Mengapa opsi ini?**
-> - **Lebih aman**: Backend tidak terekspos langsung ke internet
-> - **Enterprise-grade**: Sesuai AWS Well-Architected Framework
-> - **Compliance**: Diperlukan untuk sertifikasi (PCI-DSS, HIPAA)
-
-## A.1 Perbandingan Arsitektur
-
-| Aspek | Public Subnet (Basic) | Private Subnet (Advanced) |
-|-------|----------------------|---------------------------|
-| **Keamanan** | Backend terekspos internet | Backend tersembunyi |
-| **Biaya** | ~$9/bulan | ~$13-45/bulan |
-| **Use Case** | Development, MVP | Production, Enterprise |
-
-## A.2 Setup VPC dengan NAT Gateway
-
-1. **VPC** → Create VPC → "VPC and more"
-2. Konfigurasi:
-   - Name: `finlapor-vpc-secure`
-   - Private subnets: 2
-   - NAT gateways: In 1 AZ
-
-> **🤔 Mengapa NAT Gateway?**
-> - Instance di private subnet tidak bisa akses internet tanpa NAT
-> - Diperlukan untuk download packages dan pull Docker images
-
-## A.3 Security Group (Private Backend)
-
-| Port | Source | Mengapa? |
-|------|--------|----------|
-| 8080 | API Gateway SG | Hanya dari API Gateway |
-| 5432 | 10.0.0.0/16 | Database internal |
-| 22 | Bastion SG | SSH via Bastion |
-
-> **🤔 Mengapa tidak ada 0.0.0.0/0?**
-> - Backend tidak menerima traffic dari internet langsung
-> - Semua traffic harus melalui API Gateway
-
-## A.4 Setup Bastion Host
-
-> **🤔 Mengapa Bastion?**
-> - Instance di private subnet tidak punya public IP
-> - Bastion = jump server untuk SSH ke backend
-
-1. Launch **t3.nano** di PUBLIC subnet
-2. SSH command:
-```bash
-ssh -J ec2-user@BASTION_IP ec2-user@BACKEND_PRIVATE_IP -i key.pem
-```
-
-## A.5 Backend di Private Subnet
-
-```
-Subnet: PRIVATE subnet
-Auto-assign public IP: Disable
-Security group: finlapor-backend-private-sg
-```
-
-## A.6 Setup API Gateway
-
-> **🤔 Mengapa API Gateway?**
-> - Entry point satu-satunya ke backend
-> - Rate limiting, authorization, caching
-> - Cost: $1 per juta requests
-
-### A.6.1 Create VPC Link
-```
-Name: finlapor-vpc-link
-VPC: finlapor-vpc-secure
-Subnets: Private subnets
-```
-
-### A.6.2 Create HTTP API
-```
-API name: finlapor-api
-```
-
-### A.6.3 Integration
-```
-Type: Private resource
-VPC Link: finlapor-vpc-link
-URL: http://BACKEND_PRIVATE_IP:8080/{proxy}
-```
-
-### A.6.4 Route
-```
-Route: ANY /{proxy+}
-```
-
-### A.6.5 Deploy
-- Stage: `production`
-- Copy Invoke URL
-
-## A.7 Custom Domain
-
-1. **ACM** → Request certificate: `api.finlapor.com`
-2. **API Gateway** → Custom domain names → Create
-3. **CloudFlare DNS**: CNAME `api` → API Gateway domain
-
-## A.8 Diagram Arsitektur
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                        AWS VPC                          │
-│  ┌──────────────┐         ┌─────────────────────────┐  │
-│  │ PUBLIC       │   SSH   │      PRIVATE            │  │
-│  │   Bastion    │────────►│  Backend EC2            │  │
-│  │   (t3.nano)  │         │  + Go API               │  │
-│  └──────────────┘         │  + PostgreSQL (Docker)  │  │
-│        ▲                  │  + Redis (Docker)       │  │
-│      SSH                  └───────────▲─────────────┘  │
-│   (My IP)                             │ VPC Link       │
-│                                       │                │
-│  ┌────────────────────────────────────┴──────────────┐ │
-│  │              AWS API Gateway                       │ │
-│  │              api.finlapor.com                      │ │
-│  └────────────────────────┬──────────────────────────┘ │
-└───────────────────────────┼────────────────────────────┘
-                            │
-                            ▼
-               ┌─────────────────────┐
-               │   CloudFlare CDN    │
-               │   finlapor.com      │
-               └──────────┬──────────┘
-                          │
-                          ▼
-                   ┌─────────────┐
-                   │    USER     │
-                   └─────────────┘
-```
-
-## A.9 Cost Summary
-
-| Item | Per Bulan |
-|------|-----------|
-| Backend EC2 (t3.micro) | ~$8.50 |
-| Bastion EC2 (t3.nano) | ~$3.80 |
-| API Gateway (1M req) | ~$1.00 |
-| NAT Gateway (opsional) | ~$32.00 |
-| **Total (dengan NAT)** | **~$45/bulan** |
-| **Total (tanpa NAT)** | **~$13/bulan** |
-
-> **💡 Tips Hemat**: Matikan NAT Gateway setelah setup selesai, gunakan VPC Endpoints untuk akses S3
-
-## A.10 Checklist
-
-- [ ] VPC dengan public + private subnets
-- [ ] NAT Gateway atau VPC Endpoints
-- [ ] Security Groups yang ketat
-- [ ] Bastion Host di public subnet
-- [ ] Backend EC2 di private subnet (no public IP)
-- [ ] VPC Link untuk API Gateway
-- [ ] HTTP API dengan routes
-- [ ] Custom domain dengan ACM certificate
-- [ ] DNS pointing ke API Gateway
-
----
-
-Dengan Appendix A ini, arsitektur FinLapor **sinkron dengan architecture.md** dan siap untuk production!
