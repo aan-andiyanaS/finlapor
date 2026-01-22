@@ -517,6 +517,130 @@ curl https://[API_GATEWAY_URL]/health
 
 > 💡 **Tips**: Matikan NAT Gateway setelah setup, gunakan VPC Endpoints untuk S3.
 
+## B.10 Optimasi Biaya: VPC Endpoints untuk S3
+
+> **🤔 Mengapa VPC Endpoints?**
+> - **Hemat**: Tidak perlu NAT Gateway (c:\Users\NITRO V 15\OneDrive\Documents\kuliah\semester7\UAS\finlapor32/bulan)
+> - **Cepat**: Akses langsung ke S3 tanpa internet
+> - **Aman**: Traffic tidak keluar dari AWS network
+
+### B.10.1 Setup VPC Endpoint untuk S3
+
+1. **VPC → Endpoints → Create endpoint**
+2. Konfigurasi:
+   ```
+   Name: finlapor-s3-endpoint
+   Service category: AWS services
+   Service name: com.amazonaws.ap-southeast-1.s3
+   VPC: finlapor-vpc-secure
+   Route tables: Select PRIVATE subnet route tables
+   ```
+
+3. **Policy** (opsional - untuk restrict ke bucket tertentu):
+   ```json
+   {
+     "Statement": [
+       {
+         "Sid": "AccessToSpecificBucket",
+         "Effect": "Allow",
+         "Principal": "*",
+         "Action": [
+           "s3:GetObject",
+           "s3:PutObject",
+           "s3:DeleteObject",
+           "s3:ListBucket"
+         ],
+         "Resource": [
+           "arn:aws:s3:::finlapor-storage-*",
+           "arn:aws:s3:::finlapor-storage-*/*"
+         ]
+       }
+     ]
+   }
+   ```
+
+4. **Create endpoint**
+
+### B.10.2 Verifikasi VPC Endpoint
+
+SSH ke backend di private subnet dan test:
+
+```bash
+# Test S3 access via VPC endpoint
+aws s3 ls s3://finlapor-storage-xxxxx
+
+# Upload test file
+echo "test" > test.txt
+aws s3 cp test.txt s3://finlapor-storage-xxxxx/test.txt
+
+# Download test file  
+aws s3 cp s3://finlapor-storage-xxxxx/test.txt downloaded.txt
+cat downloaded.txt
+```
+
+> **✅ Jika berhasil**, artinya VPC Endpoint sudah berfungsi!
+
+### B.10.3 Matikan NAT Gateway
+
+**Setelah VPC Endpoint berjalan**, NAT Gateway bisa dimatikan untuk hemat biaya:
+
+1. **VPC → NAT Gateways**
+2. Pilih NAT Gateway Anda
+3. **Actions → Delete NAT gateway**
+4. Ketik "delete" untuk confirm
+5. **VPC → Elastic IPs**
+6. Pilih EIP yang tadinya attached ke NAT Gateway
+7. **Actions → Release Elastic IP address**
+
+> **⚠️ Warning**: Setelah NAT Gateway dihapus, instance di private subnet **tidak bisa akses internet** kecuali via VPC Endpoints.
+
+### B.10.4 Tambahan: VPC Endpoint untuk Services Lain (Opsional)
+
+Jika butuh akses ke AWS services lain tanpa NAT Gateway:
+
+| Service | Endpoint Name | Use Case |
+|---------|---------------|----------|
+| **S3** | com.amazonaws.region.s3 | File storage (sudah disetup) |
+| **DynamoDB** | com.amazonaws.region.dynamodb | NoSQL database |
+| **ECR** | com.amazonaws.region.ecr.api | Docker registry |
+| **CloudWatch Logs** | com.amazonaws.region.logs | Logging |
+| **SSM** | com.amazonaws.region.ssm | Systems Manager |
+
+**Setup sama seperti S3 Endpoint di atas**.
+
+### B.10.5 Checklist Optimasi Biaya
+
+- [ ] VPC Endpoint untuk S3 created
+- [ ] Test S3 access dari private subnet
+- [ ] Upload/download test berhasil
+- [ ] NAT Gateway deleted
+- [ ] Elastic IP released
+- [ ] (Opsional) Tambah VPC Endpoints lain sesuai kebutuhan
+
+### B.10.6 Perbandingan Biaya
+
+| Setup | NAT Gateway | VPC Endpoint S3 | Total/Bulan |
+|-------|-------------|-----------------|-------------|
+| **Dengan NAT** | c:\Users\NITRO V 15\OneDrive\Documents\kuliah\semester7\UAS\finlapor32.00 | c:\Users\NITRO V 15\OneDrive\Documents\kuliah\semester7\UAS\finlapor0 | ~c:\Users\NITRO V 15\OneDrive\Documents\kuliah\semester7\UAS\finlapor45/bulan |
+| **Dengan VPC Endpoint** | c:\Users\NITRO V 15\OneDrive\Documents\kuliah\semester7\UAS\finlapor0 | c:\Users\NITRO V 15\OneDrive\Documents\kuliah\semester7\UAS\finlapor0* | ~c:\Users\NITRO V 15\OneDrive\Documents\kuliah\semester7\UAS\finlapor13/bulan |
+
+\* VPC Endpoint S3 Gateway: **GRATIS** (tidak ada biaya)!
+
+> **💰 Penghematan**: **c:\Users\NITRO V 15\OneDrive\Documents\kuliah\semester7\UAS\finlapor32/bulan** atau **c:\Users\NITRO V 15\OneDrive\Documents\kuliah\semester7\UAS\finlapor384/tahun**
+
+## B.11 Cost Summary (Private Subnet - Final)
+
+| Item | Per Bulan |
+|------|-----------|
+| EC2 t3.micro (backend) | ~c:\Users\NITRO V 15\OneDrive\Documents\kuliah\semester7\UAS\finlapor8.50 |
+| EC2 t3.nano (bastion) | ~c:\Users\NITRO V 15\OneDrive\Documents\kuliah\semester7\UAS\finlapor3.80 |
+| API Gateway (1M req) | ~c:\Users\NITRO V 15\OneDrive\Documents\kuliah\semester7\UAS\finlapor1.00 |
+| NAT Gateway (opsional) | ~c:\Users\NITRO V 15\OneDrive\Documents\kuliah\semester7\UAS\finlapor32.00 |
+| VPC Endpoint S3 | **c:\Users\NITRO V 15\OneDrive\Documents\kuliah\semester7\UAS\finlapor0** (GRATIS) |
+| **Total (dengan NAT)** | **~c:\Users\NITRO V 15\OneDrive\Documents\kuliah\semester7\UAS\finlapor45/bulan** |
+| **Total (dengan VPC Endpoint)** | **~c:\Users\NITRO V 15\OneDrive\Documents\kuliah\semester7\UAS\finlapor13/bulan** |
+
+
 ---
 
 ## 5. Deploy AI Service ke AWS Lambda
