@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 
 type Message = {
-    id: number
+    id: string
     role: 'user' | 'assistant'
     content: string
     timestamp: Date
@@ -17,28 +17,59 @@ const suggestions = [
 ]
 
 export default function ChatPage() {
-    const [messages, setMessages] = useState<Message[]>([
-        {
-            id: 1,
-            role: 'assistant',
-            content: 'Halo! 👋 Saya FinLapor AI Assistant. Saya bisa membantu Anda menganalisis keuangan, memberikan insight pengeluaran, dan saran menabung. Ada yang bisa saya bantu?',
-            timestamp: new Date(),
-        }
-    ])
+    const [messages, setMessages] = useState<Message[]>([])
     const [input, setInput] = useState('')
     const [isTyping, setIsTyping] = useState(false)
+    const [loading, setLoading] = useState(true)
     const messagesEndRef = useRef<HTMLDivElement>(null)
+
+    useEffect(() => {
+        fetchChatHistory()
+    }, [])
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     }, [messages])
+
+    const fetchChatHistory = async () => {
+        try {
+            const token = localStorage.getItem('token')
+            const res = await fetch('http://localhost:8080/api/chat/history', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
+            if (res.ok) {
+                const data = await res.json()
+                const history = data.data || []
+                if (history.length === 0) {
+                    // Add welcome message for new chat
+                    setMessages([{
+                        id: 'welcome',
+                        role: 'assistant',
+                        content: 'Halo! 👋 Saya FinLapor AI Assistant. Saya bisa membantu Anda menganalisis keuangan, memberikan insight pengeluaran, dan saran menabung. Ada yang bisa saya bantu?',
+                        timestamp: new Date(),
+                    }])
+                } else {
+                    setMessages(history.map((msg: any) => ({
+                        id: msg.id,
+                        role: msg.role,
+                        content: msg.message,
+                        timestamp: new Date(msg.created_at)
+                    })))
+                }
+            }
+        } catch (error) {
+            console.error('Error fetching chat history:', error)
+        } finally {
+            setLoading(false)
+        }
+    }
 
     const handleSend = async (text?: string) => {
         const messageText = text || input
         if (!messageText.trim()) return
 
         const userMessage: Message = {
-            id: Date.now(),
+            id: `temp-${Date.now()}`,
             role: 'user',
             content: messageText,
             timestamp: new Date(),
@@ -48,34 +79,56 @@ export default function ChatPage() {
         setInput('')
         setIsTyping(true)
 
-        // Simulate AI response
-        await new Promise(resolve => setTimeout(resolve, 1500))
+        try {
+            const token = localStorage.getItem('token')
+            const res = await fetch('http://localhost:8080/api/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    message: messageText,
+                    context: {}
+                })
+            })
 
-        const aiResponses: Record<string, string> = {
-            'pengeluaran': 'Total pengeluaran Anda bulan ini adalah **Rp 2.480.000**. Ini 8% lebih rendah dibanding bulan lalu! 📉\n\nBreakdown per kategori:\n- 🍔 Makan & Minum: Rp 850.000 (34%)\n- 📄 Tagihan: Rp 500.000 (20%)\n- 🚗 Transportasi: Rp 500.000 (20%)\n- 🛒 Belanja: Rp 350.000 (14%)\n- 📦 Lainnya: Rp 280.000 (12%)',
-            'boros': 'Kategori dengan pengeluaran tertinggi adalah **Makan & Minum** (Rp 850.000 atau 34% dari total).\n\n💡 **Tips**: Rata-rata orang Indonesia menghabiskan 30% dari pendapatan untuk makan. Anda sedikit di atas rata-rata. Pertimbangkan untuk:\n- Memasak di rumah 2-3x seminggu\n- Membawa bekal ke kantor\n- Mencari promo atau diskon',
-            'tips': '**5 Tips Menabung untuk Anda:**\n\n1️⃣ **Gunakan aturan 50/30/20**: 50% kebutuhan, 30% keinginan, 20% tabungan\n\n2️⃣ **Otomatisasi tabungan**: Set auto-debit ke rekening tabungan setiap gajian\n\n3️⃣ **Track pengeluaran kecil**: Kopi Rp 25.000/hari = Rp 750.000/bulan!\n\n4️⃣ **Tunggu 24 jam** sebelum beli barang non-esensial\n\n5️⃣ **Buat emergency fund** = 3-6 bulan pengeluaran',
-            'pola': '**Analisis Pola Pengeluaran Anda:**\n\n📊 **Tren**:\n- Pengeluaran tertinggi di akhir pekan (Sabtu-Minggu)\n- Kategori Hiburan melonjak 45% di weekend\n- Pengeluaran Makan naik saat tanggal muda\n\n⚠️ **Perhatian**:\n- 3 transaksi besar minggu ini (di atas Rp 200.000)\n- Subscription yang bisa di-review: Netflix, Spotify\n\n✅ **Good news**:\n- Rasio tabungan Anda 69% (sangat baik!)\n- Tidak ada pengeluaran anomali terdeteksi',
-        }
-
-        let response = 'Terima kasih atas pertanyaannya! Berdasarkan data keuangan Anda, saya sarankan untuk terus memantau pengeluaran harian dan menetapkan budget untuk setiap kategori. Ada yang ingin ditanyakan lebih lanjut?'
-
-        for (const [key, value] of Object.entries(aiResponses)) {
-            if (messageText.toLowerCase().includes(key)) {
-                response = value
-                break
+            if (res.ok) {
+                const data = await res.json()
+                const aiMessage: Message = {
+                    id: data.data.id || `ai-${Date.now()}`,
+                    role: 'assistant',
+                    content: data.data.response || data.data.message,
+                    timestamp: new Date(),
+                }
+                setMessages(prev => [...prev, aiMessage])
+            } else {
+                throw new Error('Chat API failed')
             }
+        } catch (error) {
+            console.error('Error sending message:', error)
+            // Fallback response
+            const fallbackMessage: Message = {
+                id: `fallback-${Date.now()}`,
+                role: 'assistant',
+                content: 'Maaf, terjadi kesalahan. Silakan coba lagi atau hubungi administrator.',
+                timestamp: new Date(),
+            }
+            setMessages(prev => [...prev, fallbackMessage])
+        } finally {
+            setIsTyping(false)
         }
+    }
 
-        const aiMessage: Message = {
-            id: Date.now() + 1,
-            role: 'assistant',
-            content: response,
-            timestamp: new Date(),
-        }
-
-        setMessages(prev => [...prev, aiMessage])
-        setIsTyping(false)
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center h-96">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto mb-4"></div>
+                    <p className="text-slate-400">Memuat chat...</p>
+                </div>
+            </div>
+        )
     }
 
     return (
@@ -135,7 +188,7 @@ export default function ChatPage() {
                 </div>
 
                 {/* Suggestions */}
-                {messages.length <= 2 && (
+                {messages.length <= 1 && (
                     <div className="px-4 py-2 border-t border-slate-700/50">
                         <p className="text-xs text-slate-400 mb-2">Coba tanyakan:</p>
                         <div className="flex flex-wrap gap-2">
@@ -164,6 +217,7 @@ export default function ChatPage() {
                             onChange={(e) => setInput(e.target.value)}
                             placeholder="Ketik pertanyaan Anda..."
                             className="flex-1 px-4 py-3 rounded-xl bg-slate-700/50 border border-slate-600 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                            disabled={isTyping}
                         />
                         <button
                             type="submit"
