@@ -74,7 +74,7 @@ export default function DashboardPage() {
         )
     }
 
-    const { balance, totalIncome, totalExpense, savingsRatio } = summary
+    const { balance = 0, totalIncome = 0, totalExpense = 0, savingsRatio = 0 } = summary || {}
 
     // If no data (new user), show empty state
     const hasData = totalIncome > 0 || totalExpense > 0 || transactions.length > 0
