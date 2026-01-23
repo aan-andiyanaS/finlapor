@@ -137,17 +137,20 @@ aws configure
 │ ✅ Biaya rendah (~$9/bulan)      │ ✅ Enterprise-grade                │
 │ ✅ SSH langsung ke server        │ ⚠️ Butuh Bastion Host              │
 │ ⚠️ Backend terekspos internet    │ ⚠️ Biaya lebih tinggi (~$13-45)    │
+│ ❌ **TIDAK SESUAI DIAGRAM**      │ ✅ **SESUAI DIAGRAM ARSITEKTUR**    │
 │                                 │                                   │
 │ Cocok untuk:                    │ Cocok untuk:                      │
-│ - Development                   │ - Production                      │
+│ - Development / Low Budget      │ - Production                      │
 │ - MVP/Demo                      │ - Enterprise                      │
-│ - Proyek UAS                    │ - Compliance (PCI-DSS)            │
+│ - Proyek UAS (Hemat)            │ - Compliance (PCI-DSS)            │
 └─────────────────────────────────┴───────────────────────────────────┘
 ```
 
 ---
 
-# OPSI A: Public Subnet (Sederhana)
+# OPSI A: Public Subnet (Sederhana & Hemat)
+
+> ⚠️ **Catatan Penting:** Opsi ini **LEBIH HEMAT** tetapi **TIDAK SESUAI** dengan Diagram Arsitektur utama. Gunakan opsi ini jika budget terbatas.
 
 ## A.1 Diagram Arsitektur
 
@@ -313,7 +316,9 @@ sudo systemctl start finlapor
 
 ---
 
-# OPSI B: Private Subnet + API Gateway (Advanced)
+# OPSI B: Private Subnet + API Gateway (Sesuai Arsitektur)
+
+> ✅ **Catatan Penting:** Opsi ini **SEPENUHNYA SESUAI** dengan file `architecture.md` dan diagram visual `finlapor_aws_architecture.png`.
 
 ## B.1 Diagram Arsitektur
 
