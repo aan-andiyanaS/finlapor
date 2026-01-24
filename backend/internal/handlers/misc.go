@@ -1,8 +1,11 @@
 package handlers
 
 import (
+	"fmt"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"github.com/yourusername/finlapor/backend/internal/models"
 	"github.com/yourusername/finlapor/backend/internal/services"
 )
 
@@ -13,6 +16,41 @@ type UploadHandler struct {
 
 func NewUploadHandler(uploadService *services.UploadService) *UploadHandler {
 	return &UploadHandler{uploadService: uploadService}
+}
+
+func (h *UploadHandler) Upload(c *fiber.Ctx) error {
+	// Get file from form
+	file, err := c.FormFile("file")
+	if err != nil {
+		return ErrorResponse(c, fiber.StatusBadRequest, "VALIDATION_ERROR", "No file uploaded")
+	}
+
+	// Validate file size (max 10MB)
+	if file.Size > 10*1024*1024 {
+		return ErrorResponse(c, fiber.StatusBadRequest, "VALIDATION_ERROR", "File too large (max 10MB)")
+	}
+
+	// Open file
+	src, err := file.Open()
+	if err != nil {
+		return ErrorResponse(c, fiber.StatusInternalServerError, "UPLOAD_ERROR", "Failed to read file")
+	}
+	defer src.Close()
+
+	// Upload to service
+	result, err := h.uploadService.Upload(
+		c.Context(),
+		file.Filename,
+		file.Size,
+		file.Header.Get("Content-Type"),
+		src,
+	)
+
+	if err != nil {
+		return ErrorResponse(c, fiber.StatusInternalServerError, "UPLOAD_ERROR", err.Error())
+	}
+
+	return SuccessResponse(c, result)
 }
 
 func (h *UploadHandler) GetPresignedURL(c *fiber.Ctx) error {
@@ -94,12 +132,16 @@ func (h *OCRHandler) Categorize(c *fiber.Ctx) error {
 
 // ChatHandler handles AI chat with HuggingFace
 type ChatHandler struct {
-	hfService *services.HuggingFaceService
+	hfService   *services.HuggingFaceService
+	txService   *services.TransactionService
+	userService *services.UserService
 }
 
-func NewChatHandler() *ChatHandler {
+func NewChatHandler(txService *services.TransactionService, userService *services.UserService) *ChatHandler {
 	return &ChatHandler{
-		hfService: services.NewHuggingFaceService(),
+		hfService:   services.NewHuggingFaceService(),
+		txService:   txService,
+		userService: userService,
 	}
 }
 
@@ -117,6 +159,25 @@ func (h *ChatHandler) Chat(c *fiber.Ctx) error {
 		return ErrorResponse(c, fiber.StatusBadRequest, "EMPTY_MESSAGE", "Message cannot be empty")
 	}
 
+	// Get user ID from context
+	userIDStr := c.Locals("userID").(string)
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		return ErrorResponse(c, fiber.StatusBadRequest, "INVALID_USER", "Invalid user ID")
+	}
+
+	// Fetch user info including age
+	user, _ := h.userService.GetByID(userID)
+
+	// Fetch user's financial data
+	financialContext := h.buildFinancialContext(userID, user)
+
+	// Merge with request context
+	if req.Context == nil {
+		req.Context = make(map[string]interface{})
+	}
+	req.Context["financial_data"] = financialContext
+
 	result, err := h.hfService.Chat(req.Message, req.Context)
 	if err != nil {
 		return ErrorResponse(c, fiber.StatusInternalServerError, "CHAT_ERROR", err.Error())
@@ -127,6 +188,120 @@ func (h *ChatHandler) Chat(c *fiber.Ctx) error {
 		"timestamp":  result.Timestamp,
 		"ai_enabled": h.hfService.IsConfigured(),
 	})
+}
+
+// buildFinancialContext creates a summary of user's financial data for AI context
+func (h *ChatHandler) buildFinancialContext(userID uuid.UUID, user *models.User) string {
+	// Build user profile info
+	userInfo := ""
+	if user != nil {
+		userInfo = fmt.Sprintf("Nama User: %s\n", user.Name)
+		if user.Age != nil {
+			userInfo += fmt.Sprintf("Usia: %d tahun\n", *user.Age)
+		}
+		userInfo += fmt.Sprintf("Mode: %s\n", user.Mode)
+	}
+
+	// Get summary
+	summary, err := h.txService.GetSummary(userID)
+	if err != nil {
+		return userInfo + "Tidak ada data keuangan tersedia."
+	}
+
+	// Get recent transactions (last 100 for better analysis)
+	transactions, err := h.txService.List(userID, 1, 100)
+	if err != nil {
+		transactions = []models.Transaction{}
+	}
+
+	// Build context string
+	totalIncome := summary["total_income"]
+	totalExpense := summary["total_expense"]
+	balance := summary["balance"]
+
+	// Calculate category breakdown from transactions
+	expenseByCategory := make(map[string]float64)
+	incomeByCategory := make(map[string]float64)
+
+	for _, tx := range transactions {
+		categoryName := "Lainnya"
+		if tx.Category != nil {
+			categoryName = tx.Category.Name
+		} else if len(tx.Items) > 0 && tx.Items[0].Category != nil {
+			categoryName = tx.Items[0].Category.Name
+		}
+
+		if tx.Type == "expense" {
+			expenseByCategory[categoryName] += tx.Amount
+		} else if tx.Type == "income" {
+			incomeByCategory[categoryName] += tx.Amount
+		}
+	}
+
+	// Format category breakdown
+	expenseCategoryStr := ""
+	totalExpenseFromCat := 0.0
+	for cat, amount := range expenseByCategory {
+		expenseCategoryStr += fmt.Sprintf("  - %s: Rp %.0f\n", cat, amount)
+		totalExpenseFromCat += amount
+	}
+	if expenseCategoryStr == "" {
+		expenseCategoryStr = "  (belum ada data)\n"
+	}
+
+	incomeCategoryStr := ""
+	totalIncomeFromCat := 0.0
+	for cat, amount := range incomeByCategory {
+		incomeCategoryStr += fmt.Sprintf("  - %s: Rp %.0f\n", cat, amount)
+		totalIncomeFromCat += amount
+	}
+	if incomeCategoryStr == "" {
+		incomeCategoryStr = "  (belum ada data)\n"
+	}
+
+	// Build transaction list summary
+	txSummary := ""
+	if len(transactions) > 0 {
+		txSummary = fmt.Sprintf("Total transaksi tercatat: %d transaksi\n", len(transactions))
+
+		// Get latest 15 for details
+		count := 15
+		if len(transactions) < 15 {
+			count = len(transactions)
+		}
+		txSummary += "Transaksi terbaru:\n"
+		for i := 0; i < count; i++ {
+			tx := transactions[i]
+			desc := "(tanpa deskripsi)"
+			if tx.Description != nil && *tx.Description != "" {
+				desc = *tx.Description
+			}
+			categoryName := "Lainnya"
+			if tx.Category != nil {
+				categoryName = tx.Category.Name
+			} else if len(tx.Items) > 0 && tx.Items[0].Category != nil {
+				categoryName = tx.Items[0].Category.Name
+			}
+			txSummary += fmt.Sprintf("  - %s [%s] (%s): Rp %.0f pada %s\n", desc, categoryName, tx.Type, tx.Amount, tx.Date.Format("2006-01-02"))
+		}
+	}
+
+	context := fmt.Sprintf(`=== PROFIL USER ===
+%s
+=== DATA KEUANGAN USER ===
+Total Pemasukan: Rp %.0f
+Total Pengeluaran: Rp %.0f
+Saldo/Balance: Rp %.0f
+
+PEMASUKAN per Kategori:
+%s
+PENGELUARAN per Kategori:
+%s
+DETAIL TRANSAKSI:
+%s
+===========================`, userInfo, totalIncome, totalExpense, balance, incomeCategoryStr, expenseCategoryStr, txSummary)
+
+	return context
 }
 
 // DashboardHandler handles dashboard data from real database

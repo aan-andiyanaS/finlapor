@@ -32,7 +32,7 @@ type AuthResult struct {
 	RefreshToken string       `json:"refresh_token"`
 }
 
-func (s *AuthService) Register(email, password, name, mode string) (*AuthResult, error) {
+func (s *AuthService) Register(email, password, name, mode string, age *int) (*AuthResult, error) {
 	// Check if user exists
 	existing, _ := s.userRepo.FindByEmail(email)
 	if existing != nil {
@@ -50,6 +50,7 @@ func (s *AuthService) Register(email, password, name, mode string) (*AuthResult,
 		Email:        email,
 		PasswordHash: string(hashedPassword),
 		Name:         name,
+		Age:          age,
 		Mode:         mode,
 	}
 
@@ -152,7 +153,7 @@ func (s *AuthService) RefreshToken(refreshToken string) (*AuthResult, error) {
 func (s *AuthService) generateAccessToken(userID uuid.UUID) (string, error) {
 	claims := jwt.MapClaims{
 		"sub": userID.String(),
-		"exp": time.Now().Add(15 * time.Minute).Unix(),
+		"exp": time.Now().Add(24 * time.Hour).Unix(),
 		"iat": time.Now().Unix(),
 	}
 

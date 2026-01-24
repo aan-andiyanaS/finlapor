@@ -16,7 +16,8 @@ func NewCategoryRepository(db *gorm.DB) *CategoryRepository {
 
 func (r *CategoryRepository) FindAll(userID *uuid.UUID) ([]models.Category, error) {
 	var categories []models.Category
-	query := r.db.Where("is_default = ?", true)
+	// Get global categories (user_id IS NULL) and user-specific categories
+	query := r.db.Where("user_id IS NULL")
 	if userID != nil {
 		query = query.Or("user_id = ?", *userID)
 	}

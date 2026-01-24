@@ -62,20 +62,28 @@ type OCRResult struct {
 // ScanReceipt performs OCR on a receipt image
 func (s *HuggingFaceService) ScanReceipt(imageURL string) (*OCRResult, error) {
 	if !s.IsConfigured() {
+		fmt.Println("⚠️  HF_TOKEN not configured, using mock OCR")
 		return s.mockOCRResult(), nil
 	}
+
+	fmt.Printf("🔍 HuggingFace OCR: Downloading image from %s\n", imageURL)
 
 	// Download image
 	imageData, err := s.downloadImage(imageURL)
 	if err != nil {
+		fmt.Printf("❌ Failed to download image: %v\n", err)
 		return s.mockOCRResult(), nil
 	}
 
+	fmt.Printf("✅ Image downloaded (%d bytes)\n", len(imageData))
+
 	// Call HuggingFace API
-	apiURL := fmt.Sprintf("https://api-inference.huggingface.co/models/%s", s.ocrModel)
+	apiURL := fmt.Sprintf("https://router.huggingface.co/hf-inference/models/%s", s.ocrModel)
+	fmt.Printf("🚀 Calling HuggingFace API: %s\n", apiURL)
 
 	req, err := http.NewRequest("POST", apiURL, bytes.NewReader(imageData))
 	if err != nil {
+		fmt.Printf("❌ Failed to create request: %v\n", err)
 		return s.mockOCRResult(), nil
 	}
 
@@ -84,11 +92,15 @@ func (s *HuggingFaceService) ScanReceipt(imageURL string) (*OCRResult, error) {
 
 	resp, err := s.client.Do(req)
 	if err != nil {
+		fmt.Printf("❌ Failed to call HuggingFace API: %v\n", err)
 		return s.mockOCRResult(), nil
 	}
 	defer resp.Body.Close()
 
+	fmt.Printf("📥 HuggingFace response status: %d\n", resp.StatusCode)
+
 	body, _ := io.ReadAll(resp.Body)
+	fmt.Printf("📄 Response body (%d bytes): %s\n", len(body), string(body[:min(500, len(body))]))
 
 	// Parse response
 	var hfResponse []map[string]interface{}
@@ -96,16 +108,27 @@ func (s *HuggingFaceService) ScanReceipt(imageURL string) (*OCRResult, error) {
 		// Try parsing as single object
 		var singleResponse map[string]interface{}
 		if err := json.Unmarshal(body, &singleResponse); err != nil {
+			fmt.Printf("❌ Failed to parse response: %v\n", err)
 			return s.mockOCRResult(), nil
 		}
+		fmt.Println("✅ Parsed as single object response")
 		return s.parseOCRResponse(singleResponse), nil
 	}
 
 	if len(hfResponse) > 0 {
+		fmt.Println("✅ Parsed as array response")
 		return s.parseOCRResponse(hfResponse[0]), nil
 	}
 
+	fmt.Println("⚠️  Empty response from HuggingFace, using mock")
 	return s.mockOCRResult(), nil
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func (s *HuggingFaceService) parseOCRResponse(response map[string]interface{}) *OCRResult {
@@ -213,39 +236,82 @@ type ChatResponse struct {
 
 // Chat sends a message to the LLM and returns a response
 func (s *HuggingFaceService) Chat(message string, context map[string]interface{}) (*ChatResponse, error) {
+	fmt.Println("=== CHAT DEBUG ===")
+	fmt.Printf("Token configured: %v\n", s.IsConfigured())
+	fmt.Printf("LLM Model: %s\n", s.llmModel)
+
 	if !s.IsConfigured() {
+		fmt.Println("⚠️ HF_TOKEN not configured, using mock response")
 		return s.mockChatResponse(message), nil
 	}
 
-	// Build prompt
-	systemPrompt := `Kamu adalah FinLapor AI Assistant, asisten keuangan pribadi yang membantu pengguna mengelola keuangan mereka. 
-Kamu bisa membantu dengan:
-- Menganalisis pengeluaran dan pemasukan
-- Memberikan tips menabung
-- Merekomendasikan budget
-- Menjawab pertanyaan seputar keuangan
+	// Extract financial data from context
+	financialData := ""
+	if context != nil {
+		if data, ok := context["financial_data"].(string); ok {
+			financialData = data
+			fmt.Printf("📊 Financial context included (%d chars)\n", len(data))
+		}
+	}
 
-Berikan jawaban yang singkat, jelas, dan dalam Bahasa Indonesia.`
+	// Build messages in OpenAI format with financial context
+	systemPrompt := fmt.Sprintf(`Kamu adalah "Finny", asisten keuangan AI yang SUPER FRIENDLY dari FinLapor! 🎉
 
-	prompt := fmt.Sprintf("<s>[INST] %s\n\nUser: %s [/INST]", systemPrompt, message)
+PERSONALITY & GAYA BICARA:
+- Kamu seperti TEMAN DISKUSI yang asyik, bukan robot formal
+- Gunakan emoji yang relevan tapi jangan berlebihan (1-3 emoji per respons)
+- Buat percakapan interaktif - tanyakan balik, ajak diskusi
+- Pakai bahasa santai tapi tetap informatif
+- Kalau user masih muda (di bawah 25 tahun), gunakan bahasa gaul yang relate (misal: "gas!", "mantap!", "auto cuan")
+- Kalau user dewasa (25-40 tahun), bicara profesional tapi tetap friendly
+- Kalau user senior (40+ tahun), bicara sopan dan hormat
 
-	// Call HuggingFace API
-	apiURL := fmt.Sprintf("https://api-inference.huggingface.co/models/%s", s.llmModel)
+KEMAMPUAN UTAMA:
+- Menganalisis pengeluaran dan pemasukan secara DETAIL per kategori
+- Memberikan tips menabung yang PRAKTIS sesuai usia dan gaya hidup
+- Merekomendasikan budget yang REALISTIS
+- Menjawab pertanyaan keuangan dengan penjelasan MUDAH DIPAHAMI
 
+CARA MENJAWAB:
+1. Selalu sapa dengan ramah
+2. Langsung jawab pertanyaan dengan data konkret
+3. Berikan insight atau saran tambahan
+4. Akhiri dengan pertanyaan untuk engagement atau ajakan diskusi
+
+PERHATIAN KHUSUS:
+- Jika ditanya total per kategori, HITUNG dengan benar dari data
+- Jika ditanya kategori tertentu, sebutkan detail transaksinya
+- Jika tidak ada data untuk kategori yang diminta, bilang dengan jujur
+- Selalu sebutkan angka dalam format Rupiah (Rp)
+
+Berikut adalah DATA LENGKAP user yang WAJIB kamu gunakan:
+%s
+
+PENTING: Gunakan data di atas untuk memberikan analisis yang AKURAT dan PERSONAL. Jangan mengada-ada angka!`, financialData)
+
+	// Use OpenAI-compatible endpoint
+	apiURL := "https://router.huggingface.co/v1/chat/completions"
+	fmt.Printf("🚀 Calling HuggingFace LLM API: %s\n", apiURL)
+	fmt.Printf("📝 Model: %s\n", s.llmModel)
+
+	// OpenAI-compatible payload
 	payload := map[string]interface{}{
-		"inputs": prompt,
-		"parameters": map[string]interface{}{
-			"max_new_tokens":   500,
-			"temperature":      0.7,
-			"top_p":            0.95,
-			"return_full_text": false,
+		"model": s.llmModel,
+		"messages": []map[string]string{
+			{"role": "system", "content": systemPrompt},
+			{"role": "user", "content": message},
 		},
+		"max_tokens":  500,
+		"temperature": 0.7,
+		"top_p":       0.95,
 	}
 
 	payloadBytes, _ := json.Marshal(payload)
+	fmt.Printf("📤 Payload size: %d bytes\n", len(payloadBytes))
 
 	req, err := http.NewRequest("POST", apiURL, bytes.NewReader(payloadBytes))
 	if err != nil {
+		fmt.Printf("❌ Failed to create request: %v\n", err)
 		return s.mockChatResponse(message), nil
 	}
 
@@ -254,27 +320,54 @@ Berikan jawaban yang singkat, jelas, dan dalam Bahasa Indonesia.`
 
 	resp, err := s.client.Do(req)
 	if err != nil {
+		fmt.Printf("❌ Failed to call HuggingFace API: %v\n", err)
 		return s.mockChatResponse(message), nil
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
+	fmt.Printf("📥 Response status: %d\n", resp.StatusCode)
 
-	// Parse response
-	var hfResponse []map[string]interface{}
-	if err := json.Unmarshal(body, &hfResponse); err != nil {
+	body, _ := io.ReadAll(resp.Body)
+	fmt.Printf("📄 Response body (%d bytes): %s\n", len(body), string(body[:min(500, len(body))]))
+
+	// Check for error responses
+	if resp.StatusCode != 200 {
+		fmt.Printf("❌ HuggingFace API error: %s\n", string(body))
 		return s.mockChatResponse(message), nil
 	}
 
-	if len(hfResponse) > 0 {
-		if genText, ok := hfResponse[0]["generated_text"].(string); ok {
-			return &ChatResponse{
-				Response:  strings.TrimSpace(genText),
-				Timestamp: time.Now().Format(time.RFC3339),
-			}, nil
-		}
+	// Parse OpenAI-compatible response
+	var chatResponse struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+		Error *struct {
+			Message string `json:"message"`
+		} `json:"error"`
 	}
 
+	if err := json.Unmarshal(body, &chatResponse); err != nil {
+		fmt.Printf("❌ Failed to parse response: %v\n", err)
+		return s.mockChatResponse(message), nil
+	}
+
+	if chatResponse.Error != nil {
+		fmt.Printf("❌ API returned error: %s\n", chatResponse.Error.Message)
+		return s.mockChatResponse(message), nil
+	}
+
+	if len(chatResponse.Choices) > 0 && chatResponse.Choices[0].Message.Content != "" {
+		content := chatResponse.Choices[0].Message.Content
+		fmt.Printf("✅ Got LLM response: %s...\n", content[:min(100, len(content))])
+		return &ChatResponse{
+			Response:  strings.TrimSpace(content),
+			Timestamp: time.Now().Format(time.RFC3339),
+		}, nil
+	}
+
+	fmt.Println("⚠️ Empty/invalid response, using mock")
 	return s.mockChatResponse(message), nil
 }
 
@@ -308,7 +401,7 @@ func (s *HuggingFaceService) Categorize(description string) (string, float64) {
 	}
 
 	// Use zero-shot classification
-	apiURL := "https://api-inference.huggingface.co/models/facebook/bart-large-mnli"
+	apiURL := "https://router.huggingface.co/hf-inference/models/facebook/bart-large-mnli"
 
 	categories := []string{
 		"makanan dan minuman",

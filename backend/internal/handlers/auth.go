@@ -17,6 +17,7 @@ type RegisterRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 	Name     string `json:"name"`
+	Age      *int   `json:"age"`
 	Mode     string `json:"mode"`
 }
 
@@ -45,7 +46,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		req.Mode = "personal"
 	}
 
-	result, err := h.authService.Register(req.Email, req.Password, req.Name, req.Mode)
+	result, err := h.authService.Register(req.Email, req.Password, req.Name, req.Mode, req.Age)
 	if err != nil {
 		if err.Error() == "email already exists" {
 			return ErrorResponse(c, fiber.StatusConflict, "CONFLICT", "Email already registered")

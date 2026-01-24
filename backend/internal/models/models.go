@@ -11,37 +11,63 @@ type User struct {
 	Email        string    `json:"email" gorm:"uniqueIndex;not null"`
 	PasswordHash string    `json:"-" gorm:"not null"`
 	Name         string    `json:"name" gorm:"not null"`
+	Age          *int      `json:"age"`
 	Mode         string    `json:"mode" gorm:"default:'personal'"`
 	AvatarURL    *string   `json:"avatar_url"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }
 
+// CategoryGroup represents a group of related categories
+type CategoryGroup struct {
+	ID         uuid.UUID  `json:"id" gorm:"type:uuid;primary_key;default:uuid_generate_v4()"`
+	UserID     *uuid.UUID `json:"user_id" gorm:"type:uuid;index"`
+	Name       string     `json:"name" gorm:"not null"`
+	Icon       *string    `json:"icon"`
+	Color      *string    `json:"color"`
+	SortOrder  int        `json:"sort_order" gorm:"default:0"`
+	Categories []Category `json:"categories,omitempty" gorm:"foreignKey:GroupID"`
+	CreatedAt  time.Time  `json:"created_at"`
+}
+
 type Category struct {
-	ID        uuid.UUID  `json:"id" gorm:"type:uuid;primary_key;default:uuid_generate_v4()"`
-	UserID    *uuid.UUID `json:"user_id" gorm:"type:uuid;index"`
-	Name      string     `json:"name" gorm:"not null"`
-	Type      string     `json:"type" gorm:"not null"` // income, expense
-	Icon      *string    `json:"icon"`
-	Color     *string    `json:"color"`
-	IsDefault bool       `json:"is_default" gorm:"default:false"`
-	CreatedAt time.Time  `json:"created_at"`
+	ID        uuid.UUID      `json:"id" gorm:"type:uuid;primary_key;default:uuid_generate_v4()"`
+	UserID    *uuid.UUID     `json:"user_id" gorm:"type:uuid;index"`
+	GroupID   *uuid.UUID     `json:"group_id" gorm:"type:uuid;index"`
+	Group     *CategoryGroup `json:"group,omitempty" gorm:"foreignKey:GroupID"`
+	Name      string         `json:"name" gorm:"not null"`
+	Type      string         `json:"type" gorm:"not null"` // income, expense
+	Icon      *string        `json:"icon"`
+	Color     *string        `json:"color"`
+	IsDefault bool           `json:"is_default" gorm:"default:false"`
+	CreatedAt time.Time      `json:"created_at"`
+}
+
+// TransactionItem represents a single category-amount pair within a transaction
+type TransactionItem struct {
+	ID            uuid.UUID  `json:"id" gorm:"type:uuid;primary_key;default:uuid_generate_v4()"`
+	TransactionID uuid.UUID  `json:"transaction_id" gorm:"type:uuid;index;not null"`
+	CategoryID    *uuid.UUID `json:"category_id" gorm:"type:uuid;index"`
+	Category      *Category  `json:"category,omitempty" gorm:"foreignKey:CategoryID"`
+	Amount        float64    `json:"amount" gorm:"type:decimal(15,2);not null"`
+	Note          *string    `json:"note"`
+	CreatedAt     time.Time  `json:"created_at"`
 }
 
 type Transaction struct {
-	ID                uuid.UUID  `json:"id" gorm:"type:uuid;primary_key;default:uuid_generate_v4()"`
-	UserID            uuid.UUID  `json:"user_id" gorm:"type:uuid;index;not null"`
-	CategoryID        *uuid.UUID `json:"category_id" gorm:"type:uuid;index"`
-	Category          *Category  `json:"category,omitempty" gorm:"foreignKey:CategoryID"`
-	Type              string     `json:"type" gorm:"not null"` // income, expense
-	Amount            float64    `json:"amount" gorm:"type:decimal(15,2);not null"`
-	Description       *string    `json:"description"`
-	Date              time.Time  `json:"date" gorm:"type:date;not null;index"`
-	ReceiptURL        *string    `json:"receipt_url"`
-	IsRecurring       bool       `json:"is_recurring" gorm:"default:false"`
-	RecurringInterval *string    `json:"recurring_interval"`
-	CreatedAt         time.Time  `json:"created_at"`
-	UpdatedAt         time.Time  `json:"updated_at"`
+	ID          uuid.UUID         `json:"id" gorm:"type:uuid;primary_key;default:uuid_generate_v4()"`
+	UserID      uuid.UUID         `json:"user_id" gorm:"type:uuid;index;not null"`
+	CategoryID  *uuid.UUID        `json:"category_id" gorm:"type:uuid;index"` // Legacy, kept for backward compatibility
+	Category    *Category         `json:"category,omitempty" gorm:"foreignKey:CategoryID"`
+	Type        string            `json:"type" gorm:"not null"` // income, expense
+	Amount      float64           `json:"amount" gorm:"type:decimal(15,2);not null"`
+	TotalAmount *float64          `json:"total_amount" gorm:"type:decimal(15,2)"`
+	Description *string           `json:"description"`
+	Date        time.Time         `json:"date" gorm:"type:date;not null;index"`
+	ReceiptURL  *string           `json:"receipt_url"`
+	Items       []TransactionItem `json:"items,omitempty" gorm:"foreignKey:TransactionID"`
+	CreatedAt   time.Time         `json:"created_at"`
+	UpdatedAt   time.Time         `json:"updated_at"`
 }
 
 type Report struct {

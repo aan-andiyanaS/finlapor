@@ -41,13 +41,19 @@ func main() {
 	categoryRepo := repository.NewCategoryRepository(db)
 	reportRepo := repository.NewReportRepository(db)
 
+	// Initialize MinIO client
+	minioClient, err := config.InitMinIO(cfg)
+	if err != nil {
+		log.Printf("⚠️ Failed to connect to MinIO: %v", err)
+	}
+
 	// Initialize services
 	authService := services.NewAuthService(userRepo, rdb, cfg.JWTSecret)
 	userService := services.NewUserService(userRepo)
 	transactionService := services.NewTransactionService(transactionRepo, categoryRepo)
 	categoryService := services.NewCategoryService(categoryRepo)
 	reportService := services.NewReportService(reportRepo, transactionRepo)
-	uploadService := services.NewUploadService(cfg)
+	uploadService := services.NewUploadService(cfg, minioClient)
 
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService)
@@ -57,7 +63,7 @@ func main() {
 	reportHandler := handlers.NewReportHandler(reportService)
 	uploadHandler := handlers.NewUploadHandler(uploadService)
 	ocrHandler := handlers.NewOCRHandler()
-	chatHandler := handlers.NewChatHandler()
+	chatHandler := handlers.NewChatHandler(transactionService, userService)
 	dashboardHandler := handlers.NewDashboardHandler(transactionService)
 
 	// Initialize Fiber app
@@ -155,6 +161,7 @@ func setupProtectedRoutes(
 	reports.Get("/:id", reportHandler.Get)
 
 	// Upload routes
+	protected.Post("/upload", uploadHandler.Upload)
 	protected.Post("/upload/presign", uploadHandler.GetPresignedURL)
 
 	// OCR routes
