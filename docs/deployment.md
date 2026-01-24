@@ -277,10 +277,73 @@ aws configure
    DATABASE_URL=postgres://postgres:YOUR_PASSWORD@finlapor-db.xxxxx.ap-southeast-1.rds.amazonaws.com:5432/finlapor?sslmode=require
    ```
 
-8. **Run Migrations:**
+8. **Run Migrations (PENTING!):**
+
+   Migrations harus dijalankan **dari EC2** karena RDS tidak public access.
+   
+   **Step 1: SSH ke EC2 Backend**
    ```bash
-   # Dari EC2 backend (karena RDS tidak public)
-   psql $DATABASE_URL < database/migrations/001_initial.sql
+   ssh -i finlapor-key.pem ec2-user@[EC2_PUBLIC_IP]
+   cd /home/ec2-user/finlapor/backend
+   ```
+
+   **Step 2: Set DATABASE_URL**
+   ```bash
+   export DATABASE_URL="postgres://postgres:YOUR_PASSWORD@finlapor-db.xxxxx.rds.amazonaws.com:5432/finlapor?sslmode=require"
+   ```
+
+   **Step 3: Run Semua Migrations (urutan penting!)**
+   ```bash
+   # Install psql jika belum ada
+   sudo yum install -y postgresql15
+
+   # Jalankan migrations satu per satu
+   psql "$DATABASE_URL" -f database/migrations/001_initial.sql
+   psql "$DATABASE_URL" -f database/migrations/002_multi_category.sql
+   psql "$DATABASE_URL" -f database/migrations/003_add_user_age.sql
+   ```
+
+   **Step 4: Verifikasi Tables**
+   ```bash
+   psql "$DATABASE_URL" -c "\dt"
+   
+   # Output yang diharapkan:
+   #  Schema |     Name      | Type  |  Owner
+   # --------+---------------+-------+----------
+   #  public | categories    | table | postgres
+   #  public | transactions  | table | postgres
+   #  public | users         | table | postgres
+   ```
+
+9. **Setup Demo User (Opsional tapi Recommended):**
+
+   > 💡 **Demo Account memudahkan testing dan demo ke dosen/reviewer!**
+
+   **Jalankan Demo Seed:**
+   ```bash
+   psql "$DATABASE_URL" -f database/seeds/demo-user.sql
+   ```
+
+   **Credentials Demo:**
+   | Field | Value |
+   |-------|-------|
+   | Email | `demo@finlapor.airi.click` |
+   | Password | `demo123` |
+   | Nama | Demo User |
+   
+   **Isi Demo Account:**
+   - 1 user demo
+   - 10 transaksi sample (income + expense)
+   - Kategori: Gaji, Makanan, Transport, Belanja, Tagihan, Hiburan, Kesehatan
+
+   **Verifikasi Demo User:**
+   ```bash
+   psql "$DATABASE_URL" -c "SELECT email, name FROM users WHERE email = 'demo@finlapor.airi.click';"
+   
+   # Output:
+   #          email            |   name
+   # --------------------------+-----------
+   #  demo@finlapor.airi.click | Demo User
    ```
 
 #### 🔧 Troubleshooting RDS:

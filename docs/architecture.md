@@ -208,83 +208,220 @@ finlapor/
 
 ### Entity Relationship Diagram
 
-```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│     users       │     │    companies    │     │    accounts     │
-├─────────────────┤     ├─────────────────┤     ├─────────────────┤
-│ id (PK)         │────►│ id (PK)         │────►│ id (PK)         │
-│ email           │     │ name            │     │ code            │
-│ password_hash   │     │ user_id (FK)    │     │ name            │
-│ name            │     │ industry        │     │ type            │
-│ mode            │     │ created_at      │     │ company_id (FK) │
-│ created_at      │     └─────────────────┘     └─────────────────┘
-└─────────────────┘                                      │
-         │                                               │
-         │         ┌─────────────────────────────────────┘
-         │         │
-         ▼         ▼
-┌─────────────────────────────────────┐
-│           transactions              │
-├─────────────────────────────────────┤
-│ id (PK)                             │
-│ user_id (FK)                        │
-│ account_id (FK) [nullable]          │
-│ type (income/expense)               │
-│ category                            │
-│ amount                              │
-│ description                         │
-│ date                                │
-│ receipt_url                         │
-│ created_at                          │
-│ updated_at                          │
-└─────────────────────────────────────┘
-         │
-         │
-         ▼
-┌─────────────────────────────────────┐
-│            reports                  │
-├─────────────────────────────────────┤
-│ id (PK)                             │
-│ user_id (FK)                        │
-│ type                                │
-│ period_start                        │
-│ period_end                          │
-│ file_url                            │
-│ generated_at                        │
-└─────────────────────────────────────┘
+```mermaid
+erDiagram
+    users ||--o{ companies : owns
+    users ||--o{ transactions : creates
+    users ||--o{ categories : customizes
+    users ||--o{ budgets : sets
+    users ||--o{ reports : generates
+    users ||--o{ refresh_tokens : has
+    users ||--o{ chat_history : chats
+    categories ||--o{ transactions : categorizes
+    categories ||--o{ budgets : limits
+
+    users {
+        UUID id PK
+        string email UK
+        string password_hash
+        string name
+        int age
+        string mode
+        string avatar_url
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    companies {
+        UUID id PK
+        UUID user_id FK
+        string name
+        string industry
+        timestamp created_at
+    }
+
+    categories {
+        UUID id PK
+        UUID user_id FK
+        string name
+        string icon
+        string type
+        timestamp created_at
+    }
+
+    transactions {
+        UUID id PK
+        UUID user_id FK
+        UUID category_id FK
+        string type
+        decimal amount
+        text description
+        date date
+        text receipt_url
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    budgets {
+        UUID id PK
+        UUID user_id FK
+        UUID category_id FK
+        decimal amount
+        string period
+        timestamp created_at
+    }
+
+    reports {
+        UUID id PK
+        UUID user_id FK
+        string type
+        date period_start
+        date period_end
+        text file_url
+        timestamp generated_at
+    }
+
+    refresh_tokens {
+        UUID id PK
+        UUID user_id FK
+        text token
+        timestamp expires_at
+        timestamp created_at
+    }
+
+    chat_history {
+        UUID id PK
+        UUID user_id FK
+        text message
+        text response
+        timestamp created_at
+    }
 ```
 
-### Tables
+### Tables Overview
+
+| Table | Description | Key Relations |
+|-------|-------------|---------------|
+| `users` | User accounts | Base table |
+| `companies` | Business mode companies | → users |
+| `categories` | Transaction categories (system + custom) | → users |
+| `transactions` | Income/expense records | → users, → categories |
+| `budgets` | Category spending limits | → users, → categories |
+| `reports` | Generated financial reports | → users |
+| `refresh_tokens` | JWT refresh tokens | → users |
+| `chat_history` | AI chat conversations | → users |
+
+### Key Relationships
+
+| Parent | Child | Relationship | On Delete |
+|--------|-------|--------------|-----------|
+| users | transactions | 1:N | CASCADE |
+| users | categories | 1:N | CASCADE |
+| users | companies | 1:N | CASCADE |
+| users | budgets | 1:N | CASCADE |
+| users | reports | 1:N | CASCADE |
+| users | refresh_tokens | 1:N | CASCADE |
+| users | chat_history | 1:N | CASCADE |
+| categories | transactions | 1:N | SET NULL |
+| categories | budgets | 1:N | CASCADE |
+
+### Tables Detail
 
 #### users
 ```sql
 CREATE TABLE users (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     name VARCHAR(255) NOT NULL,
+    age INTEGER,  -- untuk personalisasi AI
     mode VARCHAR(20) DEFAULT 'personal', -- 'personal' or 'business'
     avatar_url TEXT,
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+#### categories
+```sql
+CREATE TABLE categories (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE, -- NULL = system default
+    name VARCHAR(100) NOT NULL,
+    icon VARCHAR(50),
+    type VARCHAR(20) NOT NULL, -- 'income', 'expense', or 'both'
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ```
 
 #### transactions
 ```sql
 CREATE TABLE transactions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID REFERENCES users(id),
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    category_id UUID REFERENCES categories(id) ON DELETE SET NULL,
     type VARCHAR(20) NOT NULL, -- 'income' or 'expense'
-    category VARCHAR(50) NOT NULL,
     amount DECIMAL(15,2) NOT NULL,
     description TEXT,
     date DATE NOT NULL,
     receipt_url TEXT,
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ```
+
+#### budgets
+```sql
+CREATE TABLE budgets (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    category_id UUID REFERENCES categories(id) ON DELETE CASCADE,
+    amount DECIMAL(15,2) NOT NULL,
+    period VARCHAR(20) DEFAULT 'monthly',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+#### chat_history
+```sql
+CREATE TABLE chat_history (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    message TEXT NOT NULL,
+    response TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### Indexes
+
+```sql
+CREATE INDEX idx_transactions_user_id ON transactions(user_id);
+CREATE INDEX idx_transactions_date ON transactions(date);
+CREATE INDEX idx_transactions_category_id ON transactions(category_id);
+CREATE INDEX idx_categories_user_id ON categories(user_id);
+CREATE INDEX idx_reports_user_id ON reports(user_id);
+CREATE INDEX idx_budgets_user_id ON budgets(user_id);
+CREATE INDEX idx_chat_history_user_id ON chat_history(user_id);
+```
+
+### Default Categories
+
+System menyediakan kategori default (user_id = NULL):
+
+| Name | Icon | Type |
+|------|------|------|
+| Gaji | 💰 | income |
+| Freelance | 💼 | income |
+| Investasi | 📈 | income |
+| Makanan | 🍔 | expense |
+| Transport | 🚗 | expense |
+| Belanja | 🛒 | expense |
+| Hiburan | 🎮 | expense |
+| Tagihan | 📄 | expense |
+| Kesehatan | ⚕️ | expense |
+| Pendidikan | 📚 | expense |
+| Lainnya | 📦 | both |
 
 ---
 
