@@ -133,18 +133,6 @@ export default function ChatPage() {
 
     return (
         <div className="h-[calc(100vh-140px)] flex flex-col">
-            {/* Development Notice
-            <div className="mb-4 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-xl p-4">
-                <div className="flex items-start gap-3">
-                    <span className="text-2xl">🚧</span>
-                    <div className="flex-1">
-                        <h3 className="text-amber-700 dark:text-amber-400 font-semibold mb-1">Fitur LLM AI Masih Dalam Pengembangan</h3>
-                        <p className="text-amber-600 dark:text-amber-200/80 text-sm">
-                            Saat ini chatbot menggunakan respon demo untuk demonstrasi. Integrasi LLM AI dengan HuggingFace Mistral-7B sedang dalam tahap pengembangan dan akan segera tersedia untuk analisis keuangan yang lebih cerdas.
-                        </p>
-                    </div>
-                </div>
-            </div> */}
 
             {/* Header */}
             <div className="mb-4">
