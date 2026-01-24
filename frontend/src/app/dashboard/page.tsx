@@ -2,10 +2,12 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
+import { motion } from 'framer-motion'
 import {
     PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
     ResponsiveContainer
 } from 'recharts'
+import { AnimatedCounter, staggerContainer, fadeInUp, getGreeting } from '@/components/ui/animations'
 
 interface Category {
     id: string
@@ -31,7 +33,7 @@ interface Transaction {
     items?: TransactionItem[]
 }
 
-const COLORS = ['#06b6d4', '#8b5cf6', '#f59e0b', '#ef4444', '#10b981', '#ec4899', '#3b82f6', '#84cc16']
+const COLORS = ['#3b82f6', '#8b5cf6', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#84cc16']
 
 export default function DashboardPage() {
     const [summary, setSummary] = useState({
@@ -143,8 +145,8 @@ export default function DashboardPage() {
         return (
             <div className="flex items-center justify-center h-96">
                 <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto mb-4"></div>
-                    <p className="text-slate-400">Memuat dashboard...</p>
+                    <div className="spinner w-12 h-12 mx-auto mb-4"></div>
+                    <p className="text-slate-500 dark:text-slate-400">Memuat dashboard...</p>
                 </div>
             </div>
         )
@@ -152,147 +154,245 @@ export default function DashboardPage() {
 
     const { balance = 0, totalIncome = 0, totalExpense = 0, savingsRatio = 0 } = summary || {}
     const hasData = totalIncome > 0 || totalExpense > 0 || transactions.length > 0
+    const greeting = getGreeting()
 
     if (!hasData) {
         return (
-            <div className="space-y-6">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                    <div>
-                        <h1 className="text-2xl font-bold text-white">Selamat Datang! 👋</h1>
-                        <p className="text-slate-400">Mari mulai kelola keuangan Anda</p>
-                    </div>
+            <motion.div
+                className="space-y-6"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+            >
+                <div>
+                    <h1 className="text-2xl font-bold text-slate-900 dark:text-white">{greeting.text}! {greeting.emoji}</h1>
+                    <p className="text-slate-500 dark:text-slate-400">Mari mulai kelola keuangan Anda</p>
                 </div>
 
-                <div className="bg-slate-800/50 rounded-2xl p-12 border border-slate-700/50 text-center">
-                    <div className="max-w-md mx-auto">
-                        <div className="text-6xl mb-4">📊</div>
-                        <h2 className="text-2xl font-bold text-white mb-2">Dashboard Kosong</h2>
-                        <p className="text-slate-400 mb-6">
-                            Belum ada transaksi. Mulai tambahkan transaksi pertama Anda!
-                        </p>
-                        <div className="flex gap-3 justify-center">
-                            <Link href="/dashboard/transactions" className="px-6 py-3 rounded-xl bg-primary-500 text-white font-medium hover:bg-primary-600 transition-colors">
-                                + Tambah Transaksi
-                            </Link>
-                            <Link href="/dashboard/scanner" className="px-6 py-3 rounded-xl bg-slate-700 text-white font-medium hover:bg-slate-600 transition-colors">
-                                📷 Scan Struk
-                            </Link>
-                        </div>
+                <motion.div
+                    className="card p-12 text-center"
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.2, type: 'spring', stiffness: 100 }}
+                >
+                    <motion.div
+                        className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center"
+                        animate={{ rotate: [0, 5, -5, 0] }}
+                        transition={{ repeat: Infinity, duration: 3, ease: 'easeInOut' }}
+                    >
+                        <span className="text-4xl">📊</span>
+                    </motion.div>
+                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Dashboard Kosong</h2>
+                    <p className="text-slate-500 dark:text-slate-400 mb-8 max-w-md mx-auto">
+                        Belum ada transaksi. Mulai tambahkan transaksi pertama Anda untuk melihat ringkasan keuangan!
+                    </p>
+                    <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                        <Link href="/dashboard/transactions" className="btn-primary">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                            Tambah Transaksi
+                        </Link>
+                        <Link href="/dashboard/scanner" className="btn-secondary">
+                            <span>📷</span>
+                            Scan Struk
+                        </Link>
                     </div>
-                </div>
+                </motion.div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="bg-gradient-to-br from-blue-500/10 to-cyan-500/10 rounded-xl p-6 border border-blue-500/20">
-                        <div className="text-3xl mb-3">💡</div>
-                        <h3 className="text-white font-semibold mb-2">Tip #1</h3>
-                        <p className="text-slate-400 text-sm">Catat semua transaksi untuk insight keuangan yang akurat</p>
-                    </div>
-                    <div className="bg-gradient-to-br from-green-500/10 to-emerald-500/10 rounded-xl p-6 border border-green-500/20">
-                        <div className="text-3xl mb-3">🎯</div>
-                        <h3 className="text-white font-semibold mb-2">Tip #2</h3>
-                        <p className="text-slate-400 text-sm">Set budget untuk setiap kategori pengeluaran</p>
-                    </div>
-                    <div className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 rounded-xl p-6 border border-purple-500/20">
-                        <div className="text-3xl mb-3">🤖</div>
-                        <h3 className="text-white font-semibold mb-2">Tip #3</h3>
-                        <p className="text-slate-400 text-sm">Gunakan AI Chat untuk analisis dan saran finansial</p>
-                    </div>
-                </div>
-            </div>
+                <motion.div
+                    className="grid grid-cols-1 md:grid-cols-3 gap-4"
+                    variants={staggerContainer}
+                    initial="hidden"
+                    animate="show"
+                >
+                    {[
+                        { icon: '💡', title: 'Tip #1', desc: 'Catat semua transaksi untuk insight keuangan yang akurat', color: 'blue' },
+                        { icon: '🎯', title: 'Tip #2', desc: 'Set budget untuk setiap kategori pengeluaran', color: 'emerald' },
+                        { icon: '🤖', title: 'Tip #3', desc: 'Gunakan AI Chat untuk analisis dan saran finansial', color: 'purple' },
+                    ].map((tip, i) => (
+                        <motion.div
+                            key={i}
+                            className="card p-6"
+                            variants={fadeInUp}
+                            whileHover={{ y: -4, transition: { duration: 0.2 } }}
+                        >
+                            <motion.div
+                                className="text-3xl mb-3"
+                                animate={{ scale: [1, 1.1, 1] }}
+                                transition={{ repeat: Infinity, duration: 2, delay: i * 0.3 }}
+                            >
+                                {tip.icon}
+                            </motion.div>
+                            <h3 className="font-semibold text-slate-900 dark:text-white mb-2">{tip.title}</h3>
+                            <p className="text-sm text-slate-500 dark:text-slate-400">{tip.desc}</p>
+                        </motion.div>
+                    ))}
+                </motion.div>
+            </motion.div>
         )
     }
 
     return (
-        <div className="space-y-6">
-            {/* Welcome */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <motion.div
+            className="space-y-6"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3 }}
+        >
+            {/* Welcome Header */}
+            <motion.div
+                className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4 }}
+            >
                 <div>
-                    <h1 className="text-2xl font-bold text-white">Selamat Datang! 👋</h1>
-                    <p className="text-slate-400">Ringkasan keuangan Anda bulan ini</p>
+                    <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+                        {greeting.text}! {greeting.emoji}
+                    </h1>
+                    <p className="text-slate-500 dark:text-slate-400">Ringkasan keuangan Anda bulan ini</p>
                 </div>
                 <div className="flex gap-2">
-                    <Link href="/dashboard/transactions" className="px-4 py-2 rounded-xl bg-primary-500 text-white font-medium hover:bg-primary-600 transition-colors">
-                        + Transaksi
-                    </Link>
-                    <Link href="/dashboard/scanner" className="px-4 py-2 rounded-xl bg-slate-700 text-white font-medium hover:bg-slate-600 transition-colors">
-                        📷 Scan
-                    </Link>
+                    <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                        <Link href="/dashboard/transactions" className="btn-primary">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                            Transaksi
+                        </Link>
+                    </motion.div>
+                    <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                        <Link href="/dashboard/scanner" className="btn-secondary">
+                            <span>📷</span>
+                            Scan
+                        </Link>
+                    </motion.div>
                 </div>
-            </div>
+            </motion.div>
 
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-gradient-to-br from-green-500/20 to-emerald-500/20 rounded-2xl p-6 border border-green-500/20">
+            <motion.div
+                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
+                variants={staggerContainer}
+                initial="hidden"
+                animate="show"
+            >
+                {/* Balance */}
+                <motion.div
+                    className="card p-6"
+                    variants={fadeInUp}
+                    whileHover={{ y: -4, transition: { duration: 0.2 } }}
+                >
                     <div className="flex items-center justify-between mb-4">
-                        <span className="text-3xl">💰</span>
-                        <span className={`px-2 py-1 rounded-lg text-xs font-medium ${balance >= 0 ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-                            {balance >= 0 ? '+' : ''}{totalIncome > 0 ? ((balance / totalIncome) * 100).toFixed(1) : 0}%
+                        <motion.div
+                            className="w-12 h-12 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center"
+                            whileHover={{ rotate: [0, -10, 10, 0], transition: { duration: 0.4 } }}
+                        >
+                            <span className="text-2xl">💰</span>
+                        </motion.div>
+                        <span className={`badge ${balance >= 0 ? 'badge-success' : 'badge-error'}`}>
+                            {balance >= 0 ? '+' : ''}{totalIncome > 0 ? ((balance / totalIncome) * 100).toFixed(0) : 0}%
                         </span>
                     </div>
-                    <p className="text-slate-400 text-sm mb-1">Saldo</p>
-                    <p className={`text-2xl font-bold ${balance >= 0 ? 'text-white' : 'text-red-400'}`}>
-                        Rp {balance.toLocaleString('id-ID')}
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Saldo</p>
+                    <p className={`text-2xl font-bold ${balance >= 0 ? 'text-slate-900 dark:text-white' : 'text-red-500'}`}>
+                        <AnimatedCounter value={balance} prefix="Rp " />
                     </p>
-                </div>
+                </motion.div>
 
-                <div className="bg-gradient-to-br from-blue-500/20 to-cyan-500/20 rounded-2xl p-6 border border-blue-500/20">
+                {/* Income */}
+                <motion.div
+                    className="card p-6"
+                    variants={fadeInUp}
+                    whileHover={{ y: -4, transition: { duration: 0.2 } }}
+                >
                     <div className="flex items-center justify-between mb-4">
-                        <span className="text-3xl">📈</span>
-                        <span className="px-2 py-1 rounded-lg bg-blue-500/20 text-blue-400 text-xs font-medium">
-                            Bulan ini
+                        <motion.div
+                            className="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center"
+                            whileHover={{ scale: 1.1, transition: { duration: 0.2 } }}
+                        >
+                            <span className="text-2xl">📈</span>
+                        </motion.div>
+                        <span className="badge badge-info">Bulan ini</span>
+                    </div>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Pemasukan</p>
+                    <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                        <AnimatedCounter value={totalIncome} prefix="Rp " />
+                    </p>
+                </motion.div>
+
+                {/* Expense */}
+                <motion.div
+                    className="card p-6"
+                    variants={fadeInUp}
+                    whileHover={{ y: -4, transition: { duration: 0.2 } }}
+                >
+                    <div className="flex items-center justify-between mb-4">
+                        <motion.div
+                            className="w-12 h-12 rounded-xl bg-red-100 dark:bg-red-900/30 flex items-center justify-center"
+                            whileHover={{ scale: 1.1, transition: { duration: 0.2 } }}
+                        >
+                            <span className="text-2xl">📉</span>
+                        </motion.div>
+                        <span className="badge badge-error">
+                            {totalIncome > 0 ? ((totalExpense / totalIncome) * 100).toFixed(0) : 0}%
                         </span>
                     </div>
-                    <p className="text-slate-400 text-sm mb-1">Pemasukan</p>
-                    <p className="text-2xl font-bold text-green-400">Rp {totalIncome.toLocaleString('id-ID')}</p>
-                </div>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Pengeluaran</p>
+                    <p className="text-2xl font-bold text-red-600 dark:text-red-400">
+                        <AnimatedCounter value={totalExpense} prefix="Rp " />
+                    </p>
+                </motion.div>
 
-                <div className="bg-gradient-to-br from-red-500/20 to-orange-500/20 rounded-2xl p-6 border border-red-500/20">
+                {/* Savings Ratio */}
+                <motion.div
+                    className="card p-6"
+                    variants={fadeInUp}
+                    whileHover={{ y: -4, transition: { duration: 0.2 } }}
+                >
                     <div className="flex items-center justify-between mb-4">
-                        <span className="text-3xl">📉</span>
-                        <span className="px-2 py-1 rounded-lg bg-red-500/20 text-red-400 text-xs font-medium">
-                            {totalIncome > 0 ? ((totalExpense / totalIncome) * 100).toFixed(1) : 0}%
-                        </span>
-                    </div>
-                    <p className="text-slate-400 text-sm mb-1">Pengeluaran</p>
-                    <p className="text-2xl font-bold text-red-400">Rp {totalExpense.toLocaleString('id-ID')}</p>
-                </div>
-
-                <div className="bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-2xl p-6 border border-purple-500/20">
-                    <div className="flex items-center justify-between mb-4">
-                        <span className="text-3xl">🎯</span>
-                        <span className={`px-2 py-1 rounded-lg text-xs font-medium ${savingsRatio >= 20 ? 'bg-green-500/20 text-green-400' : savingsRatio >= 0 ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'}`}>
+                        <motion.div
+                            className="w-12 h-12 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center"
+                            whileHover={{ rotate: 360, transition: { duration: 0.5 } }}
+                        >
+                            <span className="text-2xl">🎯</span>
+                        </motion.div>
+                        <span className={`badge ${savingsRatio >= 20 ? 'badge-success' : savingsRatio >= 0 ? 'badge-warning' : 'badge-error'}`}>
                             {savingsRatio >= 20 ? 'Bagus!' : savingsRatio >= 0 ? 'Cukup' : 'Defisit'}
                         </span>
                     </div>
-                    <p className="text-slate-400 text-sm mb-1">Rasio Tabungan</p>
-                    <p className="text-2xl font-bold text-white">{savingsRatio.toFixed(1)}%</p>
-                </div>
-            </div>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Rasio Tabungan</p>
+                    <p className="text-2xl font-bold text-slate-900 dark:text-white">
+                        <AnimatedCounter value={savingsRatio} suffix="%" />
+                    </p>
+                </motion.div>
+            </motion.div>
 
-            {/* Charts Section - Preview for Dashboard */}
+            {/* Charts Section */}
             {allTransactions.length > 0 && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {/* Pie Charts */}
-                    <div className="bg-slate-800/50 rounded-2xl p-6 border border-slate-700/50">
-                        <div className="flex items-center justify-between mb-4">
-                            <h2 className="text-lg font-semibold text-white">📊 Distribusi Kategori</h2>
-                            <Link href="/dashboard/reports" className="text-primary-400 hover:text-primary-300 text-sm">
+                    <div className="card p-6">
+                        <div className="flex items-center justify-between mb-6">
+                            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Distribusi Kategori</h2>
+                            <Link href="/dashboard/reports" className="text-sm text-blue-500 hover:text-blue-600 dark:text-blue-400 font-medium">
                                 Detail →
                             </Link>
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                             {/* Expense Pie */}
                             <div>
-                                <p className="text-xs text-slate-400 text-center mb-2">Pengeluaran</p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 text-center mb-2 font-medium">Pengeluaran</p>
                                 {pieChartData().expenseData.length > 0 ? (
-                                    <ResponsiveContainer width="100%" height={150}>
+                                    <ResponsiveContainer width="100%" height={160}>
                                         <PieChart>
                                             <Pie
                                                 data={pieChartData().expenseData.slice(0, 5)}
                                                 cx="50%"
                                                 cy="50%"
-                                                innerRadius={30}
-                                                outerRadius={55}
+                                                innerRadius={35}
+                                                outerRadius={60}
                                                 fill="#8884d8"
                                                 dataKey="value"
                                             >
@@ -302,28 +402,33 @@ export default function DashboardPage() {
                                             </Pie>
                                             <Tooltip
                                                 formatter={(value: number) => [`Rp ${value.toLocaleString('id-ID')}`, '']}
-                                                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px', fontSize: '11px' }}
+                                                contentStyle={{
+                                                    backgroundColor: 'var(--color-bg-secondary)',
+                                                    border: '1px solid var(--color-border)',
+                                                    borderRadius: '8px',
+                                                    fontSize: '12px'
+                                                }}
                                             />
                                         </PieChart>
                                     </ResponsiveContainer>
                                 ) : (
-                                    <div className="h-[150px] flex items-center justify-center text-slate-400 text-sm">
+                                    <div className="h-[160px] flex items-center justify-center text-slate-400 dark:text-slate-500 text-sm">
                                         Tidak ada data
                                     </div>
                                 )}
                             </div>
                             {/* Income Pie */}
                             <div>
-                                <p className="text-xs text-slate-400 text-center mb-2">Pemasukan</p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 text-center mb-2 font-medium">Pemasukan</p>
                                 {pieChartData().incomeData.length > 0 ? (
-                                    <ResponsiveContainer width="100%" height={150}>
+                                    <ResponsiveContainer width="100%" height={160}>
                                         <PieChart>
                                             <Pie
                                                 data={pieChartData().incomeData.slice(0, 5)}
                                                 cx="50%"
                                                 cy="50%"
-                                                innerRadius={30}
-                                                outerRadius={55}
+                                                innerRadius={35}
+                                                outerRadius={60}
                                                 fill="#8884d8"
                                                 dataKey="value"
                                             >
@@ -333,12 +438,17 @@ export default function DashboardPage() {
                                             </Pie>
                                             <Tooltip
                                                 formatter={(value: number) => [`Rp ${value.toLocaleString('id-ID')}`, '']}
-                                                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px', fontSize: '11px' }}
+                                                contentStyle={{
+                                                    backgroundColor: 'var(--color-bg-secondary)',
+                                                    border: '1px solid var(--color-border)',
+                                                    borderRadius: '8px',
+                                                    fontSize: '12px'
+                                                }}
                                             />
                                         </PieChart>
                                     </ResponsiveContainer>
                                 ) : (
-                                    <div className="h-[150px] flex items-center justify-center text-slate-400 text-sm">
+                                    <div className="h-[160px] flex items-center justify-center text-slate-400 dark:text-slate-500 text-sm">
                                         Tidak ada data
                                     </div>
                                 )}
@@ -347,30 +457,35 @@ export default function DashboardPage() {
                     </div>
 
                     {/* Bar Chart */}
-                    <div className="bg-slate-800/50 rounded-2xl p-6 border border-slate-700/50">
-                        <div className="flex items-center justify-between mb-4">
-                            <h2 className="text-lg font-semibold text-white">📈 Trend Bulanan</h2>
-                            <Link href="/dashboard/reports" className="text-primary-400 hover:text-primary-300 text-sm">
+                    <div className="card p-6">
+                        <div className="flex items-center justify-between mb-6">
+                            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Trend Bulanan</h2>
+                            <Link href="/dashboard/reports" className="text-sm text-blue-500 hover:text-blue-600 dark:text-blue-400 font-medium">
                                 Detail →
                             </Link>
                         </div>
                         {monthlyChartData().length > 0 ? (
-                            <ResponsiveContainer width="100%" height={180}>
+                            <ResponsiveContainer width="100%" height={200}>
                                 <BarChart data={monthlyChartData()}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#475569" />
-                                    <XAxis dataKey="month" stroke="#94a3b8" tick={{ fontSize: 10 }} />
-                                    <YAxis stroke="#94a3b8" tick={{ fontSize: 10 }} tickFormatter={(value) => `${(value / 1000000).toFixed(0)}jt`} />
+                                    <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--color-border))" />
+                                    <XAxis dataKey="month" stroke="rgb(var(--color-text-muted))" tick={{ fontSize: 11 }} />
+                                    <YAxis stroke="rgb(var(--color-text-muted))" tick={{ fontSize: 11 }} tickFormatter={(value) => `${(value / 1000000).toFixed(0)}jt`} />
                                     <Tooltip
                                         formatter={(value: number) => [`Rp ${value.toLocaleString('id-ID')}`, '']}
-                                        contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px', fontSize: '11px' }}
+                                        contentStyle={{
+                                            backgroundColor: 'rgb(var(--color-bg-secondary))',
+                                            border: '1px solid rgb(var(--color-border))',
+                                            borderRadius: '8px',
+                                            fontSize: '12px'
+                                        }}
                                     />
-                                    <Legend wrapperStyle={{ fontSize: '11px' }} />
-                                    <Bar dataKey="income" name="Masuk" fill="#10b981" radius={[2, 2, 0, 0]} />
-                                    <Bar dataKey="expense" name="Keluar" fill="#ef4444" radius={[2, 2, 0, 0]} />
+                                    <Legend wrapperStyle={{ fontSize: '12px' }} />
+                                    <Bar dataKey="income" name="Masuk" fill="#10b981" radius={[4, 4, 0, 0]} />
+                                    <Bar dataKey="expense" name="Keluar" fill="#ef4444" radius={[4, 4, 0, 0]} />
                                 </BarChart>
                             </ResponsiveContainer>
                         ) : (
-                            <div className="h-[180px] flex items-center justify-center text-slate-400">
+                            <div className="h-[200px] flex items-center justify-center text-slate-400 dark:text-slate-500">
                                 Tidak ada data untuk ditampilkan
                             </div>
                         )}
@@ -379,25 +494,25 @@ export default function DashboardPage() {
             )}
 
             {/* Recent Transactions */}
-            <div className="bg-slate-800/50 rounded-2xl p-6 border border-slate-700/50">
-                <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-lg font-semibold text-white">Transaksi Terbaru</h2>
-                    <Link href="/dashboard/transactions" className="text-primary-400 hover:text-primary-300 text-sm font-medium">
+            <div className="card">
+                <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800">
+                    <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Transaksi Terbaru</h2>
+                    <Link href="/dashboard/transactions" className="text-sm text-blue-500 hover:text-blue-600 dark:text-blue-400 font-medium">
                         Lihat Semua →
                     </Link>
                 </div>
 
                 {transactions.length > 0 ? (
-                    <div className="space-y-3">
+                    <div className="divide-y divide-slate-100 dark:divide-slate-800">
                         {transactions.slice(0, 5).map((tx) => (
-                            <div key={tx.id} className="flex items-center justify-between p-4 rounded-xl bg-slate-700/30 hover:bg-slate-700/50 transition-colors">
+                            <div key={tx.id} className="flex items-center justify-between p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                                 <div className="flex items-center gap-4">
-                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${tx.type === 'income' ? 'bg-green-500/20' : 'bg-red-500/20'}`}>
-                                        <span className="text-xl">{tx.type === 'income' ? '📈' : '📉'}</span>
+                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${tx.type === 'income' ? 'bg-emerald-100 dark:bg-emerald-900/30' : 'bg-red-100 dark:bg-red-900/30'}`}>
+                                        <span className="text-lg">{tx.type === 'income' ? '📈' : '📉'}</span>
                                     </div>
                                     <div>
-                                        <p className="font-medium text-white">{tx.description}</p>
-                                        <div className="flex items-center gap-2 text-sm text-slate-400">
+                                        <p className="font-medium text-slate-900 dark:text-white">{tx.description}</p>
+                                        <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
                                             {tx.items && tx.items.length > 0 ? (
                                                 <span>{tx.items.map(i => i.category?.name || 'N/A').slice(0, 2).join(', ')}{tx.items.length > 2 ? ` +${tx.items.length - 2}` : ''}</span>
                                             ) : (
@@ -405,38 +520,41 @@ export default function DashboardPage() {
                                             )}
                                             <span>•</span>
                                             <span>{new Date(tx.date).toLocaleDateString('id-ID')}</span>
-                                            {tx.receipt_url && <span className="text-primary-400">📎</span>}
+                                            {tx.receipt_url && <span className="text-blue-500">📎</span>}
                                         </div>
                                     </div>
                                 </div>
-                                <p className={`font-semibold ${tx.type === 'income' ? 'text-green-400' : 'text-red-400'}`}>
+                                <p className={`font-semibold ${tx.type === 'income' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
                                     {tx.type === 'income' ? '+' : '-'}Rp {(tx.total_amount || tx.amount).toLocaleString('id-ID')}
                                 </p>
                             </div>
                         ))}
                     </div>
                 ) : (
-                    <p className="text-center text-slate-400 py-8">Belum ada transaksi</p>
+                    <p className="text-center text-slate-400 dark:text-slate-500 py-12">Belum ada transaksi</p>
                 )}
             </div>
 
             {/* AI Insight Card */}
-            <div className="bg-gradient-to-r from-primary-500/20 to-purple-500/20 rounded-2xl p-6 border border-primary-500/20">
+            <div className="card p-6 bg-gradient-to-r from-blue-500 to-blue-600 border-0">
                 <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-primary-500/30 flex items-center justify-center flex-shrink-0">
+                    <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
                         <span className="text-2xl">🤖</span>
                     </div>
                     <div>
-                        <h3 className="text-lg font-semibold text-white mb-2">Insight dari AI</h3>
-                        <p className="text-slate-300 mb-4">
+                        <h3 className="text-lg font-semibold dark:text-white mb-2">Insight dari AI</h3>
+                        <p className="text-slate-500 dark:text-slate-400 mb-4">
                             Gunakan fitur <strong>Chat AI</strong> untuk mendapatkan analisis keuangan personal dan saran pengelolaan budget.
                         </p>
-                        <Link href="/dashboard/chat" className="inline-flex items-center gap-2 text-primary-400 hover:text-primary-300 font-medium">
-                            Tanya AI sekarang →
+                        <Link href="/dashboard/chat" className="inline-flex items-center gap-2 dark:text-white font-medium hover:underline">
+                            Tanya AI sekarang
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
                         </Link>
                     </div>
                 </div>
             </div>
-        </div>
+        </motion.div>
     )
 }

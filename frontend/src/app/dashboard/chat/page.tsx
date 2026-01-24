@@ -124,8 +124,8 @@ export default function ChatPage() {
         return (
             <div className="flex items-center justify-center h-96">
                 <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto mb-4"></div>
-                    <p className="text-slate-400">Memuat chat...</p>
+                    <div className="spinner w-12 h-12 mx-auto mb-4"></div>
+                    <p className="text-slate-500 dark:text-slate-400">Memuat chat...</p>
                 </div>
             </div>
         )
@@ -133,27 +133,27 @@ export default function ChatPage() {
 
     return (
         <div className="h-[calc(100vh-140px)] flex flex-col">
-            {/* Development Notice */}
-            <div className="mb-4 bg-amber-500/10 border border-amber-500/30 rounded-xl p-4">
+            {/* Development Notice
+            <div className="mb-4 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-xl p-4">
                 <div className="flex items-start gap-3">
                     <span className="text-2xl">🚧</span>
                     <div className="flex-1">
-                        <h3 className="text-amber-400 font-semibold mb-1">Fitur LLM AI Masih Dalam Pengembangan</h3>
-                        <p className="text-amber-200/80 text-sm">
+                        <h3 className="text-amber-700 dark:text-amber-400 font-semibold mb-1">Fitur LLM AI Masih Dalam Pengembangan</h3>
+                        <p className="text-amber-600 dark:text-amber-200/80 text-sm">
                             Saat ini chatbot menggunakan respon demo untuk demonstrasi. Integrasi LLM AI dengan HuggingFace Mistral-7B sedang dalam tahap pengembangan dan akan segera tersedia untuk analisis keuangan yang lebih cerdas.
                         </p>
                     </div>
                 </div>
-            </div>
+            </div> */}
 
             {/* Header */}
             <div className="mb-4">
-                <h1 className="text-2xl font-bold text-white">Asisten AI 🤖</h1>
-                <p className="text-slate-400">Tanya apa saja tentang keuangan Anda</p>
+                <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Asisten AI 🤖</h1>
+                <p className="text-slate-500 dark:text-slate-400">Tanya apa saja tentang keuangan Anda</p>
             </div>
 
             {/* Chat Container */}
-            <div className="flex-1 bg-slate-800/50 rounded-2xl border border-slate-700/50 flex flex-col overflow-hidden">
+            <div className="flex-1 card flex flex-col overflow-hidden">
                 {/* Messages */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-4">
                     {messages.map((message) => (
@@ -163,17 +163,17 @@ export default function ChatPage() {
                         >
                             <div className={`flex gap-3 max-w-[80%] ${message.role === 'user' ? 'flex-row-reverse' : ''}`}>
                                 <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${message.role === 'user'
-                                    ? 'bg-primary-500'
-                                    : 'bg-gradient-to-r from-primary-500 to-accent-500'
+                                    ? 'bg-blue-500'
+                                    : 'bg-gradient-to-r from-blue-500 to-emerald-500'
                                     }`}>
                                     {message.role === 'user' ? '👤' : '🤖'}
                                 </div>
                                 <div className={`rounded-2xl px-4 py-3 ${message.role === 'user'
-                                    ? 'bg-primary-500 text-white'
-                                    : 'bg-slate-700/50 text-slate-200'
+                                    ? 'bg-blue-500 text-white'
+                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200'
                                     }`}>
                                     <p className="whitespace-pre-wrap text-sm leading-relaxed">{message.content}</p>
-                                    <p className={`text-xs mt-2 ${message.role === 'user' ? 'text-primary-200' : 'text-slate-400'
+                                    <p className={`text-xs mt-2 ${message.role === 'user' ? 'text-blue-200' : 'text-slate-400 dark:text-slate-500'
                                         }`}>
                                         {message.timestamp.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
                                     </p>
@@ -184,10 +184,10 @@ export default function ChatPage() {
 
                     {isTyping && (
                         <div className="flex gap-3">
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-r from-primary-500 to-accent-500 flex items-center justify-center">
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-500 to-emerald-500 flex items-center justify-center">
                                 🤖
                             </div>
-                            <div className="bg-slate-700/50 rounded-2xl px-4 py-3">
+                            <div className="bg-slate-100 dark:bg-slate-800 rounded-2xl px-4 py-3">
                                 <div className="flex gap-1">
                                     <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                                     <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
@@ -202,14 +202,14 @@ export default function ChatPage() {
 
                 {/* Suggestions */}
                 {messages.length <= 1 && (
-                    <div className="px-4 py-2 border-t border-slate-700/50">
-                        <p className="text-xs text-slate-400 mb-2">Coba tanyakan:</p>
+                    <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-700">
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">Coba tanyakan:</p>
                         <div className="flex flex-wrap gap-2">
                             {suggestions.map((suggestion, i) => (
                                 <button
                                     key={i}
                                     onClick={() => handleSend(suggestion)}
-                                    className="px-3 py-1.5 rounded-lg bg-slate-700/50 text-slate-300 text-sm hover:bg-slate-600/50 transition-colors"
+                                    className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-sm hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                                 >
                                     {suggestion}
                                 </button>
@@ -219,7 +219,7 @@ export default function ChatPage() {
                 )}
 
                 {/* Input */}
-                <div className="p-4 border-t border-slate-700/50">
+                <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
                     <form
                         onSubmit={(e) => { e.preventDefault(); handleSend(); }}
                         className="flex gap-3"
@@ -229,15 +229,17 @@ export default function ChatPage() {
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
                             placeholder="Ketik pertanyaan Anda..."
-                            className="flex-1 px-4 py-3 rounded-xl bg-slate-700/50 border border-slate-600 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                            className="input flex-1"
                             disabled={isTyping}
                         />
                         <button
                             type="submit"
                             disabled={!input.trim() || isTyping}
-                            className="px-6 py-3 rounded-xl bg-primary-500 text-white font-medium hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            className="btn-primary px-6 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            Kirim
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+                            </svg>
                         </button>
                     </form>
                 </div>

@@ -2,115 +2,335 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================
+   FINLAPOR PROFESSIONAL THEME
+   Light & Dark Mode Support
+   Eye-Comfortable Design
+   ============================================ */
+
 :root {
-  --foreground-rgb: 15, 23, 42;
-  --background-rgb: 248, 250, 252;
+    /* Light Mode - Soft, eye-comfortable colors */
+    /* Using slightly warm/cream tinted backgrounds for less eye strain */
+    --color-bg-primary: 248, 250, 252;
+    /* Soft off-white (slate-50) */
+    --color-bg-secondary: 255, 255, 255;
+    /* Pure white for cards */
+    --color-bg-tertiary: 241, 245, 249;
+    /* slate-100 */
+
+    --color-text-primary: 30, 41, 59;
+    /* slate-800 - softer than black */
+    --color-text-secondary: 71, 85, 105;
+    /* slate-600 */
+    --color-text-muted: 148, 163, 184;
+    /* slate-400 */
+
+    --color-border: 226, 232, 240;
+    /* slate-200 */
+    --color-border-light: 241, 245, 249;
+    /* slate-100 */
+
+    /* Brand Colors - Professional Blue */
+    --color-primary: 59, 130, 246;
+    /* blue-500 */
+    --color-primary-hover: 37, 99, 235;
+    /* blue-600 */
+    --color-primary-light: 219, 234, 254;
+    /* blue-100 */
+
+    --color-success: 16, 185, 129;
+    /* emerald-500 */
+    --color-warning: 245, 158, 11;
+    /* amber-500 */
+    --color-error: 239, 68, 68;
+    /* red-500 */
+    --color-info: 59, 130, 246;
+    /* blue-500 */
+
+    /* Card shadows - subtle for light mode */
+    --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.07), 0 2px 4px -2px rgb(0 0 0 / 0.07);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.08);
 }
 
 .dark {
-  --foreground-rgb: 248, 250, 252;
-  --background-rgb: 15, 23, 42;
+    /* Dark Mode - Slate/Navy - comfortable for night viewing */
+    --color-bg-primary: 15, 23, 42;
+    /* slate-900 */
+    --color-bg-secondary: 30, 41, 59;
+    /* slate-800 */
+    --color-bg-tertiary: 51, 65, 85;
+    /* slate-700 */
+
+    --color-text-primary: 248, 250, 252;
+    /* slate-50 */
+    --color-text-secondary: 203, 213, 225;
+    /* slate-300 */
+    --color-text-muted: 100, 116, 139;
+    /* slate-500 */
+
+    --color-border: 51, 65, 85;
+    /* slate-700 */
+    --color-border-light: 71, 85, 105;
+    /* slate-600 */
+
+    /* Brand Colors - slightly brighter for dark mode */
+    --color-primary: 96, 165, 250;
+    /* blue-400 */
+    --color-primary-hover: 59, 130, 246;
+    /* blue-500 */
+    --color-primary-light: 30, 58, 138;
+    /* blue-900 */
+
+    /* Shadows for dark mode */
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.3);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.5), 0 4px 6px -4px rgb(0 0 0 / 0.4);
 }
 
+/* ============================================
+   BASE STYLES
+   ============================================ */
+
 body {
-  color: rgb(var(--foreground-rgb));
-  background: rgb(var(--background-rgb));
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: rgb(var(--color-bg-primary));
+    color: rgb(var(--color-text-primary));
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* ============================================
+   UTILITY CLASSES
+   ============================================ */
+
+/* Professional card style */
+.card {
+    background: rgb(var(--color-bg-secondary));
+    border: 1px solid rgb(var(--color-border));
+    border-radius: 1rem;
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.card:hover {
+    box-shadow: var(--shadow-md);
+}
+
+.card-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
 }
 
 /* Glassmorphism effect */
 .glass {
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(226, 232, 240, 0.6);
 }
 
 .dark .glass {
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 /* Gradient text */
 .text-gradient {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+    background: linear-gradient(135deg, rgb(var(--color-primary)) 0%, #8b5cf6 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
 }
 
-/* Card hover effect */
-.card-hover {
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
+/* ============================================
+   BUTTON STYLES
+   ============================================ */
 
-.card-hover:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 40px rgba(139, 92, 246, 0.15);
-}
-
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.05);
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb {
-  background: rgba(139, 92, 246, 0.3);
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(139, 92, 246, 0.5);
-}
-
-/* Animations */
-@keyframes gradient {
-  0%, 100% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-}
-
-.animate-gradient {
-  background-size: 200% 200%;
-  animation: gradient 3s ease infinite;
-}
-
-/* Input focus styling */
-input:focus, textarea:focus, select:focus {
-  outline: none;
-  ring: 2px;
-  ring-color: rgba(139, 92, 246, 0.5);
-}
-
-/* Button styles */
 .btn-primary {
-  @apply bg-gradient-to-r from-primary-500 to-primary-600 text-white font-medium py-2 px-4 rounded-lg shadow-lg hover:shadow-glow transition-all duration-200 hover:scale-105;
+    @apply bg-blue-500 hover:bg-blue-600 text-white font-medium py-2.5 px-5 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 inline-flex items-center justify-center gap-2;
 }
 
 .btn-secondary {
-  @apply bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-medium py-2 px-4 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all duration-200;
+    @apply bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-medium py-2.5 px-5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all duration-200 inline-flex items-center justify-center gap-2 shadow-sm;
+}
+
+.btn-ghost {
+    @apply text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 font-medium py-2 px-4 rounded-lg transition-all duration-200 inline-flex items-center justify-center gap-2;
+}
+
+/* ============================================
+   FORM STYLES
+   ============================================ */
+
+.input {
+    @apply w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-400 focus:bg-white dark:focus:bg-slate-800 transition-all duration-200;
+}
+
+.label {
+    @apply block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2;
+}
+
+/* ============================================
+   SCROLLBAR - Light mode friendly
+   ============================================ */
+
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgb(var(--color-bg-tertiary));
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgb(var(--color-border));
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgb(var(--color-text-muted));
+}
+
+/* ============================================
+   ANIMATIONS
+   ============================================ */
+
+@keyframes gradient {
+
+    0%,
+    100% {
+        background-position: 0% 50%;
+    }
+
+    50% {
+        background-position: 100% 50%;
+    }
+}
+
+.animate-gradient {
+    background-size: 200% 200%;
+    animation: gradient 3s ease infinite;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+.animate-fade-in {
+    animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-slide-up {
+    animation: slideUp 0.3s ease-out;
 }
 
 /* Loading spinner */
 .spinner {
-  border: 2px solid rgba(139, 92, 246, 0.1);
-  border-top-color: #8b5cf6;
-  border-radius: 50%;
-  width: 20px;
-  height: 20px;
-  animation: spin 0.8s linear infinite;
+    border: 2px solid rgb(var(--color-border));
+    border-top-color: rgb(var(--color-primary));
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    animation: spin 0.8s linear infinite;
 }
 
 @keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ============================================
+   BADGE/PILL STYLES
+   ============================================ */
+
+.badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+}
+
+.badge-success {
+    @apply bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400;
+}
+
+.badge-error {
+    @apply bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400;
+}
+
+.badge-warning {
+    @apply bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400;
+}
+
+.badge-info {
+    @apply bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400;
+}
+
+/* ============================================
+   TABLE STYLES
+   ============================================ */
+
+.table {
+    @apply w-full text-left;
+}
+
+.table th {
+    @apply px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50;
+}
+
+.table td {
+    @apply px-4 py-4 text-sm text-slate-600 dark:text-slate-300 border-t border-slate-100 dark:border-slate-800;
+}
+
+.table tbody tr:hover {
+    @apply bg-slate-50/50 dark:bg-slate-800/30;
+}
+
+/* ============================================
+   ADDITIONAL LIGHT MODE ENHANCEMENTS
+   ============================================ */
+
+/* Softer hover states in light mode */
+@media (prefers-color-scheme: light) {
+
+    a:hover,
+    button:hover {
+        transition: all 0.2s ease;
+    }
+}
+
+/* Focus states - softer blue ring */
+:focus-visible {
+    outline: 2px solid rgb(59 130 246 / 0.5);
+    outline-offset: 2px;
+}
+
+/* Selection color */
+::selection {
+    background: rgb(var(--color-primary-light));
+    color: rgb(var(--color-text-primary));
+}
+
+.dark ::selection {
+    background: rgb(var(--color-primary));
+    color: white;
 }

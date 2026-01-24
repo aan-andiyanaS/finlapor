@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { uploadApi } from '@/lib/api'
 
 interface Category {
@@ -53,6 +54,9 @@ interface ItemState {
 }
 
 export default function TransactionsPage() {
+    const searchParams = useSearchParams()
+    const urlSearchQuery = searchParams.get('search') || ''
+
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [filter, setFilter] = useState('all')
     const [transactions, setTransactions] = useState<Transaction[]>([])
@@ -69,6 +73,12 @@ export default function TransactionsPage() {
     const [date, setDate] = useState(new Date().toISOString().split('T')[0])
     const [items, setItems] = useState<ItemState[]>([{ category_id: '', amount: '', note: '', qty: '1' }])
     const [saving, setSaving] = useState(false)
+    const [searchQuery, setSearchQuery] = useState(urlSearchQuery)
+
+    // Update searchQuery when URL param changes
+    useEffect(() => {
+        setSearchQuery(urlSearchQuery)
+    }, [urlSearchQuery])
 
     useEffect(() => {
         fetchTransactions()
@@ -112,8 +122,22 @@ export default function TransactionsPage() {
 
     const filteredTransactions = transactions
         .filter(tx => {
-            if (filter === 'all') return true
-            return tx.type === filter
+            // Type filter
+            if (filter !== 'all' && tx.type !== filter) return false
+
+            // Search filter - search in description, category names
+            if (searchQuery.trim()) {
+                const query = searchQuery.toLowerCase()
+                const matchDescription = tx.description?.toLowerCase().includes(query)
+                const matchCategory = tx.category?.name?.toLowerCase().includes(query)
+                const matchItems = tx.items?.some(item =>
+                    item.category?.name?.toLowerCase().includes(query) ||
+                    item.note?.toLowerCase().includes(query)
+                )
+                return matchDescription || matchCategory || matchItems
+            }
+
+            return true
         })
         .sort((a, b) => {
             // Primary sort: by date descending (newest date first)
@@ -311,7 +335,7 @@ export default function TransactionsPage() {
     if (loading) {
         return (
             <div className="flex items-center justify-center h-96">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500"></div>
+                <div className="spinner w-12 h-12"></div>
             </div>
         )
     }
@@ -323,8 +347,8 @@ export default function TransactionsPage() {
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-white">Transaksi</h1>
-                    <p className="text-slate-400">Kelola semua transaksi keuangan Anda</p>
+                    <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Transaksi</h1>
+                    <p className="text-slate-500 dark:text-slate-400">Kelola semua transaksi keuangan Anda</p>
                 </div>
                 <button
                     onClick={() => {
@@ -332,7 +356,7 @@ export default function TransactionsPage() {
                         setSelectedType('expense')
                         setIsModalOpen(true)
                     }}
-                    className="px-4 py-2 rounded-xl bg-primary-500 text-white font-medium hover:bg-primary-600 transition-colors"
+                    className="btn-primary"
                 >
                     + Tambah Transaksi
                 </button>
@@ -345,21 +369,44 @@ export default function TransactionsPage() {
                         key={f}
                         onClick={() => setFilter(f)}
                         className={`px-4 py-2 rounded-xl font-medium transition-all ${filter === f
-                            ? 'bg-primary-500 text-white'
-                            : 'bg-slate-700/50 text-slate-400 hover:text-white'
+                            ? 'bg-blue-500 text-white'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                             }`}
                     >
                         {f === 'all' ? 'Semua' : f === 'income' ? '📈 Pemasukan' : '📉 Pengeluaran'}
                     </button>
-                ))}
-            </div>
+                ))}        </div>
 
-            {/* Transactions List */}
+            {/* Search Results Indicator */}
+            {searchQuery && (
+                <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-500/30 rounded-xl">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    <span className="text-blue-700 dark:text-blue-300 text-sm">
+                        Mencari: <strong>&quot;{searchQuery}&quot;</strong>
+                        <span className="text-blue-500 dark:text-blue-400 ml-2">
+                            ({filteredTransactions.length} hasil)
+                        </span>
+                    </span>
+                    <button
+                        onClick={() => {
+                            setSearchQuery('')
+                            window.history.replaceState({}, '', '/dashboard/transactions')
+                        }}
+                        className="ml-auto text-blue-500 hover:text-blue-700 dark:hover:text-blue-300"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+            )}
             {filteredTransactions.length === 0 ? (
-                <div className="bg-slate-800/50 rounded-2xl p-12 border border-slate-700/50 text-center">
+                <div className="card p-12 text-center">
                     <div className="text-6xl mb-4">💰</div>
-                    <h2 className="text-xl font-bold text-white mb-2">Belum Ada Transaksi</h2>
-                    <p className="text-slate-400 mb-6">Mulai tambahkan transaksi pertama Anda</p>
+                    <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Belum Ada Transaksi</h2>
+                    <p className="text-slate-500 dark:text-slate-400 mb-6">Mulai tambahkan transaksi pertama Anda</p>
                 </div>
             ) : (
                 <div className="space-y-3">
@@ -373,16 +420,16 @@ export default function TransactionsPage() {
                             <div key={tx.id}>
                                 {showDateHeader && (
                                     <div className="flex items-center gap-3 py-3 mt-2 first:mt-0">
-                                        <div className="h-px flex-1 bg-gradient-to-r from-transparent via-slate-600 to-transparent"></div>
-                                        <span className="text-sm font-medium text-slate-400 px-3 py-1 rounded-full bg-slate-700/50">
+                                        <div className="h-px flex-1 bg-gradient-to-r from-transparent via-slate-300 dark:via-slate-600 to-transparent"></div>
+                                        <span className="text-sm font-medium text-slate-500 dark:text-slate-400 px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-700/50">
                                             📅 {txDate}
                                         </span>
-                                        <div className="h-px flex-1 bg-gradient-to-r from-transparent via-slate-600 to-transparent"></div>
+                                        <div className="h-px flex-1 bg-gradient-to-r from-transparent via-slate-300 dark:via-slate-600 to-transparent"></div>
                                     </div>
                                 )}
-                                <div className="bg-slate-800/50 rounded-2xl border border-slate-700/50 overflow-hidden">
+                                <div className="card overflow-hidden">
                                     <div
-                                        className="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-700/30 transition-colors"
+                                        className="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
                                         onClick={() => toggleExpand(tx.id)}
                                     >
                                         <div className="flex items-center gap-4">
@@ -390,18 +437,18 @@ export default function TransactionsPage() {
                                                 {tx.type === 'income' ? '📈' : '📉'}
                                             </div>
                                             <div>
-                                                <p className="font-medium text-white">{tx.description}</p>
-                                                <div className="flex items-center gap-2 text-sm text-slate-400">
+                                                <p className="font-medium text-slate-900 dark:text-white">{tx.description}</p>
+                                                <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
                                                     <span>{new Date(tx.date).toLocaleDateString('id-ID')}</span>
                                                     {tx.items && tx.items.length > 1 && (
-                                                        <span className="text-purple-400">• {tx.items.length} kategori</span>
+                                                        <span className="text-purple-600 dark:text-purple-400">• {tx.items.length} kategori</span>
                                                     )}
-                                                    {tx.receipt_url && <span className="text-primary-400">• 📎</span>}
+                                                    {tx.receipt_url && <span className="text-blue-500">• 📎</span>}
                                                 </div>
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-4">
-                                            <p className={`text-lg font-bold ${tx.type === 'income' ? 'text-green-400' : 'text-red-400'}`}>
+                                            <p className={`text-lg font-bold ${tx.type === 'income' ? 'text-emerald-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                                                 {tx.type === 'income' ? '+' : '-'}Rp {(tx.total_amount || tx.amount || 0).toLocaleString('id-ID')}
                                             </p>
                                             <span className={`text-slate-400 transition-transform ${expandedId === tx.id ? 'rotate-180' : ''}`}>
@@ -411,26 +458,26 @@ export default function TransactionsPage() {
                                     </div>
 
                                     {expandedId === tx.id && (
-                                        <div className="border-t border-slate-700/50 p-4 bg-slate-900/30">
+                                        <div className="border-t border-slate-200 dark:border-slate-700 p-4 bg-slate-50 dark:bg-slate-800/50">
                                             {tx.items && tx.items.length > 0 ? (
                                                 <div className="space-y-2 mb-4">
-                                                    <p className="text-sm font-medium text-slate-300 mb-2">Detail Kategori:</p>
+                                                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Detail Kategori:</p>
                                                     {tx.items.map((item, idx) => (
-                                                        <div key={idx} className="flex items-center justify-between p-3 rounded-xl bg-slate-800/50">
+                                                        <div key={idx} className="flex items-center justify-between p-3 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
                                                             <div className="flex items-center gap-3">
                                                                 <span className="text-lg">{getCategoryIcon(item.category?.name)}</span>
                                                                 <div>
-                                                                    <span className="text-white">{item.category?.name || 'Kategori tidak ditemukan'}</span>
-                                                                    {item.note && <p className="text-xs text-slate-400">{item.note}</p>}
+                                                                    <span className="text-slate-900 dark:text-white">{item.category?.name || 'Kategori tidak ditemukan'}</span>
+                                                                    {item.note && <p className="text-xs text-slate-500 dark:text-slate-400">{item.note}</p>}
                                                                 </div>
                                                             </div>
-                                                            <span className="font-medium text-white">Rp {(item.amount || 0).toLocaleString('id-ID')}</span>
+                                                            <span className="font-medium text-slate-900 dark:text-white">Rp {(item.amount || 0).toLocaleString('id-ID')}</span>
                                                         </div>
                                                     ))}
                                                 </div>
                                             ) : tx.category ? (
-                                                <div className="mb-4 p-3 rounded-xl bg-slate-800/50">
-                                                    <span className="text-white">{tx.category.name}: Rp {(tx.amount || 0).toLocaleString('id-ID')}</span>
+                                                <div className="mb-4 p-3 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                                                    <span className="text-slate-900 dark:text-white">{tx.category.name}: Rp {(tx.amount || 0).toLocaleString('id-ID')}</span>
                                                 </div>
                                             ) : (
                                                 <p className="text-slate-500 mb-4">Tidak ada detail kategori</p>
@@ -438,21 +485,21 @@ export default function TransactionsPage() {
 
                                             {tx.receipt_url && (
                                                 <div className="mb-4">
-                                                    <p className="text-sm font-medium text-slate-300 mb-2">Bukti:</p>
-                                                    <img src={tx.receipt_url} alt="Receipt" className="max-w-xs rounded-xl border border-slate-700" />
+                                                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Bukti:</p>
+                                                    <img src={tx.receipt_url} alt="Receipt" className="max-w-xs rounded-xl border border-slate-200 dark:border-slate-700" />
                                                 </div>
                                             )}
 
-                                            <div className="flex gap-2 pt-2 border-t border-slate-700/50">
+                                            <div className="flex gap-2 pt-2 border-t border-slate-200 dark:border-slate-700">
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); handleEdit(tx) }}
-                                                    className="px-4 py-2 rounded-xl bg-slate-700 text-white hover:bg-slate-600"
+                                                    className="btn-secondary px-4 py-2 text-sm"
                                                 >
                                                     ✏️ Edit
                                                 </button>
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); handleDelete(tx.id) }}
-                                                    className="px-4 py-2 rounded-xl bg-red-500/20 text-red-400 hover:bg-red-500/30"
+                                                    className="px-4 py-2 rounded-xl bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-500/30 text-sm"
                                                 >
                                                     🗑️ Hapus
                                                 </button>
@@ -469,26 +516,26 @@ export default function TransactionsPage() {
             {/* Add/Edit Modal */}
             {isModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-black/50" onClick={() => { setIsModalOpen(false); resetForm() }} />
-                    <div className="relative bg-slate-800 rounded-2xl p-6 w-full max-w-lg border border-slate-700 max-h-[90vh] overflow-y-auto">
-                        <h2 className="text-xl font-bold text-white mb-6">
+                    <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => { setIsModalOpen(false); resetForm() }} />
+                    <div className="relative bg-white dark:bg-slate-800 rounded-2xl p-6 w-full max-w-lg border border-slate-200 dark:border-slate-700 max-h-[90vh] overflow-y-auto shadow-xl">
+                        <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-6">
                             {editingId ? 'Edit Transaksi' : 'Tambah Transaksi'}
                         </h2>
 
                         <form onSubmit={handleAddTransaction} className="space-y-4">
                             {/* Type Toggle */}
-                            <div className="flex rounded-xl bg-slate-700/50 p-1">
+                            <div className="flex rounded-xl bg-slate-100 dark:bg-slate-700/50 p-1">
                                 <button
                                     type="button"
                                     onClick={() => setSelectedType('expense')}
-                                    className={`flex-1 py-2 text-center rounded-lg transition-all ${selectedType === 'expense' ? 'bg-red-500 text-white' : 'text-slate-400'}`}
+                                    className={`flex-1 py-2 text-center rounded-lg transition-all ${selectedType === 'expense' ? 'bg-red-500 text-white shadow-sm' : 'text-slate-600 dark:text-slate-400'}`}
                                 >
                                     Pengeluaran
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => setSelectedType('income')}
-                                    className={`flex-1 py-2 text-center rounded-lg transition-all ${selectedType === 'income' ? 'bg-green-500 text-white' : 'text-slate-400'}`}
+                                    className={`flex-1 py-2 text-center rounded-lg transition-all ${selectedType === 'income' ? 'bg-green-500 text-white shadow-sm' : 'text-slate-600 dark:text-slate-400'}`}
                                 >
                                     Pemasukan
                                 </button>
@@ -496,25 +543,25 @@ export default function TransactionsPage() {
 
                             {/* Description */}
                             <div>
-                                <label className="block text-sm font-medium text-slate-300 mb-1.5">Deskripsi</label>
+                                <label className="label">Deskripsi</label>
                                 <input
                                     type="text"
                                     value={description}
                                     onChange={(e) => setDescription(e.target.value)}
                                     placeholder="Contoh: Belanja Bulanan"
-                                    className="w-full px-4 py-3 rounded-xl bg-slate-700/50 border border-slate-600 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                    className="input"
                                     required
                                 />
                             </div>
 
                             {/* Date */}
                             <div>
-                                <label className="block text-sm font-medium text-slate-300 mb-1.5">Tanggal</label>
+                                <label className="label">Tanggal</label>
                                 <input
                                     type="date"
                                     value={date}
                                     onChange={(e) => setDate(e.target.value)}
-                                    className="w-full px-4 py-3 rounded-xl bg-slate-700/50 border border-slate-600 text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                    className="input"
                                     required
                                 />
                             </div>

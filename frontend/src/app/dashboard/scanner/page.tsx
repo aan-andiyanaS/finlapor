@@ -164,12 +164,12 @@ export default function ScannerPage() {
     return (
         <div className="space-y-6">
             {/* Development Notice */}
-            <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4">
+            <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-xl p-4">
                 <div className="flex items-start gap-3">
                     <span className="text-2xl">🚧</span>
                     <div className="flex-1">
-                        <h3 className="text-amber-400 font-semibold mb-1">Fitur OCR AI Masih Dalam Pengembangan</h3>
-                        <p className="text-amber-200/80 text-sm">
+                        <h3 className="text-amber-700 dark:text-amber-400 font-semibold mb-1">Fitur OCR AI Masih Dalam Pengembangan</h3>
+                        <p className="text-amber-600 dark:text-amber-200/80 text-sm">
                             Saat ini sistem menggunakan data demo untuk demonstrasi. Integrasi AI OCR dengan HuggingFace sedang dalam tahap pengembangan dan akan segera tersedia untuk analisis struk secara otomatis.
                         </p>
                     </div>
@@ -178,23 +178,23 @@ export default function ScannerPage() {
 
             {/* Header */}
             <div>
-                <h1 className="text-2xl font-bold text-white">Scan Struk 📷</h1>
-                <p className="text-slate-400">Upload foto struk untuk input transaksi otomatis dengan AI</p>
+                <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Scan Struk 📷</h1>
+                <p className="text-slate-500 dark:text-slate-400">Upload foto struk untuk input transaksi otomatis dengan AI</p>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Upload Area */}
-                <div className="bg-slate-800/50 rounded-2xl p-6 border border-slate-700/50">
-                    <h2 className="text-lg font-semibold text-white mb-4">Upload Struk</h2>
+                <div className="card p-6">
+                    <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Upload Struk</h2>
 
                     {!image ? (
                         <div
                             onClick={() => fileInputRef.current?.click()}
-                            className="border-2 border-dashed border-slate-600 rounded-xl p-12 text-center cursor-pointer hover:border-primary-500 hover:bg-primary-500/5 transition-all"
+                            className="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl p-12 text-center cursor-pointer hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/5 transition-all"
                         >
                             <div className="text-6xl mb-4">📷</div>
-                            <p className="text-white font-medium mb-2">Klik untuk upload</p>
-                            <p className="text-slate-400 text-sm">Mendukung JPG, PNG (maks 10MB)</p>
+                            <p className="text-slate-900 dark:text-white font-medium mb-2">Klik untuk upload</p>
+                            <p className="text-slate-500 dark:text-slate-400 text-sm">Mendukung JPG, PNG (maks 10MB)</p>
                             <input
                                 ref={fileInputRef}
                                 type="file"
@@ -205,14 +205,14 @@ export default function ScannerPage() {
                         </div>
                     ) : (
                         <div className="space-y-4">
-                            <div className="relative rounded-xl overflow-hidden bg-slate-700">
+                            <div className="relative rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-700">
                                 <img src={image} alt="Receipt" className="w-full h-auto" />
                                 {isProcessing && (
                                     <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
                                         <div className="text-center">
-                                            <div className="w-12 h-12 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                                            <div className="spinner w-12 h-12 mx-auto mb-4"></div>
                                             <p className="text-white font-medium">Memproses dengan AI...</p>
-                                            <p className="text-slate-400 text-sm">Mengekstrak data dari struk</p>
+                                            <p className="text-slate-300 text-sm">Mengekstrak data dari struk</p>
                                         </div>
                                     </div>
                                 )}
@@ -220,14 +220,14 @@ export default function ScannerPage() {
                             <div className="flex gap-3">
                                 <button
                                     onClick={() => { setImage(null); setImageFile(null); setResult(null); }}
-                                    className="flex-1 py-2 px-4 rounded-xl bg-slate-700 text-white hover:bg-slate-600 transition-colors"
+                                    className="btn-secondary flex-1"
                                 >
                                     🔄 Upload Ulang
                                 </button>
                                 {!result && !isProcessing && (
                                     <button
                                         onClick={processImage}
-                                        className="flex-1 py-2 px-4 rounded-xl bg-primary-500 text-white hover:bg-primary-600 transition-colors"
+                                        className="btn-primary flex-1"
                                     >
                                         🔍 Scan Sekarang
                                     </button>
@@ -237,9 +237,9 @@ export default function ScannerPage() {
                     )}
 
                     {/* Tips */}
-                    <div className="mt-6 p-4 rounded-xl bg-primary-500/10 border border-primary-500/20">
-                        <h3 className="text-primary-400 font-medium mb-2">💡 Tips untuk hasil terbaik:</h3>
-                        <ul className="text-sm text-slate-300 space-y-1">
+                    <div className="mt-6 p-4 rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20">
+                        <h3 className="text-blue-700 dark:text-blue-400 font-medium mb-2">💡 Tips untuk hasil terbaik:</h3>
+                        <ul className="text-sm text-slate-600 dark:text-slate-300 space-y-1">
                             <li>• Pastikan pencahayaan cukup</li>
                             <li>• Foto struk dari atas, tegak lurus</li>
                             <li>• Pastikan semua tulisan terlihat jelas</li>
@@ -249,13 +249,13 @@ export default function ScannerPage() {
 
                     {/* AI Status */}
                     {result && (
-                        <div className="mt-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center gap-2">
+                        <div className="mt-4 p-3 rounded-lg bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 flex items-center gap-2">
                             <span className="text-xl">🚧</span>
                             <div className="flex-1">
-                                <p className="text-sm text-amber-400 font-medium">
+                                <p className="text-sm text-amber-700 dark:text-amber-400 font-medium">
                                     Mode Demo (Pengembangan)
                                 </p>
-                                <p className="text-xs text-amber-200/70">
+                                <p className="text-xs text-amber-600 dark:text-amber-200/70">
                                     Menggunakan data demo. OCR AI sedang dalam pengembangan.
                                 </p>
                             </div>
@@ -264,36 +264,36 @@ export default function ScannerPage() {
                 </div>
 
                 {/* Result Area */}
-                <div className="bg-slate-800/50 rounded-2xl p-6 border border-slate-700/50">
-                    <h2 className="text-lg font-semibold text-white mb-4">Hasil Scan</h2>
+                <div className="card p-6">
+                    <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Hasil Scan</h2>
 
                     {!result ? (
                         <div className="text-center py-12">
                             <div className="text-6xl mb-4 opacity-30">🧾</div>
-                            <p className="text-slate-400">Upload dan scan struk untuk melihat hasil</p>
+                            <p className="text-slate-500 dark:text-slate-400">Upload dan scan struk untuk melihat hasil</p>
                         </div>
                     ) : (
                         <div className="space-y-4">
                             {/* Vendor */}
-                            <div className="p-4 rounded-xl bg-slate-700/50">
-                                <label className="block text-slate-400 text-sm mb-2">Toko</label>
+                            <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                                <label className="block text-slate-500 dark:text-slate-400 text-sm mb-2">Toko</label>
                                 <input
                                     type="text"
                                     value={result.vendor}
                                     onChange={(e) => setResult({ ...result, vendor: e.target.value })}
-                                    className="w-full bg-transparent text-white font-medium focus:outline-none"
+                                    className="w-full bg-transparent text-slate-900 dark:text-white font-medium focus:outline-none"
                                 />
                             </div>
 
                             {/* Items (if available) */}
                             {result.items && result.items.length > 0 && (
-                                <div className="p-4 rounded-xl bg-slate-700/50">
-                                    <p className="text-slate-400 text-sm mb-3">Item Terdeteksi</p>
+                                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                                    <p className="text-slate-500 dark:text-slate-400 text-sm mb-3">Item Terdeteksi</p>
                                     <div className="space-y-2 max-h-48 overflow-y-auto">
                                         {result.items.map((item, i) => (
                                             <div key={i} className="flex items-center justify-between">
-                                                <span className="text-white text-sm">{item.name}</span>
-                                                <span className="text-slate-300 text-sm">Rp {item.price.toLocaleString('id-ID')}</span>
+                                                <span className="text-slate-900 dark:text-white text-sm">{item.name}</span>
+                                                <span className="text-slate-600 dark:text-slate-300 text-sm">Rp {item.price.toLocaleString('id-ID')}</span>
                                             </div>
                                         ))}
                                     </div>
@@ -301,47 +301,39 @@ export default function ScannerPage() {
                             )}
 
                             {/* Total */}
-                            <div className="p-4 rounded-xl bg-gradient-to-r from-primary-500/20 to-purple-500/20 border border-primary-500/30">
+                            <div className="p-4 rounded-xl bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-500/20 dark:to-purple-500/20 border border-blue-200 dark:border-blue-500/30">
                                 <div className="flex items-center justify-between">
-                                    <span className="text-white font-medium">Total</span>
+                                    <span className="text-slate-900 dark:text-white font-medium">Total</span>
                                     <input
                                         type="number"
                                         value={result.total}
                                         onChange={(e) => setResult({ ...result, total: Number(e.target.value) })}
-                                        className="text-2xl font-bold text-white bg-transparent text-right focus:outline-none w-48"
+                                        className="text-2xl font-bold text-slate-900 dark:text-white bg-transparent text-right focus:outline-none w-48"
                                     />
                                 </div>
                             </div>
 
                             {/* Category */}
                             <div>
-                                <label className="block text-sm font-medium text-slate-300 mb-2">Kategori</label>
-                                <div className="relative">
-                                    <select
-                                        value={selectedCategory}
-                                        onChange={(e) => setSelectedCategory(e.target.value)}
-                                        className="w-full px-4 py-3.5 pr-10 rounded-xl bg-slate-700/50 border border-slate-600 text-white focus:outline-none focus:ring-2 focus:ring-primary-500 appearance-none cursor-pointer hover:bg-slate-700 transition-colors"
-                                    >
-                                        {categories.map((cat) => (
-                                            <option key={cat.id} value={cat.id} className="bg-slate-800 py-2">
-                                                {cat.icon || getCategoryIcon(cat.name)} {cat.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                    {/* Custom dropdown icon */}
-                                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                        </svg>
-                                    </div>
-                                </div>
+                                <label className="label">Kategori</label>
+                                <select
+                                    value={selectedCategory}
+                                    onChange={(e) => setSelectedCategory(e.target.value)}
+                                    className="input"
+                                >
+                                    {categories.map((cat) => (
+                                        <option key={cat.id} value={cat.id}>
+                                            {cat.icon || getCategoryIcon(cat.name)} {cat.name}
+                                        </option>
+                                    ))}
+                                </select>
                             </div>
 
                             {/* Raw Text (if fallback) */}
                             {result.raw_text && (
-                                <div className="p-3 rounded-lg bg-slate-700/30 border border-slate-600">
-                                    <p className="text-xs text-slate-400 mb-1">Raw OCR Output:</p>
-                                    <p className="text-xs text-slate-300 font-mono">{result.raw_text}</p>
+                                <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Raw OCR Output:</p>
+                                    <p className="text-xs text-slate-600 dark:text-slate-300 font-mono">{result.raw_text}</p>
                                 </div>
                             )}
 
@@ -349,13 +341,13 @@ export default function ScannerPage() {
                             <div className="flex gap-3 pt-4">
                                 <button
                                     onClick={() => setResult(null)}
-                                    className="flex-1 py-3 px-4 rounded-xl bg-slate-700 text-white font-medium hover:bg-slate-600 transition-colors"
+                                    className="btn-secondary flex-1"
                                 >
                                     ✏️ Edit Manual
                                 </button>
                                 <button
                                     onClick={handleSaveTransaction}
-                                    className="flex-1 py-3 px-4 rounded-xl bg-primary-500 text-white font-medium hover:bg-primary-600 transition-colors"
+                                    className="btn-primary flex-1"
                                 >
                                     ✅ Simpan
                                 </button>

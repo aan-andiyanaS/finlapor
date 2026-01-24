@@ -512,8 +512,8 @@ export default function ReportsPage() {
         return (
             <div className="flex items-center justify-center h-96">
                 <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto mb-4"></div>
-                    <p className="text-slate-400">Memuat data laporan...</p>
+                    <div className="spinner w-12 h-12 mx-auto mb-4"></div>
+                    <p className="text-slate-500 dark:text-slate-400">Memuat data laporan...</p>
                 </div>
             </div>
         )
@@ -523,29 +523,29 @@ export default function ReportsPage() {
         <div className="space-y-6">
             {/* Header */}
             <div>
-                <h1 className="text-2xl font-bold text-white">Laporan Keuangan 📊</h1>
-                <p className="text-slate-400">Analisis lengkap keuangan Anda dengan grafik interaktif</p>
+                <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Laporan Keuangan 📊</h1>
+                <p className="text-slate-500 dark:text-slate-400">Analisis lengkap keuangan Anda dengan grafik interaktif</p>
             </div>
 
             {!hasData ? (
-                <div className="bg-slate-800/50 rounded-2xl p-12 border border-slate-700/50 text-center">
+                <div className="card p-12 text-center">
                     <div className="text-6xl mb-4">📊</div>
-                    <h2 className="text-xl font-bold text-white mb-2">Belum Ada Data</h2>
-                    <p className="text-slate-400 mb-6">Tambahkan transaksi terlebih dahulu untuk melihat laporan</p>
-                    <a href="/dashboard/transactions" className="inline-block px-6 py-3 rounded-xl bg-primary-500 text-white font-medium hover:bg-primary-600 transition-colors">
+                    <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Belum Ada Data</h2>
+                    <p className="text-slate-500 dark:text-slate-400 mb-6">Tambahkan transaksi terlebih dahulu untuk melihat laporan</p>
+                    <a href="/dashboard/transactions" className="btn-primary">
                         Tambah Transaksi
                     </a>
                 </div>
             ) : (
                 <>
                     {/* Filters Section - Collapsible on Mobile */}
-                    <div className="bg-slate-800/50 rounded-2xl border border-slate-700/50 overflow-hidden">
+                    <div className="card overflow-hidden">
                         {/* Filter Header - Always visible, clickable on mobile */}
                         <button
                             onClick={() => setShowMobileFilter(!showMobileFilter)}
                             className="w-full p-4 sm:p-6 flex items-center justify-between sm:cursor-default"
                         >
-                            <h2 className="text-lg font-semibold text-white">🔍 Filter Data</h2>
+                            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">🔍 Filter Data</h2>
                             {/* Hamburger icon - only visible on mobile */}
                             <div className="sm:hidden flex flex-col gap-1 p-2">
                                 <span className={`block w-5 h-0.5 bg-slate-400 transition-all duration-300 ${showMobileFilter ? 'rotate-45 translate-y-1.5' : ''}`}></span>
@@ -559,31 +559,31 @@ export default function ReportsPage() {
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                                 {/* Date Range */}
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-300 mb-2">📅 Dari Tanggal</label>
+                                    <label className="label">📅 Dari Tanggal</label>
                                     <input
                                         type="date"
                                         value={filters.dateFrom}
                                         onChange={(e) => { setFilters(prev => ({ ...prev, dateFrom: e.target.value })); setCurrentPage(1) }}
-                                        className="w-full px-4 py-3 rounded-xl bg-slate-700/50 border border-slate-600 text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                        className="input"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-300 mb-2">📅 Sampai Tanggal</label>
+                                    <label className="label">📅 Sampai Tanggal</label>
                                     <input
                                         type="date"
                                         value={filters.dateTo}
                                         onChange={(e) => { setFilters(prev => ({ ...prev, dateTo: e.target.value })); setCurrentPage(1) }}
-                                        className="w-full px-4 py-3 rounded-xl bg-slate-700/50 border border-slate-600 text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                        className="input"
                                     />
                                 </div>
 
                                 {/* Month Filter */}
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-300 mb-2">📆 Bulan</label>
+                                    <label className="label">📆 Bulan</label>
                                     <select
                                         value={filters.selectedMonth}
                                         onChange={(e) => { setFilters(prev => ({ ...prev, selectedMonth: e.target.value })); setCurrentPage(1) }}
-                                        className="w-full px-4 py-3 rounded-xl bg-slate-700/50 border border-slate-600 text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                        className="input"
                                     >
                                         {months.map(m => (
                                             <option key={m.value} value={m.value}>{m.label}</option>
@@ -593,11 +593,11 @@ export default function ReportsPage() {
 
                                 {/* Type Filter */}
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-300 mb-2">💰 Tipe</label>
+                                    <label className="label">💰 Tipe</label>
                                     <select
                                         value={filters.type}
                                         onChange={(e) => { setFilters(prev => ({ ...prev, type: e.target.value as 'all' | 'income' | 'expense' })); setCurrentPage(1) }}
-                                        className="w-full px-4 py-3 rounded-xl bg-slate-700/50 border border-slate-600 text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                        className="input"
                                     >
                                         <option value="all">Semua</option>
                                         <option value="income">Pemasukan</option>
@@ -612,31 +612,31 @@ export default function ReportsPage() {
                     <div className={`grid ${getSummaryGridClass()} gap-4`}>
                         {/* Pemasukan - hide when expense filter */}
                         {filters.type !== 'expense' && (
-                            <div className="bg-gradient-to-br from-green-500/20 to-emerald-500/20 rounded-2xl p-6 border border-green-500/20">
-                                <p className="text-sm text-slate-400 mb-1">Total Pemasukan</p>
-                                <p className="text-2xl font-bold text-green-400">Rp {summary().totalIncome.toLocaleString('id-ID')}</p>
+                            <div className="bg-gradient-to-br from-emerald-50 to-green-50 dark:from-green-500/20 dark:to-emerald-500/20 rounded-2xl p-6 border border-emerald-200 dark:border-green-500/20">
+                                <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Total Pemasukan</p>
+                                <p className="text-2xl font-bold text-emerald-600 dark:text-green-400">Rp {summary().totalIncome.toLocaleString('id-ID')}</p>
                             </div>
                         )}
                         {/* Pengeluaran - hide when income filter */}
                         {filters.type !== 'income' && (
-                            <div className="bg-gradient-to-br from-red-500/20 to-orange-500/20 rounded-2xl p-6 border border-red-500/20">
-                                <p className="text-sm text-slate-400 mb-1">Total Pengeluaran</p>
-                                <p className="text-2xl font-bold text-red-400">Rp {summary().totalExpense.toLocaleString('id-ID')}</p>
+                            <div className="bg-gradient-to-br from-red-50 to-orange-50 dark:from-red-500/20 dark:to-orange-500/20 rounded-2xl p-6 border border-red-200 dark:border-red-500/20">
+                                <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Total Pengeluaran</p>
+                                <p className="text-2xl font-bold text-red-600 dark:text-red-400">Rp {summary().totalExpense.toLocaleString('id-ID')}</p>
                             </div>
                         )}
                         {/* Saldo - only show when all */}
                         {filters.type === 'all' && (
-                            <div className="bg-gradient-to-br from-blue-500/20 to-cyan-500/20 rounded-2xl p-6 border border-blue-500/20">
-                                <p className="text-sm text-slate-400 mb-1">Saldo</p>
-                                <p className={`text-2xl font-bold ${summary().balance >= 0 ? 'text-blue-400' : 'text-red-400'}`}>
+                            <div className="bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-500/20 dark:to-cyan-500/20 rounded-2xl p-6 border border-blue-200 dark:border-blue-500/20">
+                                <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Saldo</p>
+                                <p className={`text-2xl font-bold ${summary().balance >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-red-600 dark:text-red-400'}`}>
                                     Rp {summary().balance.toLocaleString('id-ID')}
                                 </p>
                             </div>
                         )}
                         {/* Jumlah Transaksi - always show */}
-                        <div className="bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-2xl p-6 border border-purple-500/20">
-                            <p className="text-sm text-slate-400 mb-1">Jumlah Transaksi</p>
-                            <p className="text-2xl font-bold text-purple-400">{summary().transactionCount}</p>
+                        <div className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-500/20 dark:to-pink-500/20 rounded-2xl p-6 border border-purple-200 dark:border-purple-500/20">
+                            <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Jumlah Transaksi</p>
+                            <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">{summary().transactionCount}</p>
                         </div>
                     </div>
 
@@ -644,16 +644,16 @@ export default function ReportsPage() {
                     <div ref={chartRef} className="space-y-6">
 
                         {/* Section: Ringkasan Bulanan - Pie Charts */}
-                        <div className="bg-slate-800/50 rounded-2xl p-6 border border-slate-700/50">
-                            <h2 className="text-xl font-bold text-white mb-2">📅 Ringkasan Bulanan</h2>
-                            <p className="text-slate-400 text-sm mb-6">Distribusi pemasukan dan pengeluaran berdasarkan kategori</p>
+                        <div className="card p-6">
+                            <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">📅 Ringkasan Bulanan</h2>
+                            <p className="text-slate-500 dark:text-slate-400 text-sm mb-6">Distribusi pemasukan dan pengeluaran berdasarkan kategori</p>
 
                             {/* Dynamic grid: 2 cols when all, FULL WIDTH when filtered */}
                             <div className={`grid gap-6 ${filters.type === 'all' ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'}`}>
                                 {/* Expense Pie Chart - Hide when income filter, show LEFT when all */}
                                 {filters.type !== 'income' && (
-                                    <div className="bg-slate-700/30 rounded-xl p-4">
-                                        <h3 className="text-lg font-semibold text-white mb-4">📉 Distribusi Pengeluaran</h3>
+                                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                                        <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">📉 Distribusi Pengeluaran</h3>
                                         {pieChartData().expenseData.length > 0 ? (
                                             <ResponsiveContainer width="100%" height={filters.type === 'expense' ? 350 : 300}>
                                                 <PieChart>
@@ -687,8 +687,8 @@ export default function ReportsPage() {
 
                                 {/* Income Pie Chart - Hide when expense filter, show RIGHT when all */}
                                 {filters.type !== 'expense' && (
-                                    <div className="bg-slate-700/30 rounded-xl p-4">
-                                        <h3 className="text-lg font-semibold text-white mb-4">📈 Distribusi Pemasukan</h3>
+                                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                                        <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">📈 Distribusi Pemasukan</h3>
                                         {pieChartData().incomeData.length > 0 ? (
                                             <ResponsiveContainer width="100%" height={filters.type === 'income' ? 350 : 300}>
                                                 <PieChart>
@@ -724,9 +724,9 @@ export default function ReportsPage() {
 
                         {/* Section: Laporan Laba Rugi - Bar Chart (only visible when type is 'all') */}
                         {filters.type === 'all' && (
-                            <div className="bg-slate-800/50 rounded-2xl p-6 border border-slate-700/50">
-                                <h2 className="text-xl font-bold text-white mb-2">📊 Laporan Laba Rugi</h2>
-                                <p className="text-slate-400 text-sm mb-6">Perbandingan pemasukan vs pengeluaran per bulan</p>
+                            <div className="card p-6">
+                                <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">📊 Laporan Laba Rugi</h2>
+                                <p className="text-slate-500 dark:text-slate-400 text-sm mb-6">Perbandingan pemasukan vs pengeluaran per bulan</p>
 
                                 {monthlyChartData().length > 0 ? (
                                     <ResponsiveContainer width="100%" height={350}>
@@ -752,21 +752,21 @@ export default function ReportsPage() {
                         )}
 
                         {/* Section: Analisis Per Kategori - Separated Tables */}
-                        <div className="bg-slate-800/50 rounded-2xl p-6 border border-slate-700/50">
-                            <h2 className="text-xl font-bold text-white mb-2">🏷️ Analisis Per Kategori</h2>
-                            <p className="text-slate-400 text-sm mb-6">Breakdown detail pemasukan dan pengeluaran berdasarkan kategori</p>
+                        <div className="card p-6">
+                            <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">🏷️ Analisis Per Kategori</h2>
+                            <p className="text-slate-500 dark:text-slate-400 text-sm mb-6">Breakdown detail pemasukan dan pengeluaran berdasarkan kategori</p>
 
                             <div className={`grid gap-6 ${filters.type === 'all' ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'}`}>
                                 {/* Income Categories - Left side, hide when expense filter */}
                                 {filters.type !== 'expense' && (
-                                    <div className="bg-slate-700/30 rounded-xl p-4">
-                                        <h3 className="text-lg font-semibold text-green-400 mb-4">📈 Pemasukan</h3>
+                                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                                        <h3 className="text-lg font-semibold text-emerald-600 dark:text-green-400 mb-4">📈 Pemasukan</h3>
                                         <div className="overflow-x-auto">
                                             <table className="w-full">
                                                 <thead>
-                                                    <tr className="border-b border-slate-600">
-                                                        <th className="px-3 py-2 text-left text-sm font-medium text-slate-300">Kategori</th>
-                                                        <th className="px-3 py-2 text-right text-sm font-medium text-slate-300">Jumlah</th>
+                                                    <tr className="border-b border-slate-200 dark:border-slate-600">
+                                                        <th className="px-3 py-2 text-left text-sm font-medium text-slate-600 dark:text-slate-300">Kategori</th>
+                                                        <th className="px-3 py-2 text-right text-sm font-medium text-slate-600 dark:text-slate-300">Jumlah</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
@@ -774,9 +774,9 @@ export default function ReportsPage() {
                                                         .filter(c => c.income > 0)
                                                         .sort((a, b) => b.income - a.income)
                                                         .map((cat, index) => (
-                                                            <tr key={index} className="border-b border-slate-700/50 hover:bg-slate-600/30">
-                                                                <td className="px-3 py-3 text-white">{cat.name}</td>
-                                                                <td className="px-3 py-3 text-right text-green-400 font-medium">
+                                                            <tr key={index} className="border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-600/30">
+                                                                <td className="px-3 py-3 text-slate-900 dark:text-white">{cat.name}</td>
+                                                                <td className="px-3 py-3 text-right text-emerald-600 dark:text-green-400 font-medium">
                                                                     Rp {cat.income.toLocaleString('id-ID')}
                                                                 </td>
                                                             </tr>
@@ -796,14 +796,14 @@ export default function ReportsPage() {
 
                                 {/* Expense Categories - Right side, hide when income filter */}
                                 {filters.type !== 'income' && (
-                                    <div className="bg-slate-700/30 rounded-xl p-4">
-                                        <h3 className="text-lg font-semibold text-red-400 mb-4">📉 Pengeluaran</h3>
+                                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                                        <h3 className="text-lg font-semibold text-red-600 dark:text-red-400 mb-4">📉 Pengeluaran</h3>
                                         <div className="overflow-x-auto">
                                             <table className="w-full">
                                                 <thead>
-                                                    <tr className="border-b border-slate-600">
-                                                        <th className="px-3 py-2 text-left text-sm font-medium text-slate-300">Kategori</th>
-                                                        <th className="px-3 py-2 text-right text-sm font-medium text-slate-300">Jumlah</th>
+                                                    <tr className="border-b border-slate-200 dark:border-slate-600">
+                                                        <th className="px-3 py-2 text-left text-sm font-medium text-slate-600 dark:text-slate-300">Kategori</th>
+                                                        <th className="px-3 py-2 text-right text-sm font-medium text-slate-600 dark:text-slate-300">Jumlah</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
@@ -811,16 +811,16 @@ export default function ReportsPage() {
                                                         .filter(c => c.expense > 0)
                                                         .sort((a, b) => b.expense - a.expense)
                                                         .map((cat, index) => (
-                                                            <tr key={index} className="border-b border-slate-700/50 hover:bg-slate-600/30">
-                                                                <td className="px-3 py-3 text-white">{cat.name}</td>
-                                                                <td className="px-3 py-3 text-right text-red-400 font-medium">
+                                                            <tr key={index} className="border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-600/30">
+                                                                <td className="px-3 py-3 text-slate-900 dark:text-white">{cat.name}</td>
+                                                                <td className="px-3 py-3 text-right text-red-600 dark:text-red-400 font-medium">
                                                                     Rp {cat.expense.toLocaleString('id-ID')}
                                                                 </td>
                                                             </tr>
                                                         ))}
                                                     {categoryChartData().filter(c => c.expense > 0).length === 0 && (
                                                         <tr>
-                                                            <td colSpan={2} className="px-3 py-6 text-center text-slate-400">
+                                                            <td colSpan={2} className="px-3 py-6 text-center text-slate-500 dark:text-slate-400">
                                                                 Tidak ada data pengeluaran
                                                             </td>
                                                         </tr>
@@ -835,9 +835,9 @@ export default function ReportsPage() {
 
                         {/* Section: Analisis Tren - Line Chart (hide when expense filter) */}
                         {filters.type !== 'expense' && (
-                            <div className="bg-slate-800/50 rounded-2xl p-6 border border-slate-700/50">
-                                <h2 className="text-xl font-bold text-white mb-2">📈 Analisis Tren</h2>
-                                <p className="text-slate-400 text-sm mb-6">Grafik pergerakan saldo dari waktu ke waktu</p>
+                            <div className="card p-6">
+                                <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">📈 Analisis Tren</h2>
+                                <p className="text-slate-500 dark:text-slate-400 text-sm mb-6">Grafik pergerakan saldo dari waktu ke waktu</p>
 
                                 {trendChartData().length > 0 ? (
                                     <ResponsiveContainer width="100%" height={300}>
@@ -862,14 +862,14 @@ export default function ReportsPage() {
                     </div>
 
                     {/* Transaction List */}
-                    <div className="bg-slate-800/50 rounded-2xl p-6 border border-slate-700/50">
+                    <div className="card p-6">
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-4">
-                            <h3 className="text-lg font-semibold text-white">📋 Daftar Transaksi ({filtered.length})</h3>
+                            <h3 className="text-lg font-semibold text-slate-900 dark:text-white">📋 Daftar Transaksi ({filtered.length})</h3>
                             <div className="flex gap-2">
                                 <select
                                     value={filters.sortBy}
                                     onChange={(e) => setFilters(prev => ({ ...prev, sortBy: e.target.value as 'date' | 'amount' | 'category' }))}
-                                    className="px-3 py-2 rounded-lg bg-slate-700/50 border border-slate-600 text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                    className="input text-sm py-2"
                                 >
                                     <option value="date">Urutkan: Tanggal</option>
                                     <option value="amount">Urutkan: Jumlah</option>
@@ -877,7 +877,7 @@ export default function ReportsPage() {
                                 </select>
                                 <button
                                     onClick={() => setFilters(prev => ({ ...prev, sortOrder: prev.sortOrder === 'asc' ? 'desc' : 'asc' }))}
-                                    className="px-3 py-2 rounded-lg bg-slate-700/50 border border-slate-600 text-white text-sm hover:bg-slate-600"
+                                    className="btn-secondary py-2 px-3"
                                 >
                                     {filters.sortOrder === 'desc' ? '↓' : '↑'}
                                 </button>
@@ -888,21 +888,21 @@ export default function ReportsPage() {
                             <>
                                 <div className="space-y-2">
                                     {paginatedTransactions.map((tx) => (
-                                        <div key={tx.id} className="flex items-center justify-between p-4 rounded-xl bg-slate-700/30 hover:bg-slate-700/50 transition-colors">
+                                        <div key={tx.id} className="flex items-center justify-between p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
                                             <div className="flex items-center gap-4">
-                                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${tx.type === 'income' ? 'bg-green-500/20' : 'bg-red-500/20'}`}>
+                                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${tx.type === 'income' ? 'bg-emerald-100 dark:bg-green-500/20' : 'bg-red-100 dark:bg-red-500/20'}`}>
                                                     {tx.type === 'income' ? '📈' : '📉'}
                                                 </div>
                                                 <div>
-                                                    <p className="font-medium text-white">{tx.description || 'Tanpa deskripsi'}</p>
-                                                    <div className="flex items-center gap-2 text-sm text-slate-400">
+                                                    <p className="font-medium text-slate-900 dark:text-white">{tx.description || 'Tanpa deskripsi'}</p>
+                                                    <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
                                                         <span>{new Date(tx.date).toLocaleDateString('id-ID')}</span>
                                                         <span>•</span>
                                                         <span>{tx.items?.[0]?.category?.name || tx.category?.name || 'Lainnya'}</span>
                                                     </div>
                                                 </div>
                                             </div>
-                                            <p className={`font-semibold ${tx.type === 'income' ? 'text-green-400' : 'text-red-400'}`}>
+                                            <p className={`font-semibold ${tx.type === 'income' ? 'text-emerald-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                                                 {tx.type === 'income' ? '+' : '-'}Rp {(tx.total_amount || tx.amount).toLocaleString('id-ID')}
                                             </p>
                                         </div>
@@ -915,17 +915,17 @@ export default function ReportsPage() {
                                         <button
                                             onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                                             disabled={currentPage === 1}
-                                            className="px-4 py-2 rounded-lg bg-slate-700/50 text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-600"
+                                            className="btn-secondary py-2 disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
                                             ← Prev
                                         </button>
-                                        <span className="text-slate-400">
+                                        <span className="text-slate-500 dark:text-slate-400">
                                             Halaman {currentPage} dari {totalPages}
                                         </span>
                                         <button
                                             onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                                             disabled={currentPage === totalPages}
-                                            className="px-4 py-2 rounded-lg bg-slate-700/50 text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-600"
+                                            className="btn-secondary py-2 disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
                                             Next →
                                         </button>
@@ -935,19 +935,19 @@ export default function ReportsPage() {
                         ) : (
                             <div className="text-center py-12">
                                 <div className="text-4xl mb-4">🔍</div>
-                                <p className="text-slate-400">Tidak ada transaksi yang sesuai dengan filter</p>
+                                <p className="text-slate-500 dark:text-slate-400">Tidak ada transaksi yang sesuai dengan filter</p>
                             </div>
                         )}
                     </div>
 
                     {/* Export Section - Compact Design */}
-                    <div className="bg-gradient-to-r from-primary-500/10 to-purple-500/10 rounded-xl p-4 border border-primary-500/20">
+                    <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-500/10 dark:to-purple-500/10 rounded-xl p-4 border border-blue-200 dark:border-blue-500/20">
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                             <div className="flex items-center gap-3">
                                 <span className="text-xl">📥</span>
                                 <div>
-                                    <p className="text-sm font-medium text-white">Export Laporan</p>
-                                    <p className="text-xs text-slate-400">PDF dengan grafik • Excel untuk analisis</p>
+                                    <p className="text-sm font-medium text-slate-900 dark:text-white">Export Laporan</p>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">PDF dengan grafik • Excel untuk analisis</p>
                                 </div>
                             </div>
                             <div className="flex gap-2">
