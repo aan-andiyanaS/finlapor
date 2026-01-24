@@ -19,7 +19,7 @@ Dokumentasi lengkap arsitektur sistem FinLapor.
                ┌─────────────────────────────┐    ┌─────────────────────────────┐
                │      CLOUDFLARE PAGES       │    │      CLOUDFLARE PROXY       │
                │                             │    │                             │
-               │   📍 finlapor.com           │    │   📍 api.finlapor.com       │
+               │   📍 finlapor.airi.click           │    │   📍 api.finlapor.airi.click       │
                │   Next.js Static Export     │    │   DDoS + SSL + Caching      │
                │   FREE                      │    │   FREE                      │
                └─────────────────────────────┘    └──────────────┬──────────────┘

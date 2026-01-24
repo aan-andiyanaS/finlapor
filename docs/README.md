@@ -82,4 +82,4 @@ Selamat datang di dokumentasi FinLapor! Pilih panduan sesuai kebutuhan Anda.
 
 - **Bug/Error**: Buat issue di [GitHub](https://github.com/aan-andiyanaS/finlapor/issues)
 - **Questions**: Baca FAQ di [User Manual](./user-manual.md#faq)
-- **Contact**: support@finlapor.com
+- **Contact**: support@finlapor.airi.click

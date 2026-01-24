@@ -218,7 +218,7 @@ docker exec -i finlapor-postgres-1 psql -U postgres -d finlapor < database/migra
 psql -U postgres -d finlapor -f database/migrations/001_initial.sql
 ```
 
-> **Note**: Database akan di-setup dengan schema production-ready **tanpa demo data**. User pertama yang register akan menjadi user baru di sistem. Tidak ada lagi demo user `demo@finlapor.com`.
+> **Note**: Database akan di-setup dengan schema production-ready **tanpa demo data**. User pertama yang register akan menjadi user baru di sistem. Tidak ada lagi demo user `demo@finlapor.airi.click`.
 
 ---
 

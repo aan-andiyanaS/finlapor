@@ -264,7 +264,7 @@ sleep 15
 
 # Health check (10 attempts, 10s interval)
 for i in {1..10}; do
-  curl -f https://api.finlapor.com/health && break
+  curl -f https://api.finlapor.airi.click/health && break
   sleep 10
 done
 ```
@@ -288,7 +288,7 @@ done
 
 ```bash
 # Build dengan production API URL
-NEXT_PUBLIC_API_URL=https://api.finlapor.com npm run build
+NEXT_PUBLIC_API_URL=https://api.finlapor.airi.click npm run build
 
 # Deploy ke CloudFlare Pages production
 npx wrangler pages deploy out --project-name finlapor --branch production
@@ -323,7 +323,7 @@ cp $BACKUP main
 sudo systemctl start finlapor
 
 # Verify
-curl -f https://api.finlapor.com/health
+curl -f https://api.finlapor.airi.click/health
 ```
 
 **Rollback Database (if needed):**
@@ -356,14 +356,14 @@ SSH_PRIVATE_KEY_PROD       # Private key untuk production server
 
 ### Server Hosts
 ```
-EC2_HOST_STAGING          # staging.finlapor.com atau IP
-EC2_HOST_PROD             # api.finlapor.com atau IP
+EC2_HOST_STAGING          # staging.finlapor.airi.click atau IP
+EC2_HOST_PROD             # api.finlapor.airi.click atau IP
 ```
 
 ### API URLs
 ```
-STAGING_API_URL           # https://staging-api.finlapor.com
-PROD_API_URL              # https://api.finlapor.com
+STAGING_API_URL           # https://staging-api.finlapor.airi.click
+PROD_API_URL              # https://api.finlapor.airi.click
 ```
 
 ### Database
@@ -443,7 +443,7 @@ Repository → Actions tab → Select workflow run
 
 ```bash
 # SSH ke server
-ssh ec2-user@api.finlapor.com
+ssh ec2-user@api.finlapor.airi.click
 
 # Check service status
 sudo systemctl status finlapor
@@ -459,7 +459,7 @@ sudo journalctl -u finlapor -n 100
 
 ```bash
 # Test dari local
-curl https://api.finlapor.com/health
+curl https://api.finlapor.airi.click/health
 
 # Expected response
 {
@@ -519,7 +519,7 @@ ssh: connect to host XX.XX.XX.XX timeout
 
 **Symptom:**
 ```
-curl: (7) Failed to connect to api.finlapor.com
+curl: (7) Failed to connect to api.finlapor.airi.click
 ```
 
 **Solutions:**
@@ -536,7 +536,7 @@ curl: (7) Failed to connect to api.finlapor.com
 
 ```bash
 # 1. SSH to server
-ssh ec2-user@api.finlapor.com
+ssh ec2-user@api.finlapor.airi.click
 
 # 2. Stop service
 sudo systemctl stop finlapor

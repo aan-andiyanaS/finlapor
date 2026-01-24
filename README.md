@@ -469,7 +469,7 @@ MIT License - see [LICENSE](LICENSE) file
 
 ## 📞 Support
 
-- 📧 Email: support@finlapor.com
+- 📧 Email: support@finlapor.airi.click
 - 🐛 Issues: [GitHub Issues](https://github.com/aan-andiyanaS/finlapor/issues)
 - 📖 Docs: [Documentation](./docs/)
 - 💬 Discussions: [GitHub Discussions](https://github.com/aan-andiyanaS/finlapor/discussions)

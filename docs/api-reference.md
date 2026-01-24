@@ -9,7 +9,7 @@ Dokumentasi lengkap REST API FinLapor.
 | Environment | URL |
 |-------------|-----|
 | Development | `http://localhost:8080` |
-| Production | `https://api.finlapor.com` |
+| Production | `https://api.finlapor.airi.click` |
 
 ---
 

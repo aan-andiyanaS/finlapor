@@ -18,7 +18,7 @@ FinLapor adalah aplikasi manajemen keuangan yang membantu Anda:
 
 ### Langkah 1: Daftar Akun
 
-1. Buka website [finlapor.com](https://finlapor.com)
+1. Buka website [finlapor.airi.click](https://finlapor.airi.click)
 2. Klik tombol **"Daftar"**
 3. Isi form pendaftaran:
    - Email
@@ -30,7 +30,7 @@ FinLapor adalah aplikasi manajemen keuangan yang membantu Anda:
 
 ### Langkah 2: Login
 
-1. Buka [finlapor.com](https://finlapor.com)
+1. Buka [finlapor.airi.click](https://finlapor.airi.click)
 2. Masukkan email dan password
 3. Klik **"Masuk"**
 
@@ -277,9 +277,9 @@ Bingung soal keuangan? Tanya saja ke Asisten AI!
 
 ## 🆘 Butuh Bantuan?
 
-- 📧 Email: support@finlapor.com
+- 📧 Email: support@finlapor.airi.click
 - 💬 Live Chat: Klik ikon chat di pojok kanan bawah
-- 📚 FAQ: [finlapor.com/faq](https://finlapor.com/faq)
+- 📚 FAQ: [finlapor.airi.click/faq](https://finlapor.airi.click/faq)
 
 ---
 

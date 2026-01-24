@@ -186,8 +186,8 @@ aws configure
        "AllowedHeaders": ["*"],
        "AllowedMethods": ["GET", "PUT", "POST", "DELETE"],
        "AllowedOrigins": [
-         "https://finlapor.com",
-         "https://www.finlapor.com",
+         "https://finlapor.airi.click",
+         "https://www.finlapor.airi.click",
          "http://localhost:3000"
        ],
        "ExposeHeaders": ["ETag"],
@@ -570,7 +570,7 @@ sudo systemctl start finlapor
 │  │                 │ VPC Link                                                │  │
 │  │  ┌──────────────┴──────────────────────────────────────────────────────┐  │  │
 │  │  │                        AWS API Gateway                              │  │  │
-│  │  │                       api.finlapor.com                              │  │  │
+│  │  │                       api.finlapor.airi.click                              │  │  │
 │  │  └──────────────────────────────┬──────────────────────────────────────┘  │  │
 │  └─────────────────────────────────┼─────────────────────────────────────────┘  │
 │                                    │                                            │
@@ -736,10 +736,10 @@ curl https://[API_GATEWAY_URL]/health
 
 ## B.9 Custom Domain untuk API Gateway
 
-1. ACM → Request certificate: `api.finlapor.com`
+1. ACM → Request certificate: `api.finlapor.airi.click`
 2. Validate via DNS (tambah CNAME di CloudFlare)
 3. API Gateway → Custom domain names → Create
-4. Domain: `api.finlapor.com`
+4. Domain: `api.finlapor.airi.click`
 5. API mappings → Map ke `finlapor-api` stage `production`
 6. CloudFlare DNS: CNAME `api` → API Gateway domain
 
@@ -803,14 +803,14 @@ serverless deploy --stage production
    ```
 4. Environment variables:
    ```
-   NEXT_PUBLIC_API_URL = https://api.finlapor.com
+   NEXT_PUBLIC_API_URL = https://api.finlapor.airi.click
    ```
 5. Save and Deploy
 
 ### 6.2 Custom Domain
 
 1. Pages → Project → Custom domains
-2. Add: `finlapor.com` dan `www.finlapor.com`
+2. Add: `finlapor.airi.click` dan `www.finlapor.airi.click`
 
 ---
 
@@ -822,7 +822,7 @@ serverless deploy --stage production
 |------|------|---------|-------|
 | A | @ | CloudFlare Pages | Auto |
 | CNAME | api | EC2 IP (Opsi A) / API GW (Opsi B) | ✅ |
-| CNAME | www | finlapor.com | ✅ |
+| CNAME | www | finlapor.airi.click | ✅ |
 
 ### 7.2 SSL Settings
 
@@ -993,7 +993,7 @@ HF_TOKEN=hf_xxxxx
 
 | Item | Public Subnet | Private Subnet |
 |------|---------------|----------------|
-| API URL | http://[EC2_IP]:8080 | https://api.finlapor.com |
+| API URL | http://[EC2_IP]:8080 | https://api.finlapor.airi.click |
 | SSH | `ssh -i key.pem ec2-user@[IP]` | `ssh -J bastion backend` |
 | Biaya | ~$9/bulan | ~$13-45/bulan |
 | Keamanan | Standar | Tinggi |
@@ -1003,4 +1003,4 @@ HF_TOKEN=hf_xxxxx
 ## Support
 
 - GitHub Issues: https://github.com/aan-andiyanaS/finlapor/issues
-- Email: support@finlapor.com
+- Email: support@finlapor.airi.click
