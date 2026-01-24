@@ -10,6 +10,8 @@ Panduan lengkap untuk deploy FinLapor ke production menggunakan CloudFlare Pages
 
 1. [Persiapan Awal](#1-persiapan-awal)
 2. [Setup AWS Account](#2-setup-aws-account)
+   - [Setup S3 Bucket](#24-setup-s3-bucket)
+   - [Setup AWS RDS (Opsional)](#25-setup-aws-rds-opsional---database-terkelola)
 3. [Setup CloudFlare Account](#3-setup-cloudflare-account)
 4. [Pilih Arsitektur Deployment](#4-pilih-arsitektur-deployment)
    - [Opsi A: Public Subnet (Sederhana)](#opsi-a-public-subnet-sederhana)
@@ -18,6 +20,8 @@ Panduan lengkap untuk deploy FinLapor ke production menggunakan CloudFlare Pages
 6. [Deploy Frontend ke CloudFlare Pages](#6-deploy-frontend-ke-cloudflare-pages)
 7. [Setup Domain & SSL](#7-setup-domain--ssl)
 8. [Monitoring & Maintenance](#8-monitoring--maintenance)
+9. [File yang Tidak Ada di GitHub](#9-file-yang-tidak-ada-di-github-sensitif)
+10. [Troubleshooting Umum](#10-troubleshooting-umum)
 
 ---
 
@@ -55,6 +59,65 @@ git --version
 |------------|-------------|----------|--------------|
 | **Public Subnet** | ~$9-10 | Standar | Mudah |
 | **Private Subnet** | ~$13-45 | Tinggi | Kompleks |
+
+### 1.4 Docker vs AWS Managed Services
+
+> 💡 **PENTING**: Di production, kita **TIDAK** menjalankan PostgreSQL dan Redis di Docker. AWS menyediakan layanan terkelola yang lebih reliable.
+
+#### Apa yang Butuh Docker vs Tidak?
+
+| Komponen | Docker? | Penjelasan |
+|----------|---------|------------|
+| **Go Backend** | ✅ Opsional | Bisa binary langsung atau Docker container |
+| **AWS RDS** | ❌ Tidak | Database terkelola, AWS yang maintenance |
+| **AWS ElastiCache** | ❌ Tidak | Redis terkelola, AWS yang maintenance |
+| **AWS S3** | ❌ Tidak | Object storage, akses via SDK |
+| **AWS Lambda** | ❌ Tidak | Serverless, upload code saja |
+
+#### Perbandingan Local vs Production
+
+```
+LOCAL (Docker Compose):                    PRODUCTION (AWS Managed):
+┌─────────────────────────────┐            ┌─────────────────────────────┐
+│      Docker Compose         │            │         AWS Cloud           │
+│  ┌────────┐  ┌────────┐    │            │  ┌────────┐  ┌──────────┐   │
+│  │Postgres│  │ Redis  │    │            │  │AWS RDS │  │ElastiCache│  │
+│  │(docker)│  │(docker)│    │            │  │(managed)│ │ (managed) │  │
+│  └────┬───┘  └───┬────┘    │            │  └────┬───┘  └─────┬────┘   │
+│       └────┬─────┘          │            │       └─────┬─────┘        │
+│            │                │            │             │              │
+│       ┌────┴────┐           │            │        ┌────┴────┐         │
+│       │Go Binary│           │            │        │   EC2   │         │
+│       │ (local) │           │            │        │Go Binary│         │
+│       └─────────┘           │            │        └─────────┘         │
+└─────────────────────────────┘            └─────────────────────────────┘
+```
+
+#### Bagaimana Backend Connect ke Managed Services?
+
+Backend hanya perlu **environment variables** dengan endpoint yang benar:
+
+```bash
+# .env di EC2 (Production)
+# Database - AWS RDS (BUKAN localhost!)
+DATABASE_URL=postgres://postgres:PASSWORD@finlapor-db.xxxxx.rds.amazonaws.com:5432/finlapor?sslmode=require
+
+# Redis - AWS ElastiCache (BUKAN localhost!)
+REDIS_URL=finlapor-cache.xxxxx.cache.amazonaws.com:6379
+
+# S3 - AWS S3
+S3_ENDPOINT=https://s3.ap-southeast-1.amazonaws.com
+S3_BUCKET=finlapor-storage-xxxxx
+S3_ACCESS_KEY=AKIA...
+S3_SECRET_KEY=...
+```
+
+> ✅ **Keuntungan Managed Services:**
+> - Backup otomatis (RDS)
+> - High availability
+> - Auto-patching security
+> - Monitoring built-in
+> - Tidak perlu maintenance server database
 
 ---
 
@@ -103,14 +166,143 @@ aws configure
 > **🤔 Mengapa S3?**
 > Storage untuk file (foto struk, laporan PDF). Murah: $0.023/GB/bulan.
 
-1. S3 → Create bucket
-2. Name: `finlapor-storage-[random]`
-3. Region: ap-southeast-1
-4. Uncheck "Block all public access"
-5. Setup CORS:
-```json
-[{"AllowedHeaders":["*"],"AllowedMethods":["GET","PUT","POST"],"AllowedOrigins":["https://finlapor.com","http://localhost:3000"]}]
-```
+#### Langkah-langkah Detail:
+
+1. **Buat Bucket:**
+   - S3 → Create bucket
+   - Bucket name: `finlapor-storage-[random-string]` (nama harus unik global)
+   - Region: ap-southeast-1 (Singapore)
+   - Object Ownership: ACLs disabled (recommended)
+
+2. **Block Public Access Settings:**
+   - **PENTING**: Jangan uncheck semua! Amankan bucket Anda
+   - Untuk akses via backend saja, biarkan semua terblokir
+   - Gunakan presigned URLs untuk akses file
+
+3. **Setup CORS Configuration:**
+   ```json
+   [
+     {
+       "AllowedHeaders": ["*"],
+       "AllowedMethods": ["GET", "PUT", "POST", "DELETE"],
+       "AllowedOrigins": [
+         "https://finlapor.com",
+         "https://www.finlapor.com",
+         "http://localhost:3000"
+       ],
+       "ExposeHeaders": ["ETag"],
+       "MaxAgeSeconds": 3000
+     }
+   ]
+   ```
+
+4. **Buat IAM User untuk S3:**
+   - IAM → Users → Create user
+   - Name: `finlapor-s3-user`
+   - Attach policy: `AmazonS3FullAccess` (atau custom policy untuk bucket spesifik)
+   - Create access key → Download credentials
+
+5. **Environment Variables untuk Backend:**
+   ```bash
+   S3_ENDPOINT=https://s3.ap-southeast-1.amazonaws.com
+   S3_ACCESS_KEY=AKIA...
+   S3_SECRET_KEY=...
+   S3_BUCKET=finlapor-storage-xxxxx
+   S3_REGION=ap-southeast-1
+   ```
+
+#### 🔧 Troubleshooting S3:
+
+| Masalah | Penyebab | Solusi |
+|---------|----------|--------|
+| Access Denied | IAM permissions salah | Periksa policy, pastikan ada `s3:PutObject`, `s3:GetObject` |
+| CORS Error | CORS belum dikonfigurasi | Tambahkan CORS configuration di bucket |
+| Bucket not found | Region salah | Pastikan region di env sama dengan bucket |
+| SignatureDoesNotMatch | Credentials salah | Generate ulang access key |
+| File tidak bisa diakses | Block public access | Gunakan presigned URL atau update bucket policy |
+
+---
+
+### 2.5 Setup AWS RDS (Opsional - Database Terkelola)
+
+> **🤔 Mengapa RDS?**
+> - Database terkelola: backup otomatis, patching, high availability
+> - Lebih mudah di-maintain dibanding PostgreSQL di EC2
+> - Biaya: ~$15-25/bulan (db.t3.micro dalam Free Tier 12 bulan pertama)
+
+#### Langkah-langkah Setup RDS:
+
+1. **Buat RDS Instance:**
+   - RDS → Create database
+   - Engine: PostgreSQL (versi 15 atau 16)
+   - Template: **Free tier** (untuk development)
+   - DB instance identifier: `finlapor-db`
+   - Master username: `postgres`
+   - Master password: (catat dengan aman!)
+
+2. **Instance Configuration:**
+   ```
+   DB instance class: db.t3.micro (Free Tier)
+   Storage: 20 GB gp2
+   Enable storage autoscaling: No (untuk kontrol biaya)
+   ```
+
+3. **Connectivity:**
+   ```
+   VPC: finlapor-vpc
+   Subnet group: Create new
+   Public access: No (untuk keamanan)
+   VPC security group: Create new → finlapor-rds-sg
+   ```
+
+4. **Security Group untuk RDS:**
+   | Type | Port | Source | Keterangan |
+   |------|------|--------|------------|
+   | PostgreSQL | 5432 | finlapor-backend-sg | Hanya dari backend EC2 |
+
+5. **Additional Configuration:**
+   ```
+   Initial database name: finlapor
+   Enable automated backups: Yes
+   Backup retention: 7 days
+   Enable encryption: Yes (recommended)
+   ```
+
+6. **Dapatkan Endpoint:**
+   - Setelah status "Available", copy Endpoint
+   - Format: `finlapor-db.xxxxx.ap-southeast-1.rds.amazonaws.com`
+
+7. **Update Backend .env:**
+   ```bash
+   DATABASE_URL=postgres://postgres:YOUR_PASSWORD@finlapor-db.xxxxx.ap-southeast-1.rds.amazonaws.com:5432/finlapor?sslmode=require
+   ```
+
+8. **Run Migrations:**
+   ```bash
+   # Dari EC2 backend (karena RDS tidak public)
+   psql $DATABASE_URL < database/migrations/001_initial.sql
+   ```
+
+#### 🔧 Troubleshooting RDS:
+
+| Masalah | Penyebab | Solusi |
+|---------|----------|--------|
+| Connection refused | Security group salah | Pastikan SG backend punya akses ke port 5432 RDS |
+| Timeout | RDS di subnet berbeda | Pastikan VPC dan subnet group benar |
+| Authentication failed | Password salah | Reset password di RDS console |
+| SSL required | sslmode tidak set | Tambahkan `?sslmode=require` di DATABASE_URL |
+| Database does not exist | Initial DB tidak dibuat | Buat manual: `CREATE DATABASE finlapor;` |
+
+#### ⚠️ Perbandingan: PostgreSQL di EC2 vs RDS
+
+| Aspek | PostgreSQL di EC2 | AWS RDS |
+|-------|-------------------|---------|
+| Biaya | Termasuk EC2 (~$8.50) | Tambahan ~$15-25/bulan |
+| Maintenance | Manual (update, backup) | Otomatis |
+| Backup | Setup manual | Otomatis (7 hari retention) |
+| High Availability | Manual setup | Multi-AZ tersedia |
+| Scaling | Manual resize | Mudah via console |
+| **Rekomendasi** | MVP/Demo/UAS | Production |
 
 ---
 
@@ -148,35 +340,51 @@ aws configure
 
 ---
 
-# OPSI A: Public Subnet (Sederhana & Hemat)
+# OPSI A: Public Subnet (Sederhana)
 
-> ⚠️ **Catatan Penting:** Opsi ini **LEBIH HEMAT** tetapi **TIDAK SESUAI** dengan Diagram Arsitektur utama. Gunakan opsi ini jika budget terbatas.
+> 💡 **Catatan:** Opsi ini menggunakan **Public Subnet** untuk kemudahan akses, dengan managed services (RDS, ElastiCache) untuk database. Cocok untuk MVP/Demo.
 
 ## A.1 Diagram Arsitektur
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                           AWS VPC                               │
-│  ┌───────────────────────────────────────────────────────────┐  │
-│  │                    PUBLIC SUBNET                          │  │
-│  │                                                           │  │
-│  │   ┌─────────────────────────────────────────────────┐     │  │
-│  │   │              EC2 (t3.micro)                     │     │  │
-│  │   │   ┌─────────┐  ┌─────────┐  ┌─────────┐        │     │  │
-│  │   │   │ Go API  │  │PostgreSQL│  │  Redis  │        │     │  │
-│  │   │   │  :8080  │  │  :5432  │  │  :6379  │        │     │  │
-│  │   │   └─────────┘  └─────────┘  └─────────┘        │     │  │
-│  │   └─────────────────────────────────────────────────┘     │  │
-│  │                          ▲                                │  │
-│  │                          │ Port 8080                      │  │
-│  └──────────────────────────┼────────────────────────────────┘  │
-│                             │                                   │
-└─────────────────────────────┼───────────────────────────────────┘
-                              │
-                              ▼
-                 ┌─────────────────────┐
-                 │   CloudFlare CDN    │──────► User
-                 └─────────────────────┘
+                                    ┌─────────────┐
+                                    │ HuggingFace │
+                                    │     API     │
+                                    └──────▲──────┘
+                                           │
+┌──────────────────────────────────────────┼────────────────────────────────────┐
+│                                AWS VPC   │                                    │
+│  ┌───────────────────────────────────────┼─────────────────────────────────┐  │
+│  │                    PUBLIC SUBNET      │                                 │  │
+│  │                                       │                                 │  │
+│  │   ┌─────────────────────┐      ┌──────┴──────┐      ┌─────────────┐     │  │
+│  │   │   EC2 (t3.micro)    │      │ AWS Lambda  │      │  S3 Bucket  │     │  │
+│  │   │   ┌───────────┐     │      │ (Python AI) │      │  (Storage)  │     │  │
+│  │   │   │  Docker   │     │      └─────────────┘      └─────────────┘     │  │
+│  │   │   │ ┌───────┐ │     │                                               │  │
+│  │   │   │ │Go API │ │     │                                               │  │
+│  │   │   │ │ :8080 │ │     │                                               │  │
+│  │   │   │ └───────┘ │     │                                               │  │
+│  │   │   └───────────┘     │                                               │  │
+│  │   └──────────┬──────────┘                                               │  │
+│  │              │                                                          │  │
+│  └──────────────┼──────────────────────────────────────────────────────────┘  │
+│                 │                                                             │
+│      ┌──────────┴──────────┬────────────────────┐                             │
+│      ▼                     ▼                    ▼                             │
+│ ┌──────────────┐   ┌──────────────┐   ┌──────────────┐                        │
+│ │   AWS RDS    │   │ ElastiCache  │   │  AWS Lambda  │                        │
+│ │ PostgreSQL   │   │    Redis     │   │  (AI OCR)    │                        │
+│ │   :5432      │   │    :6379     │   │              │                        │
+│ └──────────────┘   └──────────────┘   └──────────────┘                        │
+│                                                                               │
+└───────────────────────────────────────────────────────────────────────────────┘
+                               │
+                               ▼
+                  ┌─────────────────────┐
+                  │   CloudFlare CDN    │──────► User
+                  │  (Frontend Hosting) │
+                  └─────────────────────┘
 ```
 
 ## A.2 Setup VPC
@@ -318,35 +526,61 @@ sudo systemctl start finlapor
 
 # OPSI B: Private Subnet + API Gateway (Sesuai Arsitektur)
 
-> ✅ **Catatan Penting:** Opsi ini **SEPENUHNYA SESUAI** dengan file `architecture.md` dan diagram visual `finlapor_aws_architecture.png`.
+> ✅ **Catatan:** Opsi ini **SEPENUHNYA SESUAI** dengan diagram `finlapor_aws_architecture.png`. Menggunakan Private Subnet untuk keamanan maksimal.
 
 ## B.1 Diagram Arsitektur
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                           AWS VPC                               │
-│  ┌──────────────────┐         ┌──────────────────────────────┐  │
-│  │  PUBLIC SUBNET   │         │      PRIVATE SUBNET          │  │
-│  │                  │         │                              │  │
-│  │  ┌────────────┐  │   SSH   │  ┌────────────────────────┐  │  │
-│  │  │  Bastion   │──┼────────►│  │      EC2 Backend       │  │  │
-│  │  │  (t3.nano) │  │         │  │  ┌────┐ ┌────┐ ┌────┐  │  │  │
-│  │  └────────────┘  │         │  │  │ Go │ │ PG │ │Redis│  │  │  │
-│  │       ▲          │         │  │  └────┘ └────┘ └────┘  │  │  │
-│  │     SSH          │         │  └────────────▲───────────┘  │  │
-│  │   (My IP)        │         │               │ Port 8080    │  │
-│  └──────────────────┘         └───────────────┼──────────────┘  │
-│                                               │ VPC Link       │
-│  ┌────────────────────────────────────────────┴──────────────┐  │
-│  │                    AWS API Gateway                         │  │
-│  │                    api.finlapor.com                        │  │
-│  └────────────────────────────┬──────────────────────────────┘  │
-└───────────────────────────────┼─────────────────────────────────┘
-                                │
-                                ▼
-                   ┌─────────────────────┐
-                   │   CloudFlare CDN    │──────► User
-                   └─────────────────────┘
+                                          ┌─────────────┐
+                                          │ HuggingFace │
+                                          │     API     │
+                                          └──────▲──────┘
+                                                 │
+┌────────────────────────────────────────────────┼────────────────────────────────┐
+│                               AWS Cloud        │                                │
+│                                                │                                │
+│  ┌─────────────────────────────────────────────┼─────────────────────────────┐  │
+│  │                           VPC               │                             │  │
+│  │                                             │                             │  │
+│  │  ┌─────────────────────┐            ┌───────┴───────┐    ┌─────────────┐  │  │
+│  │  │   Public Subnet     │            │  AWS Lambda   │    │  S3 Bucket  │  │  │
+│  │  │  ┌─────────────┐    │            │  (Python AI)  │    │  (Storage)  │  │  │
+│  │  │  │  Bastion    │    │            └───────────────┘    └─────────────┘  │  │
+│  │  │  │   Host      │    │                                                  │  │
+│  │  │  └──────┬──────┘    │                                                  │  │
+│  │  │         │ SSH       │                                                  │  │
+│  │  └─────────┼───────────┘                                                  │  │
+│  │            │                                                              │  │
+│  │            ▼                                                              │  │
+│  │  ┌─────────────────────────────────────────────────────────────────────┐  │  │
+│  │  │                        Private Subnet                               │  │  │
+│  │  │                                                                     │  │  │
+│  │  │   ┌─────────────────────┐                                           │  │  │
+│  │  │   │   EC2 (t3.micro)    │                                           │  │  │
+│  │  │   │   ┌───────────┐     │       ┌──────────────┐  ┌──────────────┐  │  │  │
+│  │  │   │   │  Docker   │     │       │   AWS RDS    │  │ ElastiCache  │  │  │  │
+│  │  │   │   │ ┌───────┐ │─────┼──────►│ PostgreSQL   │  │    Redis     │  │  │  │
+│  │  │   │   │ │Backend│ │     │       │              │  │              │  │  │  │
+│  │  │   │   │ │(Go)   │ │◄────┼───────│              │  │              │  │  │  │
+│  │  │   │   │ └───────┘ │     │       └──────────────┘  └──────────────┘  │  │  │
+│  │  │   │   └───────────┘     │                                           │  │  │
+│  │  │   └──────────▲──────────┘                                           │  │  │
+│  │  │              │ Port 8080                                            │  │  │
+│  │  └──────────────┼──────────────────────────────────────────────────────┘  │  │
+│  │                 │ VPC Link                                                │  │
+│  │  ┌──────────────┴──────────────────────────────────────────────────────┐  │  │
+│  │  │                        AWS API Gateway                              │  │  │
+│  │  │                       api.finlapor.com                              │  │  │
+│  │  └──────────────────────────────┬──────────────────────────────────────┘  │  │
+│  └─────────────────────────────────┼─────────────────────────────────────────┘  │
+│                                    │                                            │
+└────────────────────────────────────┼────────────────────────────────────────────┘
+                                     │
+                                     ▼
+                        ┌─────────────────────┐
+          User ◄────────│   CloudFlare CDN    │
+                        │ (Frontend / Security)│
+                        └─────────────────────┘
 ```
 
 ## B.2 Setup VPC dengan Private Subnet
@@ -622,6 +856,136 @@ sudo systemctl restart finlapor
 EOF
 chmod +x ~/update.sh
 ```
+
+---
+
+## 9. File yang Tidak Ada di GitHub (Sensitif)
+
+> ⚠️ **PENTING**: Beberapa file TIDAK boleh di-upload ke GitHub karena mengandung informasi sensitif (password, API keys, dll).
+
+### 9.1 Daftar File yang Tidak Di-upload
+
+| File | Lokasi | Isi | Contoh |
+|------|--------|-----|--------|
+| `.env` | `backend/.env` | Database URL, JWT Secret, S3 Keys | Lihat `.env.example` |
+| `finlapor-key.pem` | Local machine | SSH private key untuk EC2 | Dari AWS Console |
+| `serviceAccountKey.json` | (jika pakai Firebase) | Firebase credentials | Tidak digunakan |
+
+### 9.2 Cara Menangani File Sensitif
+
+#### Opsi A: Manual Copy via SSH
+```bash
+# Buat file .env di server langsung
+ssh -i finlapor-key.pem ec2-user@[IP]
+cd ~/finlapor/backend
+nano .env  # Edit manual
+```
+
+#### Opsi B: Gunakan SCP untuk Transfer
+```bash
+# Copy file .env dari local ke server
+scp -i finlapor-key.pem ./backend/.env ec2-user@[IP]:~/finlapor/backend/.env
+```
+
+#### Opsi C: GitHub Secrets (untuk CI/CD)
+1. Repository → Settings → Secrets and variables → Actions
+2. Tambahkan secrets:
+   - `DATABASE_URL`
+   - `JWT_SECRET`
+   - `S3_ACCESS_KEY`
+   - `S3_SECRET_KEY`
+   - `EC2_SSH_KEY` (isi dengan private key)
+3. Workflow akan menggunakan secrets ini saat deploy
+
+### 9.3 Template .env untuk Backend
+
+```bash
+# Database
+DATABASE_URL=postgres://postgres:YOUR_PASSWORD@localhost:5432/finlapor?sslmode=disable
+
+# Untuk RDS (uncomment jika pakai RDS)
+# DATABASE_URL=postgres://postgres:YOUR_PASSWORD@finlapor-db.xxxxx.rds.amazonaws.com:5432/finlapor?sslmode=require
+
+# Redis
+REDIS_URL=redis://localhost:6379
+
+# JWT (WAJIB GANTI - minimal 32 karakter)
+JWT_SECRET=your-super-secret-jwt-key-min-32-characters-here
+
+# AWS S3
+S3_ENDPOINT=https://s3.ap-southeast-1.amazonaws.com
+S3_ACCESS_KEY=AKIA...
+S3_SECRET_KEY=...
+S3_BUCKET=finlapor-storage-xxxxx
+S3_REGION=ap-southeast-1
+
+# App Config
+PORT=8080
+APP_ENV=production
+
+# HuggingFace (Opsional - untuk AI features)
+HF_TOKEN=hf_xxxxx
+```
+
+---
+
+## 10. Troubleshooting Umum
+
+### 10.1 Masalah EC2 & SSH
+
+| Masalah | Penyebab | Solusi |
+|---------|----------|--------|
+| Permission denied (publickey) | Key file permissions salah | `chmod 400 finlapor-key.pem` |
+| Connection timed out | Security Group salah | Cek inbound rule port 22 ada My IP |
+| Host key verification failed | IP berubah setelah stop/start | `ssh-keygen -R [OLD_IP]` |
+| No space left on device | Disk penuh | `df -h` untuk cek, hapus log lama |
+
+### 10.2 Masalah Database
+
+| Masalah | Penyebab | Solusi |
+|---------|----------|--------|
+| FATAL: password authentication failed | Password salah | Cek .env, reset password PostgreSQL |
+| Connection refused port 5432 | PostgreSQL tidak running | `docker ps` cek container, `docker-compose up -d postgres` |
+| Database "finlapor" does not exist | Belum di-migrate | Run migration SQL |
+| Too many connections | Connection pool habis | Restart backend, increase max_connections |
+
+### 10.3 Masalah Backend Go
+
+| Masalah | Penyebab | Solusi |
+|---------|----------|--------|
+| go: command not found | Go belum di-install | Install Go sesuai langkah A.5 |
+| cannot find package | Dependencies belum di-download | `go mod download` |
+| bind: address already in use | Port 8080 sudah dipakai | `lsof -i :8080` lalu kill process |
+| panic: runtime error | Bug di code | Cek log, fix code |
+
+### 10.4 Masalah Docker
+
+| Masalah | Penyebab | Solusi |
+|---------|----------|--------|
+| Cannot connect to Docker daemon | Docker tidak running | `sudo systemctl start docker` |
+| permission denied while connecting | User bukan docker group | `sudo usermod -aG docker ec2-user` lalu logout/login |
+| No space left on device | Docker images/volumes penuh | `docker system prune -a` |
+| Container keeps restarting | Error di aplikasi | `docker logs [container_name]` |
+
+### 10.5 Masalah Frontend & CloudFlare
+
+| Masalah | Penyebab | Solusi |
+|---------|----------|--------|
+| Build failed | Dependencies error | Clear cache: `rm -rf node_modules && npm install` |
+| API not reachable | CORS atau URL salah | Cek `NEXT_PUBLIC_API_URL` di CloudFlare env |
+| SSL error | Mix content (http/https) | Pastikan semua URL pakai https |
+| 522 Connection timed out | Backend down | Cek EC2, restart service |
+
+### 10.6 Checklist Sebelum Deploy
+
+- [ ] `.env` file sudah dikonfigurasi dengan benar
+- [ ] Database migrations sudah dijalankan
+- [ ] Security Group mengizinkan traffic yang diperlukan
+- [ ] Backend bisa terkoneksi ke database (`go run cmd/server/main.go`)
+- [ ] S3 bucket sudah dibuat dan CORS dikonfigurasi
+- [ ] CloudFlare environment variables sudah di-set
+- [ ] Domain DNS sudah pointing ke lokasi yang benar
+- [ ] SSL/TLS sudah aktif (Full strict di CloudFlare)
 
 ---
 

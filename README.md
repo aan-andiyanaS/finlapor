@@ -17,8 +17,8 @@ FinLapor adalah aplikasi pengelolaan keuangan berbasis AI yang mendukung **SDG 8
 
 | Fitur | Deskripsi | Status |
 |-------|-----------|--------|
-| 📊 **Dashboard Interaktif** | Visualisasi keuangan real-time dari database | ✅ Production |
-| 📷 **Scan Struk Otomatis** | OCR dengan AI (HuggingFace Donut) | ✅ Production |
+| 📊 **Dashboard Interaktif** | Visualisasi keuangan real-time dengan animasi | ✅ Production |
+| 📷 **Scan Struk Otomatis** | OCR dengan AI (HuggingFace Donut) | 🚧 Dalam Pengembangan |
 | 💬 **Asisten AI Cerdas** | Chatbot dengan Mistral 7B untuk analisis keuangan | ✅ Production |
 | 📈 **Laporan Komprehensif** | Generate laporan PDF/Excel | ✅ Production |
 | 🏷️ **Kategorisasi Otomatis** | AI zero-shot classification otomatis | ✅ Production |
@@ -26,6 +26,8 @@ FinLapor adalah aplikasi pengelolaan keuangan berbasis AI yang mendukung **SDG 8
 | 🌙 **Dark/Light Mode** | Tema yang nyaman untuk mata | ✅ Production |
 | 📱 **Responsive Design** | Optimal di desktop, tablet, dan mobile | ✅ Production |
 | 🔄 **CI/CD Pipeline** | Automated testing & deployment | ✅ Production |
+| ✨ **Animasi Interaktif** | Framer Motion untuk micro-interactions | ✅ Production |
+| 🔍 **Pencarian Cerdas** | Search transaksi berdasarkan deskripsi/kategori | ✅ Production |
 
 ---
 
@@ -93,6 +95,8 @@ FinLapor adalah aplikasi pengelolaan keuangan berbasis AI yang mendukung **SDG 8
 ### Frontend
 - **Framework**: Next.js 14 (TypeScript, Static Export)
 - **Styling**: Tailwind CSS + Custom Design System
+- **Animations**: Framer Motion
+- **Notifications**: Sonner (Toast)
 - **State**: Zustand + React Query
 - **UI Components**: shadcn/ui
 - **Deployment**: CloudFlare Pages (FREE)
@@ -236,6 +240,7 @@ finlapor/
 
 | Document | Description | Link |
 |----------|-------------|------|
+| **🛠️ Development** | Local setup with Docker | [docs/development.md](./docs/development.md) |
 | **Getting Started** | Setup development environment | [docs/getting-started.md](./docs/getting-started.md) |
 | **Architecture** | System design & diagrams | [docs/architecture.md](./docs/architecture.md) |
 | **API Reference** | Endpoint documentation | [docs/api-reference.md](./docs/api-reference.md) |

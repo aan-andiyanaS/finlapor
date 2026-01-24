@@ -8,30 +8,35 @@ Selamat datang di dokumentasi FinLapor! Pilih panduan sesuai kebutuhan Anda.
 
 | Dokumen | Untuk Siapa | Isi |
 |---------|-------------|-----|
-| [🚀 Getting Started](./getting-started.md) | Developer | Setup environment development dari awal |
+| [🛠️ Development](./development.md) | Developer | Setup lokal dengan Docker (PostgreSQL, Redis) |
+| [🚀 Getting Started](./getting-started.md) | Developer | Setup environment development lengkap |
 | [🏗️ Architecture](./architecture.md) | Developer/Architect | Diagram sistem, tech stack, database schema |
 | [📡 API Reference](./api-reference.md) | Developer | Dokumentasi lengkap semua endpoints |
 | [☁️ Deployment](./deployment.md) | DevOps/Developer | Deploy ke AWS & CloudFlare step-by-step |
+| [🔄 CI/CD](./cicd.md) | DevOps | Pipeline GitHub Actions |
 | [📱 User Manual](./user-manual.md) | End User | Cara menggunakan aplikasi |
 
 ---
 
 ## 🗺️ Quick Navigation
 
+### 🆕 Mau Coba Lokal Dulu?
+
+1. **Baca [Development Guide](./development.md)** - Setup dengan Docker dalam 10 menit
+2. Clone repo, jalankan Docker, start backend & frontend
+3. Akses http://localhost:3000
+
 ### Untuk Developer Baru
 
-1. Baca [Getting Started](./getting-started.md) untuk setup lokal
+1. Baca [Getting Started](./getting-started.md) untuk setup lengkap
 2. Pahami [Architecture](./architecture.md) untuk gambaran sistem
 3. Lihat [API Reference](./api-reference.md) saat coding
 
 ### Untuk Deploy ke Production
 
 1. Ikuti [Deployment](./deployment.md) section by section:
-   - Setup AWS Account
-   - Setup CloudFlare
-   - Deploy Backend ke EC2
-   - Deploy AI ke Lambda
-   - Deploy Frontend ke CloudFlare Pages
+   - **Opsi A**: Public Subnet (Sederhana, ~$25/bulan)
+   - **Opsi B**: Private Subnet + API Gateway (Aman, ~$35/bulan)
 
 ### Untuk End User
 
