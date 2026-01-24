@@ -110,8 +110,8 @@ FinLapor adalah aplikasi pengelolaan keuangan berbasis AI yang mendukung **SDG 8
 - **Deployment**: AWS EC2 (t3.micro)
 
 ### AI & ML
-- **OCR Model**: Donut (HuggingFace) - Receipt scanning
-- **LLM**: Mistral 7B Instruct - Financial chat assistant
+- **OCR Model**: Donut (HuggingFace) - Receipt scanning (🚧 Dalam Pengembangan)
+- **LLM**: OSS-GPT 120b Instruct - Financial chat assistant
 - **Classification**: BART Zero-shot - Auto categorization
 - **Deployment**: AWS Lambda (Python 3.11)
 
