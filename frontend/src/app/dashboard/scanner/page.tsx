@@ -14,6 +14,22 @@ interface OCRResult {
 interface Category {
     id: string
     name: string
+    icon?: string
+}
+
+// Helper function to get category icon
+const getCategoryIcon = (name: string): string => {
+    const iconMap: Record<string, string> = {
+        'Makanan': '🍔',
+        'Transport': '🚗',
+        'Belanja': '🛒',
+        'Hiburan': '🎬',
+        'Kesehatan': '🏥',
+        'Pendidikan': '📚',
+        'Tagihan': '💳',
+        'Lainnya': '📦'
+    }
+    return iconMap[name] || '📁'
 }
 
 export default function ScannerPage() {
@@ -32,7 +48,7 @@ export default function ScannerPage() {
 
     const fetchCategories = async () => {
         try {
-            const token = localStorage.getItem('token')
+            const token = localStorage.getItem('access_token')
             const res = await fetch('http://localhost:8080/api/categories', {
                 headers: { 'Authorization': `Bearer ${token}` }
             })
@@ -67,7 +83,7 @@ export default function ScannerPage() {
         setResult(null)
 
         try {
-            const token = localStorage.getItem('token')
+            const token = localStorage.getItem('access_token')
 
             // Upload image first
             const formData = new FormData()
@@ -147,6 +163,19 @@ export default function ScannerPage() {
 
     return (
         <div className="space-y-6">
+            {/* Development Notice */}
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4">
+                <div className="flex items-start gap-3">
+                    <span className="text-2xl">🚧</span>
+                    <div className="flex-1">
+                        <h3 className="text-amber-400 font-semibold mb-1">Fitur OCR AI Masih Dalam Pengembangan</h3>
+                        <p className="text-amber-200/80 text-sm">
+                            Saat ini sistem menggunakan data demo untuk demonstrasi. Integrasi AI OCR dengan HuggingFace sedang dalam tahap pengembangan dan akan segera tersedia untuk analisis struk secara otomatis.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
             {/* Header */}
             <div>
                 <h1 className="text-2xl font-bold text-white">Scan Struk 📷</h1>
@@ -220,14 +249,14 @@ export default function ScannerPage() {
 
                     {/* AI Status */}
                     {result && (
-                        <div className="mt-4 p-3 rounded-lg bg-slate-700/50 flex items-center gap-2">
-                            <span className="text-xl">{result.ai_enabled ? '🤖' : '⚙️'}</span>
+                        <div className="mt-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center gap-2">
+                            <span className="text-xl">🚧</span>
                             <div className="flex-1">
-                                <p className="text-sm text-white font-medium">
-                                    {result.ai_enabled ? 'AI Real (HuggingFace)' : 'Mode Fallback'}
+                                <p className="text-sm text-amber-400 font-medium">
+                                    Mode Demo (Pengembangan)
                                 </p>
-                                <p className="text-xs text-slate-400">
-                                    {result.ai_enabled ? 'Menggunakan Donut OCR model' : 'Mock data untuk demo'}
+                                <p className="text-xs text-amber-200/70">
+                                    Menggunakan data demo. OCR AI sedang dalam pengembangan.
                                 </p>
                             </div>
                         </div>
@@ -287,17 +316,25 @@ export default function ScannerPage() {
                             {/* Category */}
                             <div>
                                 <label className="block text-sm font-medium text-slate-300 mb-2">Kategori</label>
-                                <select
-                                    value={selectedCategory}
-                                    onChange={(e) => setSelectedCategory(e.target.value)}
-                                    className="w-full px-4 py-3 rounded-xl bg-slate-700/50 border border-slate-600 text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-                                >
-                                    {categories.map((cat) => (
-                                        <option key={cat.id} value={cat.id}>
-                                            {cat.name}
-                                        </option>
-                                    ))}
-                                </select>
+                                <div className="relative">
+                                    <select
+                                        value={selectedCategory}
+                                        onChange={(e) => setSelectedCategory(e.target.value)}
+                                        className="w-full px-4 py-3.5 pr-10 rounded-xl bg-slate-700/50 border border-slate-600 text-white focus:outline-none focus:ring-2 focus:ring-primary-500 appearance-none cursor-pointer hover:bg-slate-700 transition-colors"
+                                    >
+                                        {categories.map((cat) => (
+                                            <option key={cat.id} value={cat.id} className="bg-slate-800 py-2">
+                                                {cat.icon || getCategoryIcon(cat.name)} {cat.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    {/* Custom dropdown icon */}
+                                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                    </div>
+                                </div>
                             </div>
 
                             {/* Raw Text (if fallback) */}

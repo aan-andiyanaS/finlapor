@@ -22,20 +22,47 @@ export default function DashboardLayout({
     const router = useRouter()
     const [isSidebarOpen, setIsSidebarOpen] = useState(false)
     const [user, setUser] = useState<{ name: string; email: string } | null>(null)
+    const [isLoading, setIsLoading] = useState(true)
 
     useEffect(() => {
+        // Check if user is authenticated
+        const token = localStorage.getItem('access_token')
         const userData = localStorage.getItem('user')
+
+        if (!token) {
+            // No token = not logged in, redirect to login
+            router.push('/login')
+            return
+        }
+
         if (userData) {
             setUser(JSON.parse(userData))
         } else {
-            // Untuk demo, set default user
-            setUser({ name: 'Demo User', email: 'demo@finlapor.com' })
+            // Has token but no user data - set minimal user info
+            setUser({ name: 'User', email: '' })
         }
-    }, [])
+        setIsLoading(false)
+    }, [router])
 
     const handleLogout = () => {
+        localStorage.removeItem('access_token')
+        localStorage.removeItem('refresh_token')
         localStorage.removeItem('user')
         router.push('/login')
+    }
+
+    // Show loading while checking authentication
+    if (isLoading) {
+        return (
+            <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+                <div className="text-center">
+                    <div className="w-16 h-16 rounded-xl bg-gradient-to-r from-primary-500 to-accent-500 flex items-center justify-center mx-auto mb-4 animate-pulse">
+                        <span className="text-white font-bold text-2xl">F</span>
+                    </div>
+                    <p className="text-slate-400">Memuat...</p>
+                </div>
+            </div>
+        )
     }
 
     return (
@@ -69,8 +96,8 @@ export default function DashboardLayout({
                                 key={item.href}
                                 href={item.href}
                                 className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${isActive
-                                        ? 'bg-primary-500/20 text-primary-400'
-                                        : 'text-slate-400 hover:bg-slate-700/50 hover:text-white'
+                                    ? 'bg-primary-500/20 text-primary-400'
+                                    : 'text-slate-400 hover:bg-slate-700/50 hover:text-white'
                                     }`}
                             >
                                 <span className="text-xl">{item.icon}</span>

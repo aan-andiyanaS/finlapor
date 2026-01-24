@@ -33,7 +33,7 @@ export default function ChatPage() {
 
     const fetchChatHistory = async () => {
         try {
-            const token = localStorage.getItem('token')
+            const token = localStorage.getItem('access_token')
             const res = await fetch('http://localhost:8080/api/chat/history', {
                 headers: { 'Authorization': `Bearer ${token}` }
             })
@@ -80,7 +80,7 @@ export default function ChatPage() {
         setIsTyping(true)
 
         try {
-            const token = localStorage.getItem('token')
+            const token = localStorage.getItem('access_token')
             const res = await fetch('http://localhost:8080/api/chat', {
                 method: 'POST',
                 headers: {
@@ -133,6 +133,19 @@ export default function ChatPage() {
 
     return (
         <div className="h-[calc(100vh-140px)] flex flex-col">
+            {/* Development Notice */}
+            <div className="mb-4 bg-amber-500/10 border border-amber-500/30 rounded-xl p-4">
+                <div className="flex items-start gap-3">
+                    <span className="text-2xl">🚧</span>
+                    <div className="flex-1">
+                        <h3 className="text-amber-400 font-semibold mb-1">Fitur LLM AI Masih Dalam Pengembangan</h3>
+                        <p className="text-amber-200/80 text-sm">
+                            Saat ini chatbot menggunakan respon demo untuk demonstrasi. Integrasi LLM AI dengan HuggingFace Mistral-7B sedang dalam tahap pengembangan dan akan segera tersedia untuk analisis keuangan yang lebih cerdas.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
             {/* Header */}
             <div className="mb-4">
                 <h1 className="text-2xl font-bold text-white">Asisten AI 🤖</h1>
@@ -150,14 +163,14 @@ export default function ChatPage() {
                         >
                             <div className={`flex gap-3 max-w-[80%] ${message.role === 'user' ? 'flex-row-reverse' : ''}`}>
                                 <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${message.role === 'user'
-                                        ? 'bg-primary-500'
-                                        : 'bg-gradient-to-r from-primary-500 to-accent-500'
+                                    ? 'bg-primary-500'
+                                    : 'bg-gradient-to-r from-primary-500 to-accent-500'
                                     }`}>
                                     {message.role === 'user' ? '👤' : '🤖'}
                                 </div>
                                 <div className={`rounded-2xl px-4 py-3 ${message.role === 'user'
-                                        ? 'bg-primary-500 text-white'
-                                        : 'bg-slate-700/50 text-slate-200'
+                                    ? 'bg-primary-500 text-white'
+                                    : 'bg-slate-700/50 text-slate-200'
                                     }`}>
                                     <p className="whitespace-pre-wrap text-sm leading-relaxed">{message.content}</p>
                                     <p className={`text-xs mt-2 ${message.role === 'user' ? 'text-primary-200' : 'text-slate-400'
