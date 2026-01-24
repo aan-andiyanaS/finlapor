@@ -739,15 +739,223 @@ EOF
 ssh finlapor-backend
 ```
 
-## B.7 Setup Backend (sama dengan A.5 & A.6)
+## B.7 Setup Backend di Private Subnet
 
-SSH ke backend via Bastion, lalu lakukan langkah yang sama:
-- Install dependencies
-- Clone repo
-- Setup environment
-- Start database
-- Build & run
-- Setup systemd
+> ⚠️ **PENTING:** EC2 di Private Subnet **TIDAK PUNYA akses internet langsung**. Anda perlu memilih salah satu dari 3 opsi berikut untuk install dependencies.
+
+### 📊 Perbandingan 3 Opsi Internet Access
+
+| Aspek | Opsi 1: NAT Gateway | Opsi 2: Transfer via Bastion | Opsi 3: Temporary Public |
+|-------|---------------------|------------------------------|--------------------------|
+| **Biaya** | ~$32/bulan | GRATIS | GRATIS (sementara) |
+| **Kecepatan** | Cepat | Lambat (copy file) | Cepat |
+| **Keamanan** | ✅ Sangat aman | ✅ Sangat aman | ⚠️ Sementara terbuka |
+| **Kompleksitas** | Mudah setup | Manual transfer | Mudah, tapi perlu reconfigure |
+| **Recommended** | Production besar | ✅ **Demo/UAS** | Quick testing |
+
+---
+
+### OPSI 1: NAT Gateway (Tidak Direkomendasikan untuk Demo)
+
+**Biaya:** ~$32/bulan + $0.045/GB data
+
+```
+Internet ←→ NAT Gateway (Public Subnet) ←→ EC2 Backend (Private Subnet)
+```
+
+**Langkah:**
+1. VPC → NAT Gateways → Create
+2. Subnet: **Public** subnet
+3. Allocate Elastic IP
+4. Route Tables → Private subnet route table
+5. Add route: `0.0.0.0/0 → NAT Gateway`
+
+**Kapan pakai:** Production dengan budget, perlu akses internet terus-menerus.
+
+---
+
+### OPSI 2: Transfer File via Bastion (Recommended untuk Demo/UAS)
+
+**Biaya:** GRATIS
+
+```
+Internet → Laptop → Bastion Host → Copy ke Backend
+```
+
+**Langkah:**
+
+#### Step 1: Download semua di Bastion (punya internet)
+```bash
+# SSH ke Bastion
+ssh -i finlapor-key.pem ec2-user@[BASTION_PUBLIC_IP]
+
+# Clone repo di Bastion
+git clone https://github.com/aan-andiyanaS/finlapor.git
+
+# Download Go
+wget https://go.dev/dl/go1.21.6.linux-amd64.tar.gz
+
+# Download Docker images dan save
+docker pull postgres:16-alpine
+docker pull redis:alpine
+docker save postgres:16-alpine redis:alpine -o docker-images.tar
+```
+
+#### Step 2: Copy ke Backend via SCP internal
+```bash
+# Dari Bastion, copy ke Backend (jaringan internal, gratis)
+scp -i ~/.ssh/finlapor-key.pem -r finlapor/ ec2-user@[BACKEND_PRIVATE_IP]:/home/ec2-user/
+scp -i ~/.ssh/finlapor-key.pem go1.21.6.linux-amd64.tar.gz ec2-user@[BACKEND_PRIVATE_IP]:/home/ec2-user/
+scp -i ~/.ssh/finlapor-key.pem docker-images.tar ec2-user@[BACKEND_PRIVATE_IP]:/home/ec2-user/
+```
+
+#### Step 3: Install di Backend
+```bash
+# SSH ke Backend via Bastion
+ssh -J ec2-user@[BASTION_IP] ec2-user@[BACKEND_PRIVATE_IP] -i finlapor-key.pem
+
+# Load Docker images
+docker load -i docker-images.tar
+
+# Install Go
+sudo tar -C /usr/local -xzf go1.21.6.linux-amd64.tar.gz
+echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
+source ~/.bashrc
+
+# Setup dan jalankan (ikuti A.6)
+cd finlapor
+# ... (setup .env, docker-compose, build, dll)
+```
+
+---
+
+### OPSI 3: Temporary Public Access (Quick Testing)
+
+**Biaya:** GRATIS, tapi **TIDAK AMAN untuk production**
+
+```
+Internet ←→ EC2 Backend (sementara di Public Subnet)
+```
+
+**Langkah:**
+
+#### Step 1: Pindahkan EC2 ke Public Subnet sementara
+```bash
+# AWS Console → EC2 → Instance → Stop
+# Modify network settings → Change subnet ke PUBLIC
+# Start instance
+```
+
+#### Step 2: Install semua dependencies
+```bash
+# SSH langsung ke EC2 (sekarang punya public IP)
+ssh -i finlapor-key.pem ec2-user@[NEW_PUBLIC_IP]
+
+# Install seperti biasa (A.5 & A.6)
+sudo yum update -y
+sudo yum install git docker -y
+# ... dst
+```
+
+#### Step 3: Kembalikan ke Private Subnet
+```bash
+# Stop instance
+# Modify network settings → Change subnet ke PRIVATE
+# Start instance
+# Update Route Tables dan Security Groups
+```
+
+---
+
+### 🎯 Rekomendasi untuk Demo/UAS
+
+Gunakan **Opsi 2 (Transfer via Bastion)** karena:
+- ✅ Gratis
+- ✅ Tetap aman
+- ✅ Sesuai arsitektur production
+- ✅ Bagus untuk presentasi ke dosen
+
+---
+
+## B.7.2 Stop/Start EC2 untuk Hemat Biaya
+
+> 💡 **Tips:** EC2 tidak dipakai? **Stop** untuk hemat biaya. Bayar hanya storage (~$0.80/bulan).
+
+### Cara Menghentikan (Stop)
+
+**Via AWS Console:**
+1. EC2 → Instances
+2. Select instance (Backend dan/atau Bastion)
+3. Instance State → **Stop**
+
+**Via CLI:**
+```bash
+aws ec2 stop-instances --instance-ids i-xxxxxxxxx
+```
+
+### Apa yang Terjadi Saat Stop?
+
+| Komponen | Status | Biaya |
+|----------|--------|-------|
+| EC2 Compute | ❌ Stop | $0 |
+| EBS Storage | ✅ Tetap ada | ~$0.80/bulan (8GB) |
+| Elastic IP (jika ada) | ⚠️ Dikenakan biaya jika tidak attached | ~$3.60/bulan |
+| RDS | ⚠️ Tetap jalan kecuali di-stop | Tetap bayar |
+| S3 | ✅ Tetap ada | ~$0.10/bulan |
+
+### Cara Menjalankan Lagi (Start)
+
+**Via AWS Console:**
+1. EC2 → Instances
+2. Select instance
+3. Instance State → **Start**
+4. Tunggu status "Running"
+
+**Via CLI:**
+```bash
+aws ec2 start-instances --instance-ids i-xxxxxxxxx
+```
+
+### Setelah Start, Jalankan Services:
+
+```bash
+# SSH ke Backend
+ssh finlapor-backend  # atau via Bastion
+
+# Start Docker containers
+cd ~/finlapor
+docker-compose up -d postgres redis
+
+# Start backend service
+sudo systemctl start finlapor
+
+# Verifikasi
+sudo systemctl status finlapor
+curl localhost:8080/health
+```
+
+### ⏰ Tips Scheduling (Opsional)
+
+Untuk otomatis stop/start sesuai jadwal (misalnya stop malam hari):
+1. AWS Console → EC2 → Instance Scheduler
+2. Atau gunakan EventBridge + Lambda
+
+---
+
+## B.7.3 Langkah Setup Backend (Ringkasan)
+
+Setelah memilih opsi internet access, lakukan langkah berikut:
+
+1. ✅ Install dependencies (Docker, Go)
+2. ✅ Clone/Copy repository
+3. ✅ Setup `.env` dengan kredensial RDS dan S3
+4. ✅ Start database containers
+5. ✅ Run migrations
+6. ✅ Build backend: `go build -o main cmd/server/main.go`
+7. ✅ Setup systemd service (lihat A.7)
+8. ✅ Start service: `sudo systemctl start finlapor`
+
+**Detail lengkap:** Lihat section **A.5**, **A.6**, dan **A.7**
 
 ## B.8 Setup API Gateway
 
