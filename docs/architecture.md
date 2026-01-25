@@ -48,11 +48,10 @@ Dokumentasi lengkap arsitektur sistem FinLapor.
                │  ┌─────────────────────────────────┼────────┼───────────────┐  │
                │  │          PRIVATE SUBNET         │        │               │  │
                │  │                                 │        ▼               │  │
-               │  │   ┌──────────────────────┐      │  ┌─────────────────┐  │  │
-               │  │   │   Backend (Go)       │      │  │ PostgreSQL      │  │  │
-               │  │   │   EC2 t3.micro       │◄─────┴─►│   + Redis       │  │  │
-               │  │   │   Fiber API          │         │ (same EC2)      │  │  │
-               │  │   │   ~$8.50/month       │         │                 │  │  │
+               │  │   │   Backend (Go)       │      │  ┌─────────────────┐  │  │
+               │  │   │   EC2 t3.micro       │◄─────┴─►│  AWS RDS        │  │  │
+               │  │   │   Fiber API          │         │  PostgreSQL     │  │  │
+               │  │   │   ~$8.50/month       │         │  + Redis Docker │  │  │
                │  │   └──────────┬───────────┘         └─────────────────┘  │  │
                │  │              │                                          │  │
                │  │              │ VPC Endpoint ────────────────┐           │  │
@@ -109,10 +108,10 @@ Dokumentasi lengkap arsitektur sistem FinLapor.
 | **Go 1.21** | Programming language |
 | **Fiber v2** | Web framework |
 | **GORM** | ORM for database |
-| **PostgreSQL 16** | Primary database |
+| **AWS RDS PostgreSQL 16** | Primary database (Managed) |
 | **Redis 7** | Caching & sessions |
 | **JWT** | Authentication |
-| **AWS SDK** | S3 & Lambda integration |
+| **AWS SDK** | S3, Lambda, RDS integration |
 
 ### AI Service
 

@@ -6,8 +6,8 @@ FinLapor adalah aplikasi pengelolaan keuangan berbasis AI yang mendukung **SDG 8
 
 ![Next.js](https://img.shields.io/badge/Next.js-14-black?style=flat&logo=next.js)
 ![Go](https://img.shields.io/badge/Go-1.21-00ADD8?style=flat&logo=go)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?style=flat&logo=postgresql)
-![AWS](https://img.shields.io/badge/AWS-EC2%20%7C%20Lambda%20%7C%20S3-FF9900?style=flat&logo=amazon-aws)
+![PostgreSQL](https://img.shields.io/badge/AWS%20RDS-PostgreSQL%2016-336791?style=flat&logo=postgresql)
+![AWS](https://img.shields.io/badge/AWS-RDS%20%7C%20EC2%20%7C%20Lambda%20%7C%20S3-FF9900?style=flat&logo=amazon-aws)
 ![CloudFlare](https://img.shields.io/badge/CloudFlare-Pages-F38020?style=flat&logo=cloudflare)
 ![CI/CD](https://img.shields.io/badge/CI%2FCD-GitHub%20Actions-2088FF?style=flat&logo=github-actions)
 
@@ -108,7 +108,7 @@ FinLapor adalah aplikasi pengelolaan keuangan berbasis AI yang mendukung **SDG 8
 - **Framework**: Fiber v2
 - **ORM**: GORM
 - **Auth**: JWT with refresh tokens
-- **Database**: PostgreSQL 16 + Redis 7
+- **Database**: AWS RDS PostgreSQL 16 + Redis 7
 - **Deployment**: AWS EC2 (t3.micro)
 
 ### AI & ML
@@ -120,7 +120,8 @@ FinLapor adalah aplikasi pengelolaan keuangan berbasis AI yang mendukung **SDG 8
 ### Infrastructure
 - **Frontend**: CloudFlare Pages
 - **Backend**: AWS EC2 (Private Subnet)
-- **Database**: PostgreSQL on EC2
+- **Database**: AWS RDS PostgreSQL (Managed)
+- **Cache**: Redis (Docker atau ElastiCache)
 - **Storage**: AWS S3 via VPC Endpoint
 - **Monitoring**: CloudWatch + Health Checks
 - **CI/CD**: GitHub Actions (automated pipeline)
@@ -142,14 +143,19 @@ git clone https://github.com/aan-andiyanaS/finlapor.git
 cd finlapor
 ```
 
-### 2. Start Database (Docker)
+### 2. Start Database (Local Development)
+
+> 💡 **Catatan:** Untuk development lokal, gunakan Docker. Untuk production, gunakan AWS RDS.
 
 ```bash
-# Start PostgreSQL, Redis, and MinIO
+# LOCAL DEVELOPMENT: Start PostgreSQL, Redis, and MinIO via Docker
 docker-compose up -d postgres redis minio
 
-# Run migrations
+# Run migrations (Local Docker)
 Get-Content database\migrations\001_initial.sql | docker exec -i finlapor-postgres-1 psql -U postgres -d finlapor
+
+# PRODUCTION: Gunakan AWS RDS endpoint di .env
+# DATABASE_URL=postgres://postgres:PASSWORD@finlapor-db.xxxxx.rds.amazonaws.com:5432/finlapor
 ```
 
 ### 3. Run Backend
@@ -462,9 +468,9 @@ MIT License - see [LICENSE](LICENSE) file
 **Tech Stack:**
 - Go + Fiber (Backend)
 - Next.js 14 + TypeScript (Frontend)
-- PostgreSQL + Redis (Database)
+- AWS RDS PostgreSQL + Redis (Database)
 - HuggingFace AI (OCR + Chat)
-- AWS + CloudFlare (Infrastructure)
+- AWS (RDS, EC2, S3, Lambda) + CloudFlare (Infrastructure)
 - GitHub Actions (CI/CD)
 
 ---
