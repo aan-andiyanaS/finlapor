@@ -1254,13 +1254,248 @@ sudo systemctl status finlapor
 curl localhost:8080/health
 ```
 
-### ⏰ Tips Scheduling (Opsional)
+### ⏰ Tips Scheduling (Opsional) - Hemat Biaya dengan Auto Stop/Start
 
-Untuk otomatis stop/start sesuai jadwal (misalnya stop malam hari):
-1. AWS Console → EC2 → Instance Scheduler
-2. Atau gunakan EventBridge + Lambda
+> 💡 **Use Case:** Stop EC2 di malam hari (22:00-07:00) untuk hemat ~60% biaya compute.
+
+#### Opsi 1: AWS Instance Scheduler (Recommended)
+
+**Setup:**
+1. AWS Console → CloudFormation → Create Stack
+2. Template: `https://s3.amazonaws.com/solutions-reference/aws-instance-scheduler/latest/instance-scheduler-on-aws.template`
+3. Configure:
+   ```
+   Stack name: finlapor-scheduler
+   Default timezone: Asia/Jakarta
+   ```
+
+4. Buat schedule di DynamoDB:
+   ```json
+   {
+     "name": "office-hours",
+     "periods": [{
+       "begintime": "07:00",
+       "endtime": "22:00"
+     }],
+     "timezone": "Asia/Jakarta"
+   }
+   ```
+
+5. Tag EC2 instances:
+   ```
+   Key: Schedule
+   Value: office-hours
+   ```
 
 ---
+
+#### Opsi 2: EventBridge + Lambda (Manual Setup)
+
+**Step 1: Buat Lambda Function untuk Stop**
+```python
+# stop_ec2.py
+import boto3
+
+def lambda_handler(event, context):
+    ec2 = boto3.client('ec2', region_name='ap-southeast-1')
+    
+    # Instance IDs (ganti dengan milik Anda)
+    instances = ['i-xxxxxxxxxx', 'i-yyyyyyyyyy']  # Backend, Bastion
+    
+    ec2.stop_instances(InstanceIds=instances)
+    
+    return {
+        'statusCode': 200,
+        'body': f'Stopped instances: {instances}'
+    }
+```
+
+**Step 2: Buat Lambda Function untuk Start**
+```python
+# start_ec2.py
+import boto3
+
+def lambda_handler(event, context):
+    ec2 = boto3.client('ec2', region_name='ap-southeast-1')
+    
+    instances = ['i-xxxxxxxxxx', 'i-yyyyyyyyyy']
+    
+    ec2.start_instances(InstanceIds=instances)
+    
+    return {
+        'statusCode': 200,
+        'body': f'Started instances: {instances}'
+    }
+```
+
+**Step 3: Buat EventBridge Rules**
+
+**Rule untuk Stop (setiap hari 22:00 WIB):**
+```
+Name: finlapor-stop-nightly
+Schedule: cron(0 15 * * ? *)  # 15:00 UTC = 22:00 WIB
+Target: Lambda stop_ec2
+```
+
+**Rule untuk Start (setiap hari 07:00 WIB):**
+```
+Name: finlapor-start-morning
+Schedule: cron(0 0 * * ? *)   # 00:00 UTC = 07:00 WIB
+Target: Lambda start_ec2
+```
+
+---
+
+#### 🖥️ Maintenance Page untuk User
+
+> **Masalah:** Bagaimana jika user login saat server mati?
+
+**Solusi: Maintenance Page di CloudFlare**
+
+**Step 1: Buat maintenance.html di CloudFlare Pages**
+
+```html
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FinLapor - Maintenance</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+        .container {
+            text-align: center;
+            padding: 40px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+            max-width: 500px;
+        }
+        h1 { font-size: 2.5rem; margin-bottom: 20px; }
+        p { font-size: 1.2rem; margin-bottom: 15px; opacity: 0.9; }
+        .time-box {
+            background: rgba(255,255,255,0.2);
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        .countdown { font-size: 2rem; font-weight: bold; }
+        .emoji { font-size: 4rem; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="emoji">🛠️</div>
+        <h1>Sedang Maintenance</h1>
+        <p>FinLapor sedang dalam pemeliharaan terjadwal untuk meningkatkan performa.</p>
+        
+        <div class="time-box">
+            <p>Server akan kembali online:</p>
+            <div class="countdown" id="countdown">07:00 WIB</div>
+            <p style="font-size: 0.9rem; opacity: 0.7;">Setiap hari: 07:00 - 22:00 WIB</p>
+        </div>
+        
+        <p>Terima kasih atas pengertiannya! 🙏</p>
+    </div>
+    
+    <script>
+        // Countdown to 07:00 WIB next day
+        function updateCountdown() {
+            const now = new Date();
+            const target = new Date();
+            target.setHours(7, 0, 0, 0);
+            
+            if (now.getHours() >= 7 && now.getHours() < 22) {
+                // Server seharusnya online
+                window.location.reload();
+            }
+            
+            if (now > target) {
+                target.setDate(target.getDate() + 1);
+            }
+            
+            const diff = target - now;
+            const hours = Math.floor(diff / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            
+            document.getElementById('countdown').textContent = 
+                `${hours} jam ${minutes} menit lagi`;
+        }
+        
+        updateCountdown();
+        setInterval(updateCountdown, 60000);
+    </script>
+</body>
+</html>
+```
+
+**Step 2: Setup CloudFlare Worker untuk Auto-Redirect**
+
+```javascript
+// CloudFlare Worker: maintenance-check.js
+addEventListener('fetch', event => {
+  event.respondWith(handleRequest(event.request))
+})
+
+async function handleRequest(request) {
+  // Cek jam WIB (UTC+7)
+  const now = new Date()
+  const wibHour = (now.getUTCHours() + 7) % 24
+  
+  // Maintenance time: 22:00 - 07:00 WIB
+  const isMaintenance = wibHour >= 22 || wibHour < 7
+  
+  if (isMaintenance) {
+    // Redirect ke maintenance page
+    return Response.redirect('https://finlapor.airi.click/maintenance.html', 302)
+  }
+  
+  // Normal operation - forward ke backend
+  return fetch(request)
+}
+```
+
+**Step 3: Deploy Worker**
+```bash
+# Install Wrangler
+npm install -g wrangler
+
+# Login
+wrangler login
+
+# Create worker
+wrangler init finlapor-maintenance
+
+# Deploy
+wrangler publish
+```
+
+**Step 4: Attach Worker ke Route**
+- CloudFlare Dashboard → Workers Routes
+- Route: `api.finlapor.airi.click/*`
+- Worker: `finlapor-maintenance`
+
+---
+
+#### 📊 Perbandingan Biaya dengan Scheduling
+
+| Mode | EC2 Running | Biaya/bulan | Savings |
+|------|-------------|-------------|---------|
+| 24/7 (No scheduling) | 720 jam | ~$8.50 | - |
+| Office hours (07-22) | 450 jam | ~$5.30 | **37%** |
+| Weekday only (07-22, Mon-Fri) | 375 jam | ~$4.40 | **48%** |
+
+> 💡 **Catatan:** RDS dan S3 tetap berjalan, hanya EC2 yang di-stop.
+
 
 ## B.7.3 Langkah Setup Backend (Ringkasan)
 
@@ -1283,14 +1518,44 @@ Setelah memilih opsi internet access, lakukan langkah berikut:
 
 > 🐳 **Catatan:** Karena Private Subnet tidak punya internet, ada langkah tambahan untuk Docker.
 
+### 📦 Apa itu ECR (Elastic Container Registry)?
+
+> **ECR = Docker Hub versi AWS**
+
+| Aspek | Docker Hub | AWS ECR |
+|-------|------------|---------|
+| **Apa itu** | Registry publik untuk Docker images | Registry private milik AWS |
+| **Akses** | Via internet | Via internet ATAU VPC Endpoint |
+| **Biaya** | Gratis (limit) / berbayar | ~$0.10/GB/bulan |
+| **Security** | Publik/private | Private, terintegrasi IAM |
+| **Contoh URL** | `docker.io/postgres:16` | `123456.dkr.ecr.ap-southeast-1.amazonaws.com/finlapor:latest` |
+
+**Kapan pakai ECR?**
+- ✅ Production yang butuh private registry
+- ✅ CI/CD pipeline dengan AWS
+- ✅ Private Subnet dengan VPC Endpoint
+
+### ❓ Apakah Saya Butuh ECR?
+
+| Metode Deployment | ECR Diperlukan? | Penjelasan |
+|-------------------|-----------------|------------|
+| **Go Binary (tanpa Docker)** | ❌ Tidak | Build langsung di EC2 |
+| **Transfer via Bastion** | ❌ **Tidak** | Pull image di Bastion, copy ke backend |
+| **ECR + VPC Endpoint** | ✅ Ya | Pull via VPC Endpoint |
+| **Build di EC2** | ❌ Tidak | Build image langsung di EC2 |
+
+> 💡 **Kesimpulan:** Jika menggunakan **Metode Transfer via Bastion**, Anda **TIDAK PERLU ECR**. Cukup pull image dari Docker Hub di Bastion, lalu copy ke Backend.
+
+---
+
 ### Persiapan Docker Images
 
 **Karena tidak ada internet di Private Subnet, Anda perlu:**
 
-| Metode | Kelebihan | Langkah |
-|--------|-----------|---------|
-| **ECR + VPC Endpoint** | Pull langsung dari ECR | Setup VPC Endpoint untuk ECR |
-| **Transfer via Bastion** | Gratis, tidak perlu VPC Endpoint | Save → Copy → Load |
+| Metode | ECR Diperlukan? | Biaya | Kelebihan |
+|--------|-----------------|-------|-----------|
+| **ECR + VPC Endpoint** | ✅ Ya | ~$0.10/GB + VPC Endpoint | Pull langsung dari ECR |
+| **Transfer via Bastion** | ❌ **Tidak** | GRATIS | Tidak perlu ECR atau VPC Endpoint |
 
 #### METODE 1: ECR dengan VPC Endpoint
 
