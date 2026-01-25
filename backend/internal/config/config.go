@@ -16,6 +16,9 @@ type Config struct {
 	HFToken            string
 	LambdaFunctionName string
 	AWSRegion          string
+	AWSAccessKeyID     string
+	AWSSecretAccessKey string
+	UseLambda          bool
 	Environment        string
 }
 
@@ -32,6 +35,9 @@ func New() *Config {
 		HFToken:            getEnv("HF_TOKEN", ""),
 		LambdaFunctionName: getEnv("LAMBDA_FUNCTION_NAME", "finlapor-ai-service"),
 		AWSRegion:          getEnv("AWS_REGION", "ap-southeast-1"),
+		AWSAccessKeyID:     getEnv("AWS_ACCESS_KEY_ID", ""),
+		AWSSecretAccessKey: getEnv("AWS_SECRET_ACCESS_KEY", ""),
+		UseLambda:          getEnv("USE_LAMBDA", "false") == "true",
 		Environment:        getEnv("ENVIRONMENT", "development"),
 	}
 }
