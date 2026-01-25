@@ -554,7 +554,327 @@ go build -o main cmd/server/main.go
 ./main
 ```
 
-## A.7 Setup Systemd Service
+## A.6.1 Pilih Metode Deployment Backend
+
+> 🔧 **Ada 2 cara deploy backend di EC2:**
+
+| Metode | Kelebihan | Kekurangan | Recommended |
+|--------|-----------|------------|-------------|
+| **Go Binary** | Ringan, cepat start | Perlu build manual | ✅ Simple |
+| **Docker Container** | Konsisten, portable | Perlu lebih banyak resource | ✅ Production |
+
+---
+
+### METODE 1: Go Binary (Seperti A.6 di atas)
+
+Sudah dijelaskan di section A.6. Backend dijalankan sebagai binary Go langsung.
+
+---
+
+### METODE 2: Docker Container (Recommended untuk Production)
+
+**Mengapa Docker?**
+- ✅ Konsisten antara dev dan production
+- ✅ Mudah update (pull image baru)
+- ✅ Isolated environment
+- ✅ Easy rollback
+
+#### Step 1: Build Docker Image
+
+**Opsi A: Build di EC2 (lambat tapi simpel)**
+```bash
+# SSH ke EC2
+ssh -i finlapor-key.pem ec2-user@[PUBLIC_IP]
+
+# Clone repo
+git clone https://github.com/aan-andiyanaS/finlapor.git
+cd finlapor/backend
+
+# Build image
+docker build -t finlapor-backend:latest .
+```
+
+**Opsi B: Build di local, push ke ECR (recommended)**
+```bash
+# 1. Login ke ECR
+aws ecr get-login-password --region ap-southeast-1 | \
+  docker login --username AWS --password-stdin [ACCOUNT_ID].dkr.ecr.ap-southeast-1.amazonaws.com
+
+# 2. Create repository
+aws ecr create-repository --repository-name finlapor-backend --region ap-southeast-1
+
+# 3. Build & tag
+docker build -t finlapor-backend:latest ./backend
+docker tag finlapor-backend:latest [ACCOUNT_ID].dkr.ecr.ap-southeast-1.amazonaws.com/finlapor-backend:latest
+
+# 4. Push
+docker push [ACCOUNT_ID].dkr.ecr.ap-southeast-1.amazonaws.com/finlapor-backend:latest
+```
+
+#### Step 2: Setup Environment File di EC2
+
+```bash
+# SSH ke EC2
+ssh -i finlapor-key.pem ec2-user@[PUBLIC_IP]
+
+# Buat directory
+mkdir -p /home/ec2-user/finlapor
+cd /home/ec2-user/finlapor
+
+# Buat .env file
+cat > .env << 'EOF'
+# === DATABASE ===
+# Pilih salah satu:
+
+# OPSI 1: PostgreSQL di Docker (simple, untuk demo)
+DATABASE_URL=postgres://postgres:password@postgres:5432/finlapor?sslmode=disable
+
+# OPSI 2: AWS RDS (recommended untuk production)
+# DATABASE_URL=postgres://postgres:YOUR_PASSWORD@finlapor-db.xxxxx.rds.amazonaws.com:5432/finlapor?sslmode=require
+
+# === REDIS ===
+# OPSI 1: Redis di Docker
+REDIS_URL=redis://redis:6379
+
+# OPSI 2: AWS ElastiCache
+# REDIS_URL=finlapor-cache.xxxxx.cache.amazonaws.com:6379
+
+# === S3 STORAGE ===
+S3_ENDPOINT=https://s3.ap-southeast-1.amazonaws.com
+S3_ACCESS_KEY=AKIA...
+S3_SECRET_KEY=...
+S3_BUCKET=finlapor-storage-xxxxx
+S3_REGION=ap-southeast-1
+
+# === JWT & SERVER ===
+JWT_SECRET=your-super-secret-key-min-32-chars
+PORT=8080
+APP_ENV=production
+
+# === AI (HuggingFace) ===
+HF_TOKEN=hf_xxxxxxxx
+EOF
+```
+
+#### Step 3: Buat docker-compose.production.yml
+
+```bash
+cat > docker-compose.production.yml << 'EOF'
+version: '3.8'
+
+services:
+  # ========== BACKEND ==========
+  backend:
+    image: finlapor-backend:latest
+    # Atau dari ECR:
+    # image: [ACCOUNT_ID].dkr.ecr.ap-southeast-1.amazonaws.com/finlapor-backend:latest
+    container_name: finlapor-backend
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      - redis
+    restart: always
+    networks:
+      - finlapor-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ========== DATABASE (jika tidak pakai RDS) ==========
+  postgres:
+    image: postgres:16-alpine
+    container_name: finlapor-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: finlapor
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: always
+    networks:
+      - finlapor-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ========== REDIS (jika tidak pakai ElastiCache) ==========
+  redis:
+    image: redis:7-alpine
+    container_name: finlapor-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: always
+    networks:
+      - finlapor-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  finlapor-network:
+    driver: bridge
+EOF
+```
+
+#### Step 4: Jalankan Docker Compose
+
+```bash
+# Pull images (jika dari ECR)
+aws ecr get-login-password --region ap-southeast-1 | \
+  docker login --username AWS --password-stdin [ACCOUNT_ID].dkr.ecr.ap-southeast-1.amazonaws.com
+docker-compose -f docker-compose.production.yml pull
+
+# Start semua services
+docker-compose -f docker-compose.production.yml up -d
+
+# Cek status
+docker-compose -f docker-compose.production.yml ps
+
+# Lihat logs
+docker-compose -f docker-compose.production.yml logs -f backend
+```
+
+#### Step 5: Run Migrations
+
+```bash
+# Tunggu postgres siap
+sleep 15
+
+# Run migrations
+docker exec -i finlapor-postgres psql -U postgres -d finlapor < database/migrations/001_initial.sql
+docker exec -i finlapor-postgres psql -U postgres -d finlapor < database/migrations/002_multi_category.sql
+docker exec -i finlapor-postgres psql -U postgres -d finlapor < database/migrations/003_add_user_age.sql
+
+# (Opsional) Insert demo user
+docker exec -i finlapor-postgres psql -U postgres -d finlapor < database/seeds/demo-user.sql
+```
+
+#### Step 6: Verifikasi
+
+```bash
+# Health check
+curl http://localhost:8080/health
+
+# Expected output:
+# {"status":"ok"}
+
+# Dari luar EC2
+curl http://[EC2_PUBLIC_IP]:8080/health
+```
+
+---
+
+## A.6.2 Menggunakan AWS RDS (Database Terpisah)
+
+> 💡 **Kapan pakai RDS?** Production dengan kebutuhan: backup otomatis, high availability, easy scaling.
+
+**Perubahan yang diperlukan:**
+
+1. **Buat RDS instance** (lihat section 2.5)
+
+2. **Update .env:**
+```bash
+# Ganti dari Docker postgres
+DATABASE_URL=postgres://postgres:password@postgres:5432/finlapor?sslmode=disable
+
+# Ke RDS endpoint
+DATABASE_URL=postgres://postgres:YOUR_PASSWORD@finlapor-db.xxxxx.rds.amazonaws.com:5432/finlapor?sslmode=require
+```
+
+3. **Hapus postgres service dari docker-compose:**
+```yaml
+# Hapus atau comment:
+# postgres:
+#   image: postgres:16-alpine
+#   ...
+```
+
+4. **Run migrations ke RDS:**
+```bash
+# Install psql client
+sudo yum install -y postgresql15
+
+# Set DATABASE_URL
+export DATABASE_URL="postgres://postgres:PASSWORD@finlapor-db.xxxxx.rds.amazonaws.com:5432/finlapor?sslmode=require"
+
+# Run migrations
+psql "$DATABASE_URL" -f database/migrations/001_initial.sql
+psql "$DATABASE_URL" -f database/migrations/002_multi_category.sql
+psql "$DATABASE_URL" -f database/migrations/003_add_user_age.sql
+```
+
+---
+
+## A.6.3 Menggunakan AWS S3 (Storage Terpisah)
+
+> 💡 **S3 sudah terpisah by default** karena diakses via SDK, bukan local storage.
+
+**Setup S3:**
+
+1. **Buat S3 Bucket** (lihat section 2.4)
+
+2. **Update .env dengan credentials:**
+```bash
+S3_ENDPOINT=https://s3.ap-southeast-1.amazonaws.com
+S3_ACCESS_KEY=AKIAXXXXXXXXXXXXXXXXXX
+S3_SECRET_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+S3_BUCKET=finlapor-storage-xxxxx
+S3_REGION=ap-southeast-1
+```
+
+3. **Pastikan IAM user punya policy:**
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:PutObject",
+        "s3:GetObject",
+        "s3:DeleteObject",
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::finlapor-storage-xxxxx",
+        "arn:aws:s3:::finlapor-storage-xxxxx/*"
+      ]
+    }
+  ]
+}
+```
+
+---
+
+## A.6.4 Perbandingan Arsitektur Opsi A
+
+| Komponen | Docker Only | Docker + RDS | Docker + RDS + ElastiCache |
+|----------|-------------|--------------|---------------------------|
+| Backend | Docker | Docker | Docker |
+| Database | Docker Postgres | AWS RDS | AWS RDS |
+| Cache | Docker Redis | Docker Redis | AWS ElastiCache |
+| Storage | AWS S3 | AWS S3 | AWS S3 |
+| Biaya/bulan | ~$9 | ~$25-35 | ~$40-50 |
+| Maintenance | Manual backup | Auto backup | Auto everything |
+| **Recommended** | Demo/UAS | Small prod | Large prod |
+
+---
+
+## A.7 Setup Systemd Service (untuk Go Binary)
+
+> ⚠️ **Catatan:** Section ini untuk **Go Binary** deployment. Jika menggunakan Docker, gunakan `docker-compose` (tidak perlu systemd).
 
 ```bash
 sudo tee /etc/systemd/system/finlapor.service << 'EOF'
@@ -956,6 +1276,247 @@ Setelah memilih opsi internet access, lakukan langkah berikut:
 8. ✅ Start service: `sudo systemctl start finlapor`
 
 **Detail lengkap:** Lihat section **A.5**, **A.6**, dan **A.7**
+
+---
+
+## B.7.4 Docker Deployment di Private Subnet
+
+> 🐳 **Catatan:** Karena Private Subnet tidak punya internet, ada langkah tambahan untuk Docker.
+
+### Persiapan Docker Images
+
+**Karena tidak ada internet di Private Subnet, Anda perlu:**
+
+| Metode | Kelebihan | Langkah |
+|--------|-----------|---------|
+| **ECR + VPC Endpoint** | Pull langsung dari ECR | Setup VPC Endpoint untuk ECR |
+| **Transfer via Bastion** | Gratis, tidak perlu VPC Endpoint | Save → Copy → Load |
+
+#### METODE 1: ECR dengan VPC Endpoint
+
+**Step 1: Buat VPC Endpoint untuk ECR**
+```
+1. VPC → Endpoints → Create
+2. Service: com.amazonaws.ap-southeast-1.ecr.dkr
+3. VPC: finlapor-vpc-secure
+4. Subnets: Private subnets
+5. Security group: Allow HTTPS (443) dari backend SG
+```
+
+**Buat juga endpoint untuk ECR API:**
+```
+Service: com.amazonaws.ap-southeast-1.ecr.api
+```
+
+**Dan untuk S3 (ECR menyimpan layer di S3):**
+```
+Service: com.amazonaws.ap-southeast-1.s3 (Gateway type)
+```
+
+**Step 2: Push image ke ECR dari local**
+```bash
+# Di local/laptop
+aws ecr get-login-password --region ap-southeast-1 | \
+  docker login --username AWS --password-stdin [ACCOUNT_ID].dkr.ecr.ap-southeast-1.amazonaws.com
+
+docker build -t finlapor-backend:latest ./backend
+docker tag finlapor-backend:latest [ACCOUNT_ID].dkr.ecr.ap-southeast-1.amazonaws.com/finlapor-backend:latest
+docker push [ACCOUNT_ID].dkr.ecr.ap-southeast-1.amazonaws.com/finlapor-backend:latest
+```
+
+**Step 3: Pull di Backend (via VPC Endpoint)**
+```bash
+# SSH ke Backend via Bastion
+ssh finlapor-backend
+
+# Login ke ECR (akan pakai VPC Endpoint, bukan internet)
+aws ecr get-login-password --region ap-southeast-1 | \
+  docker login --username AWS --password-stdin [ACCOUNT_ID].dkr.ecr.ap-southeast-1.amazonaws.com
+
+# Pull image
+docker pull [ACCOUNT_ID].dkr.ecr.ap-southeast-1.amazonaws.com/finlapor-backend:latest
+```
+
+---
+
+#### METODE 2: Transfer Docker Image via Bastion (Gratis)
+
+**Step 1: Di Bastion (punya internet)**
+```bash
+# SSH ke Bastion
+ssh -i finlapor-key.pem ec2-user@[BASTION_IP]
+
+# Pull images dari internet
+docker pull postgres:16-alpine
+docker pull redis:7-alpine
+
+# Jika backend image dari ECR:
+aws ecr get-login-password --region ap-southeast-1 | docker login --username AWS --password-stdin [ACCOUNT_ID].dkr.ecr.ap-southeast-1.amazonaws.com
+docker pull [ACCOUNT_ID].dkr.ecr.ap-southeast-1.amazonaws.com/finlapor-backend:latest
+
+# Save ke tar file
+docker save postgres:16-alpine redis:7-alpine [ACCOUNT_ID].dkr.ecr.ap-southeast-1.amazonaws.com/finlapor-backend:latest -o /tmp/finlapor-images.tar
+```
+
+**Step 2: Copy ke Backend**
+```bash
+# Dari Bastion, copy ke Backend (internal network)
+scp -i ~/.ssh/finlapor-key.pem /tmp/finlapor-images.tar ec2-user@[BACKEND_PRIVATE_IP]:/home/ec2-user/
+```
+
+**Step 3: Load di Backend**
+```bash
+# SSH ke Backend
+ssh finlapor-backend
+
+# Load images
+docker load -i finlapor-images.tar
+
+# Verifikasi
+docker images
+# Harus muncul: postgres, redis, finlapor-backend
+```
+
+---
+
+## B.7.5 Docker Compose untuk Private Subnet + RDS + S3
+
+> 💡 **Arsitektur Recommended:** Backend di Docker, Database di RDS, Storage di S3.
+
+### docker-compose.private.yml
+
+```bash
+# SSH ke Backend via Bastion
+ssh finlapor-backend
+
+# Buat directory
+mkdir -p ~/finlapor
+cd ~/finlapor
+
+# Buat docker-compose file
+cat > docker-compose.private.yml << 'EOF'
+version: '3.8'
+
+services:
+  # ========== BACKEND ==========
+  backend:
+    image: [ACCOUNT_ID].dkr.ecr.ap-southeast-1.amazonaws.com/finlapor-backend:latest
+    container_name: finlapor-backend
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    restart: always
+    networks:
+      - finlapor-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ========== REDIS (jika tidak pakai ElastiCache) ==========
+  redis:
+    image: redis:7-alpine
+    container_name: finlapor-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: always
+    networks:
+      - finlapor-network
+
+  # CATATAN: PostgreSQL TIDAK DISERTAKAN
+  # Gunakan AWS RDS untuk production di Private Subnet
+
+volumes:
+  redis_data:
+
+networks:
+  finlapor-network:
+    driver: bridge
+EOF
+```
+
+### Environment File untuk Private Subnet + RDS
+
+```bash
+cat > .env << 'EOF'
+# === DATABASE (AWS RDS) ===
+# WAJIB pakai RDS di Private Subnet untuk komunikasi internal
+DATABASE_URL=postgres://postgres:YOUR_PASSWORD@finlapor-db.xxxxx.rds.amazonaws.com:5432/finlapor?sslmode=require
+
+# === REDIS ===
+# OPSI 1: Redis di Docker (sama EC2)
+REDIS_URL=redis://redis:6379
+
+# OPSI 2: AWS ElastiCache (terpisah)
+# REDIS_URL=finlapor-cache.xxxxx.cache.amazonaws.com:6379
+
+# === S3 STORAGE ===
+# S3 diakses via VPC Endpoint (internal, tidak lewat internet)
+S3_ENDPOINT=https://s3.ap-southeast-1.amazonaws.com
+S3_ACCESS_KEY=AKIAXXXXXXXXXXXXXXXXXX
+S3_SECRET_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+S3_BUCKET=finlapor-storage-xxxxx
+S3_REGION=ap-southeast-1
+
+# === JWT & SERVER ===
+JWT_SECRET=your-super-secret-key-min-32-chars
+PORT=8080
+APP_ENV=production
+ENVIRONMENT=production
+
+# === AI (HuggingFace) ===
+# Jika tidak pakai Lambda, backend perlu akses internet untuk HF
+# Gunakan Lambda mode untuk Private Subnet
+USE_LAMBDA=true
+LAMBDA_FUNCTION_NAME=finlapor-ai-service
+AWS_REGION=ap-southeast-1
+AWS_ACCESS_KEY_ID=AKIAXXXXXXXXXXXXXXXXXX
+AWS_SECRET_ACCESS_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+EOF
+```
+
+### Jalankan Services
+
+```bash
+# Start containers
+docker-compose -f docker-compose.private.yml up -d
+
+# Cek status
+docker-compose -f docker-compose.private.yml ps
+
+# Lihat logs
+docker-compose -f docker-compose.private.yml logs -f backend
+```
+
+---
+
+## B.7.6 Perbandingan Arsitektur Opsi B
+
+| Komponen | Docker Only | Docker + RDS | Full AWS Managed |
+|----------|-------------|--------------|------------------|
+| Backend | Docker | Docker | Docker |
+| Database | ❌ (RDS wajib) | AWS RDS | AWS RDS |
+| Cache | Docker Redis | Docker Redis | AWS ElastiCache |
+| Storage | AWS S3 | AWS S3 | AWS S3 |
+| AI | Lambda | Lambda | Lambda |
+| VPC Endpoints | S3 only | S3, ECR | S3, ECR |
+| Biaya/bulan | ~$25 | ~$35-45 | ~$50-60 |
+| **Keamanan** | ✅ Tinggi | ✅ Tinggi | ✅ Sangat Tinggi |
+| **Recommended** | N/A | ✅ Demo/UAS | Large prod |
+
+### ⚠️ Catatan Penting untuk Private Subnet:
+
+1. **RDS Wajib** - PostgreSQL di Docker tidak bisa diakses dari luar Private Subnet
+2. **VPC Endpoints** - Untuk akses S3 dan ECR tanpa internet
+3. **Lambda untuk AI** - Karena backend tidak punya internet untuk call HuggingFace
+4. **Bastion Host** - Satu-satunya cara SSH ke backend
+
+---
+
 
 ## B.8 Setup API Gateway
 
