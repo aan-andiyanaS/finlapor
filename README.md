@@ -81,6 +81,8 @@ FinLapor adalah aplikasi pengelolaan keuangan berbasis AI yang mendukung **SDG 8
     │     API     │  └─ LLM: Mistral 7B
     └─────────────┘     FREE (30k req/mo)
 ```
+![Diagram Arsitektur AWS FinLapor](docs/assets/architecture-finlapor.png)
+*Arsitektur AWS FinLapor (Opsi B: Private Subnet)*
 
 **Key Features:**
 - 🔒 **Secure**: Private Subnet + Bastion Host + API Gateway
