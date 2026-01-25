@@ -64,7 +64,7 @@ Sistem dibangun menggunakan teknologi modern:
 ### 4.1 Arsitektur Sistem (Deployment Option B)
 Untuk menjamin keamanan dan skalabilitas, FinLapor menerapkan **Arsitektur Private Subnet** di AWS.
 
-![Diagram Arsitektur AWS FinLapor](assets/finlapor_aws_architecture.png)
+![Diagram Arsitektur AWS FinLapor](assets/architecture-finlapor.png)
 *Gambar 4.1: Arsitektur AWS FinLapor (Opsi B: Private Subnet)*
 
 #### 4.1.1 Desain Jaringan (Network Design)
