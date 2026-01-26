@@ -168,12 +168,12 @@ ssh -i finlapor-key.pem ec2-user@[EC2_PUBLIC_IP]
 ```
 
 **Opsi B (via Bastion):**
+##### Metode 1: SSH Jump
 ```bash
-# Metode 1: SSH Jump
 ssh -J ec2-user@[BASTION_IP] ec2-user@[BACKEND_PRIVATE_IP] -i finlapor-key.pem
-
-
-# Metode 2: SSH Config (lebih mudah)
+```
+##### Metode 2: SSH Config (lebih mudah)
+```bash
 ## Untuk linux
 cat >> ~/.ssh/config << 'EOF'
 
@@ -187,8 +187,8 @@ Host finlapor-backend
     User ec2-user
     IdentityFile ~/.ssh/finlapor-key.pem
     ProxyJump bastion
-
-
+```
+```bash
 ## Untuk Windows
 C:\Users\(UserName)\.ssh\config
 Host bastion
@@ -201,9 +201,9 @@ Host finlapor-backend
     User ec2-user
     IdentityFile PATH\finlapor-key.pem
     ProxyJump bastion
-
-
-# Lalu cukup:
+```
+##### Lalu cukup:
+```bash
 ssh finlapor-backend
 ```
 
