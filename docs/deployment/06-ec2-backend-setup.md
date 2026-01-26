@@ -74,7 +74,7 @@ Outbound
 ┌──────────┬──────────┬─────────────────────┬─────────────────────┐
 │ Type     │ Port     │ Source              │ Description         │
 ├──────────┼──────────┼─────────────────────┼─────────────────────┤
-│ SSH      │ 22       │ Private IP Backend │ Gate SSH IP Backend │
+│ SSH      │ 22       │ Private IP Backend  │ Gate SSH IP Backend │
 ├──────────┼──────────┼─────────────────────┼─────────────────────┤
 │ HTTP     │ 80       │ 0.0.0.0/0           │ For Internet        │
 ├──────────┼──────────┼─────────────────────┼─────────────────────┤
@@ -160,7 +160,8 @@ finlapor-backend-private-sg:
 ## 3. Install Dependencies
 
 ### Step 3.1: Connect ke EC2
-ini dilakukan di local 
+**ini dilakukan di local**
+
 **Opsi A:**
 ```bash
 ssh -i finlapor-key.pem ec2-user@[EC2_PUBLIC_IP]
@@ -171,8 +172,11 @@ ssh -i finlapor-key.pem ec2-user@[EC2_PUBLIC_IP]
 # Metode 1: SSH Jump
 ssh -J ec2-user@[BASTION_IP] ec2-user@[BACKEND_PRIVATE_IP] -i finlapor-key.pem
 
+
 # Metode 2: SSH Config (lebih mudah)
+## Untuk linux
 cat >> ~/.ssh/config << 'EOF'
+
 Host bastion
     HostName [BASTION_PUBLIC_IP]
     User ec2-user
@@ -183,7 +187,21 @@ Host finlapor-backend
     User ec2-user
     IdentityFile ~/.ssh/finlapor-key.pem
     ProxyJump bastion
-EOF
+
+
+## Untuk Windows
+C:\Users\(UserName)\.ssh\config
+Host bastion
+    HostName [BASTION_PUBLIC_IP]
+    User ec2-user
+    IdentityFile PATH\finlapor-key.pem
+
+Host finlapor-backend
+    HostName [BACKEND_PRIVATE_IP]
+    User ec2-user
+    IdentityFile PATH\finlapor-key.pem
+    ProxyJump bastion
+
 
 # Lalu cukup:
 ssh finlapor-backend
