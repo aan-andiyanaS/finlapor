@@ -74,7 +74,7 @@ Outbound
 ┌──────────┬──────────┬─────────────────────┬─────────────────────┐
 │ Type     │ Port     │ Source              │ Description         │
 ├──────────┼──────────┼─────────────────────┼─────────────────────┤
-│ SSH      │ 22       │ Privaate IP Backend │ Gate SSH IP Backend │
+│ SSH      │ 22       │ Private IP Backend │ Gate SSH IP Backend │
 ├──────────┼──────────┼─────────────────────┼─────────────────────┤
 │ HTTP     │ 80       │ 0.0.0.0/0           │ For Internet        │
 ├──────────┼──────────┼─────────────────────┼─────────────────────┤
@@ -160,7 +160,7 @@ finlapor-backend-private-sg:
 ## 3. Install Dependencies
 
 ### Step 3.1: Connect ke EC2
-
+ini dilakukan di local 
 **Opsi A:**
 ```bash
 ssh -i finlapor-key.pem ec2-user@[EC2_PUBLIC_IP]
