@@ -173,8 +173,9 @@ ssh -i finlapor-key.pem ec2-user@[EC2_PUBLIC_IP]
 ssh -J ec2-user@[BASTION_IP] ec2-user@[BACKEND_PRIVATE_IP] -i finlapor-key.pem
 ```
 ##### Metode 2: SSH Config (lebih mudah)
+Untuk linux
 ```bash
-## Untuk linux
+
 cat >> ~/.ssh/config << 'EOF'
 
 Host bastion
@@ -188,8 +189,9 @@ Host finlapor-backend
     IdentityFile ~/.ssh/finlapor-key.pem
     ProxyJump bastion
 ```
+
+Untuk Windows
 ```bash
-## Untuk Windows
 C:\Users\(UserName)\.ssh\config
 Host bastion
     HostName [BASTION_PUBLIC_IP]
