@@ -24,7 +24,7 @@ Deploy Go backend API ke EC2 dengan Docker container.
 |-------|----------------------|------------------------|
 | **SSH Access** | Langsung dari laptop | Via Bastion Host |
 | **Internet Access** | ✅ Ya (IGW) | ❌ Tidak langsung |
-| **Install Packages** | `yum install` langsung | Transfer via Bastion |
+| **Install Packages** | `apt install` langsung | Transfer via Bastion |
 | **Keamanan** | ⚠️ Terekspos internet | ✅ Tersembunyi |
 | **Biaya** | Lebih murah | +$3.80 (Bastion) |
 
@@ -34,6 +34,24 @@ Deploy Go backend API ke EC2 dengan Docker container.
 |--------|-----------|------------|-------------|
 | **Go Binary** | Ringan, cepat start | Build manual | ✅ Simple |
 | **Docker Container** | Konsisten, portable | Butuh resource lebih | ✅ Production |
+
+### 🧭 Quick Navigation Guide
+
+Pilih kombinasi yang sesuai dengan kebutuhan Anda:
+
+| Jika Anda Pilih... | Ikuti Section Ini |
+|--------------------|-------------------|
+| **Opsi A + Docker Compose** | Section 1 (skip) → 2 → 3 → 4 |
+| **Opsi A + Backend-Only** | Section 1 (skip) → 2 → 3 → 4B |
+| **Opsi B + Docker Compose** | Section 1 → 2 → 3B → 4 |
+| **Opsi B + Backend-Only** | Section 1 → 2 → 3B → 4B |
+| **Tanpa Docker (Binary)** | Ikuti sampai Section 3/3B, lalu Section 5 |
+
+> **📝 Catatan Penting:**
+> - **Section 3** = Install Dependencies untuk **Opsi A** (Public Subnet dengan internet)
+> - **Section 3B** = Install Dependencies untuk **Opsi B** (Private Subnet via Bastion)
+> - **Section 4** = Deploy dengan Docker Compose (Backend + Redis container)
+> - **Section 4B** = Backend-Only Docker (pakai AWS RDS + S3, tanpa Redis lokal)
 
 ---
 
@@ -571,7 +589,7 @@ cd ~/finlapor
 nano backend/.env
 ```
 
-Isi dengan (lihat Step 3.8 untuk format lengkap).
+Isi dengan format yang sama seperti [Step 3.8](#step-38-konfigurasi-environment) di atas.
 
 ### Step 3B.9: Run Migrations via Bastion Tunnel
 
@@ -598,33 +616,19 @@ Atau jalankan langsung dari EC2 Backend jika sudah ada PostgreSQL client.
 
 ```bash
 cd ~/finlapor
+
+# Gunakan template environment dari Step 3.8
+# Atau buat dengan cat:
 cat > backend/.env << 'EOF'
-# === DATABASE (AWS RDS) ===
-DATABASE_URL=postgres://postgres:YOUR_PASSWORD@finlapor-db.xxxxx.rds.amazonaws.com:5432/finlapor?sslmode=require
-
-# === REDIS ===
-# Opsi 1: Docker Redis (simple)
-REDIS_URL=redis://localhost:6379
-# Opsi 2: AWS ElastiCache
-# REDIS_URL=finlapor-cache.xxxxx.cache.amazonaws.com:6379
-
-# === S3 STORAGE ===
-S3_ENDPOINT=https://s3.ap-southeast-1.amazonaws.com
-S3_ACCESS_KEY=AKIA...
-S3_SECRET_KEY=...
-S3_BUCKET=finlapor-storage-xxxxx
-S3_REGION=ap-southeast-1
-
-# === JWT & SERVER ===
-JWT_SECRET=your-super-secret-key-minimum-32-characters
-PORT=8080
-APP_ENV=production
-
-# === AI (Lambda/HuggingFace) ===
-LAMBDA_FUNCTION_URL=https://xxxxx.lambda-url.ap-southeast-1.on.aws
-HF_TOKEN=hf_xxxxxxxx
+# Lihat Step 3.8 untuk template lengkap environment variables
+# Copy template dari sana dan sesuaikan dengan nilai AWS Anda
 EOF
+
+# Edit file:
+nano backend/.env
 ```
+
+> **📝 Referensi:** Lihat [Step 3.8](#step-38-konfigurasi-environment) untuk template lengkap environment variables.
 
 ### Step 4.2: Build dan Run dengan Docker Compose
 
@@ -731,7 +735,7 @@ cd ~/finlapor
 nano backend/.env
 ```
 
-Isi dengan:
+Isi dengan (versi **minimalis tanpa Redis**, berbeda dari Step 3.8):
 ```env
 # === DATABASE (AWS RDS) ===
 DATABASE_URL=postgres://postgres:YOUR_PASSWORD@finlapor-db.xxxxx.rds.amazonaws.com:5432/finlapor?sslmode=require
