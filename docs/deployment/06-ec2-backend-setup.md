@@ -63,11 +63,25 @@ Storage: 8 GiB gp3
 
 ```
 finlapor-bastion-sg:
+Inbound
 ┌──────────┬──────────┬─────────────────┬─────────────────────┐
 │ Type     │ Port     │ Source          │ Description         │
 ├──────────┼──────────┼─────────────────┼─────────────────────┤
 │ SSH      │ 22       │ My IP           │ SSH from your IP    │
 └──────────┴──────────┴─────────────────┴─────────────────────┘
+
+Outbound
+┌──────────┬──────────┬─────────────────────┬─────────────────────┐
+│ Type     │ Port     │ Source              │ Description         │
+├──────────┼──────────┼─────────────────────┼─────────────────────┤
+│ SSH      │ 22       │ Private IP Backend  │ Gate SSH IP Backend │
+├──────────┼──────────┼─────────────────────┼─────────────────────┤
+│ HTTP     │ 80       │ 0.0.0.0/0           │ For Internet        │
+├──────────┼──────────┼─────────────────────┼─────────────────────┤
+│ HTTPs    │ 443      │ 0.0.0.0/0           │ For Internet        │
+└──────────┴──────────┴─────────────────────┴─────────────────────┘
+
+
 ```
 
 ### Step 1.3: Test SSH ke Bastion
@@ -136,7 +150,7 @@ finlapor-backend-private-sg:
 ┌──────────────┬──────────┬────────────────────────┬─────────────────┐
 │ Type         │ Port     │ Source                 │ Description     │
 ├──────────────┼──────────┼────────────────────────┼─────────────────┤
-│ SSH          │ 22       │ finlapor-bastion-sg    │ Via Bastion     │
+│ SSH          │ 22       │ Private IP Bastation   │ Via Bastion     │
 │ Custom TCP   │ 8080     │ 0.0.0.0/0              │ API (via API GW)│
 └──────────────┴──────────┴────────────────────────┴─────────────────┘
 ```
@@ -146,6 +160,7 @@ finlapor-backend-private-sg:
 ## 3. Install Dependencies
 
 ### Step 3.1: Connect ke EC2
+**ini dilakukan di local**
 
 **Opsi A:**
 ```bash
@@ -153,12 +168,12 @@ ssh -i finlapor-key.pem ubuntu@[EC2_PUBLIC_IP]
 ```
 
 **Opsi B (via Bastion):**
+##### Metode 1: SSH Jump
 ```bash
-# Metode 1: SSH Jump
-ssh -J ubuntu@[BASTION_IP] ubuntu@[BACKEND_PRIVATE_IP] -i finlapor-key.pem
 
-# Metode 2: SSH Config (lebih mudah)
 cat >> ~/.ssh/config << 'EOF'
+```
+```bash
 Host bastion
     HostName [BASTION_PUBLIC_IP]
     User ubuntu
@@ -169,9 +184,25 @@ Host finlapor-backend
     User ubuntu
     IdentityFile ~/.ssh/finlapor-key.pem
     ProxyJump bastion
-EOF
+```
+Untuk Windows
+```bash
+C:\Users\(UserName)\.ssh\config
+```
+```bash
+Host bastion
+    HostName [BASTION_PUBLIC_IP]
+    User ec2-user
+    IdentityFile PATH\finlapor-key.pem
 
-# Lalu cukup:
+Host finlapor-backend
+    HostName [BACKEND_PRIVATE_IP]
+    User ec2-user
+    IdentityFile PATH\finlapor-key.pem
+    ProxyJump bastion
+```
+##### Lalu cukup:
+```bash
 ssh finlapor-backend
 ```
 
