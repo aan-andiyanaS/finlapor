@@ -308,7 +308,7 @@ DB Subnet Group doesn't meet availability zone coverage requirement
 
 **Solusi:** SSH harus via Bastion Host:
 ```bash
-ssh -J ec2-user@[BASTION_PUBLIC_IP] ec2-user@[BACKEND_PRIVATE_IP] -i key.pem
+ssh -J ubuntu@[BASTION_PUBLIC_IP] ubuntu@[BACKEND_PRIVATE_IP] -i key.pem
 ```
 
 ### VPC Endpoint S3 tidak bekerja

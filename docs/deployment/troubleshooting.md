@@ -29,7 +29,7 @@ Panduan mengatasi masalah umum saat deployment dan operasional FinLapor.
 **Debug:**
 ```bash
 # Verbose SSH
-ssh -v -i finlapor-key.pem ec2-user@[IP]
+ssh -v -i finlapor-key.pem ubuntu@[IP]
 
 # Check Security Group via CLI
 aws ec2 describe-security-groups --group-ids sg-xxxxx

@@ -185,12 +185,12 @@ RDS Security Group harus mengizinkan koneksi dari EC2 Backend.
 
 **Opsi A (Public Subnet):**
 ```bash
-ssh -i finlapor-key.pem ec2-user@[EC2_PUBLIC_IP]
+ssh -i finlapor-key.pem ubuntu@[EC2_PUBLIC_IP]
 ```
 
 **Opsi B (Private Subnet via Bastion):**
 ```bash
-ssh -J ec2-user@[BASTION_IP] ec2-user@[BACKEND_PRIVATE_IP] -i finlapor-key.pem
+ssh -J ubuntu@[BASTION_IP] ubuntu@[BACKEND_PRIVATE_IP] -i finlapor-key.pem
 ```
 
 ### Step 3.2: Install PostgreSQL Client
@@ -376,7 +376,7 @@ postgres://...?sslmode=require
 **Solusi: SSH Tunnel**
 ```bash
 # Buat tunnel via Bastion
-ssh -i finlapor-key.pem -L 5433:finlapor-db.xxx.rds.amazonaws.com:5432 ec2-user@[BASTION_IP]
+ssh -i finlapor-key.pem -L 5433:finlapor-db.xxx.rds.amazonaws.com:5432 ubuntu@[BASTION_IP]
 
 # Di terminal lain, connect via localhost
 psql -h localhost -p 5433 -U postgres -d finlapor

@@ -48,7 +48,7 @@ Deploy Go backend API ke EC2 dengan Docker container.
 
 ```
 Name: finlapor-bastion
-AMI: Amazon Linux 2023
+AMI: Ubuntu Server 22.04 LTS (HVM), SSD Volume Type
 Instance type: t3.nano (~$3.80/bulan)
 Key pair: finlapor-key (buat baru jika belum ada)
 Network:
@@ -77,7 +77,7 @@ finlapor-bastion-sg:
 chmod 400 finlapor-key.pem
 
 # SSH ke Bastion
-ssh -i finlapor-key.pem ec2-user@[BASTION_PUBLIC_IP]
+ssh -i finlapor-key.pem ubuntu@[BASTION_PUBLIC_IP]
 ```
 
 ---
@@ -92,7 +92,7 @@ ssh -i finlapor-key.pem ec2-user@[BASTION_PUBLIC_IP]
 **Opsi A (Public Subnet):**
 ```
 Name: finlapor-backend
-AMI: Amazon Linux 2023
+AMI: Ubuntu Server 22.04 LTS (HVM), SSD Volume Type
 Instance type: t3.micro (Free tier)
 Key pair: finlapor-key
 Network:
@@ -106,7 +106,7 @@ Storage: 20 GiB gp3
 **Opsi B (Private Subnet):**
 ```
 Name: finlapor-backend
-AMI: Amazon Linux 2023
+AMI: Ubuntu Server 22.04 LTS (HVM), SSD Volume Type
 Instance type: t3.micro (Free tier)
 Key pair: finlapor-key
 Network:
@@ -149,24 +149,24 @@ finlapor-backend-private-sg:
 
 **Opsi A:**
 ```bash
-ssh -i finlapor-key.pem ec2-user@[EC2_PUBLIC_IP]
+ssh -i finlapor-key.pem ubuntu@[EC2_PUBLIC_IP]
 ```
 
 **Opsi B (via Bastion):**
 ```bash
 # Metode 1: SSH Jump
-ssh -J ec2-user@[BASTION_IP] ec2-user@[BACKEND_PRIVATE_IP] -i finlapor-key.pem
+ssh -J ubuntu@[BASTION_IP] ubuntu@[BACKEND_PRIVATE_IP] -i finlapor-key.pem
 
 # Metode 2: SSH Config (lebih mudah)
 cat >> ~/.ssh/config << 'EOF'
 Host bastion
     HostName [BASTION_PUBLIC_IP]
-    User ec2-user
+    User ubuntu
     IdentityFile ~/.ssh/finlapor-key.pem
 
 Host finlapor-backend
     HostName [BACKEND_PRIVATE_IP]
-    User ec2-user
+    User ubuntu
     IdentityFile ~/.ssh/finlapor-key.pem
     ProxyJump bastion
 EOF
@@ -175,82 +175,389 @@ EOF
 ssh finlapor-backend
 ```
 
-### Step 3.2: Install Packages (Opsi A)
-
-Jika EC2 di **Public Subnet** (ada internet):
+### Step 3.2: Update System (Ubuntu)
 
 ```bash
-# Update system
-sudo yum update -y
+# Update package list
+sudo apt update
 
-# Install Git
-sudo yum install git -y
+# Upgrade packages
+sudo apt upgrade -y
 
-# Install Docker
-sudo yum install docker -y
+# Install essential tools
+sudo apt install -y curl wget git unzip gnupg lsb-release ca-certificates
+```
+
+### Step 3.3: Install Docker (Ubuntu)
+
+```bash
+# 1. Remove old Docker versions (if any)
+sudo apt remove -y docker docker-engine docker.io containerd runc 2>/dev/null || true
+
+# 2. Add Docker's official GPG key
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+
+# 3. Add Docker repository
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+  $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+# 4. Install Docker
+sudo apt update
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+# 5. Start Docker service
 sudo systemctl start docker
 sudo systemctl enable docker
-sudo usermod -aG docker ec2-user
 
-# Install Docker Compose
-sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-sudo chmod +x /usr/local/bin/docker-compose
+# 6. Add user to docker group (no sudo needed)
+sudo usermod -aG docker $USER
 
-# Install Go (jika tidak pakai Docker)
-wget https://go.dev/dl/go1.21.6.linux-amd64.tar.gz
-sudo tar -C /usr/local -xzf go1.21.6.linux-amd64.tar.gz
-echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
-source ~/.bashrc
+# 7. Verify installation
+docker --version
+# Output: Docker version 24.x.x
 
-# Logout dan login ulang untuk Docker group
+# 8. IMPORTANT: Logout dan login lagi agar group berlaku
 exit
 ```
 
-### Step 3.3: Transfer via Bastion (Opsi B)
+> **📝 Penting:** Setelah `exit`, SSH kembali ke EC2 agar docker group berlaku.
 
-Jika EC2 di **Private Subnet** (TIDAK ada internet):
+### Step 3.4: Install Docker Compose (Ubuntu)
 
-**Di Bastion:**
+Docker Compose plugin sudah ter-install di Step 3.3. Verifikasi:
+
 ```bash
-# SSH ke Bastion
-ssh -i finlapor-key.pem ec2-user@[BASTION_IP]
+# Cek docker compose
+docker compose version
+# Output: Docker Compose version v2.x.x
 
-# Clone repository
-git clone https://github.com/aan-andiyanaS/finlapor.git
+# Atau buat symlink untuk kompatibilitas (opsional)
+sudo ln -sf /usr/libexec/docker/cli-plugins/docker-compose /usr/local/bin/docker-compose
+docker-compose --version
+```
 
-# Download Go
+### Step 3.5: Install Go (Opsional - Jika tidak pakai Docker)
+
+```bash
+# 1. Download Go 1.21
 wget https://go.dev/dl/go1.21.6.linux-amd64.tar.gz
 
-# Download Docker images
-sudo yum install docker -y
-sudo systemctl start docker
-docker pull postgres:16-alpine
-docker pull redis:7-alpine
-docker save postgres:16-alpine redis:7-alpine -o docker-images.tar
-
-# Copy ke Backend
-scp -i ~/.ssh/finlapor-key.pem -r finlapor/ ec2-user@[BACKEND_PRIVATE_IP]:/home/ec2-user/
-scp -i ~/.ssh/finlapor-key.pem go1.21.6.linux-amd64.tar.gz ec2-user@[BACKEND_PRIVATE_IP]:/home/ec2-user/
-scp -i ~/.ssh/finlapor-key.pem docker-images.tar ec2-user@[BACKEND_PRIVATE_IP]:/home/ec2-user/
-```
-
-**Di Backend (via Bastion SSH):**
-```bash
-# SSH ke Backend
-ssh -J ec2-user@[BASTION_IP] ec2-user@[BACKEND_PRIVATE_IP] -i finlapor-key.pem
-
-# Install Docker (tanpa internet)
-sudo yum install docker -y --disablerepo=* --enablerepo=amzn2-core
-# Atau minta admin install offline
-
-# Load Docker images
-docker load -i docker-images.tar
-
-# Install Go
+# 2. Extract ke /usr/local
+sudo rm -rf /usr/local/go
 sudo tar -C /usr/local -xzf go1.21.6.linux-amd64.tar.gz
+
+# 3. Setup PATH
 echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
 source ~/.bashrc
+
+# 4. Verify
+go version
+# Output: go version go1.21.6 linux/amd64
+
+# 5. Cleanup
+rm go1.21.6.linux-amd64.tar.gz
 ```
+
+### Step 3.6: Install PostgreSQL Client (untuk migrasi)
+
+```bash
+# Install psql client
+sudo apt install -y postgresql-client
+
+# Verify
+psql --version
+# Output: psql (PostgreSQL) 14.x
+```
+
+### Step 3.7: Clone Repository
+
+```bash
+# Clone project
+git clone https://github.com/aan-andiyanaS/finlapor.git
+cd finlapor
+
+# Verify struktur folder
+ls -la
+# Harus ada: backend/, frontend/, ai-service/, database/, docs/
+```
+
+### Step 3.8: Konfigurasi Environment
+
+```bash
+# Buat file .env
+nano backend/.env
+```
+
+Isi dengan:
+```env
+# === DATABASE (AWS RDS) ===
+DATABASE_URL=postgres://postgres:YOUR_PASSWORD@finlapor-db.xxxxx.rds.amazonaws.com:5432/finlapor?sslmode=require
+
+# === REDIS ===
+REDIS_URL=redis://localhost:6379
+
+# === S3 STORAGE ===
+S3_ENDPOINT=https://s3.ap-southeast-1.amazonaws.com
+S3_ACCESS_KEY=AKIA...
+S3_SECRET_KEY=...
+S3_BUCKET=finlapor-storage-xxxxx
+S3_REGION=ap-southeast-1
+
+# === JWT & SERVER ===
+JWT_SECRET=your-super-secret-key-minimum-32-characters
+PORT=8080
+APP_ENV=production
+
+# === AI (HuggingFace) ===
+HF_TOKEN=hf_xxxxxxxx
+HF_LLM_MODEL=Qwen/Qwen2.5-72B-Instruct
+HF_OCR_MODEL=naver-clova-ix/donut-base-finetuned-cord-v2
+```
+
+Simpan dengan `Ctrl+X`, `Y`, `Enter`.
+
+### Step 3.9: Run Database Migrations
+
+```bash
+# Set DATABASE_URL
+export DATABASE_URL="postgres://postgres:YOUR_PASSWORD@finlapor-db.xxxxx.rds.amazonaws.com:5432/finlapor?sslmode=require"
+
+# Run migrations
+psql "$DATABASE_URL" -f database/migrations/001_initial.sql
+psql "$DATABASE_URL" -f database/migrations/002_multi_category.sql
+psql "$DATABASE_URL" -f database/migrations/003_add_user_age.sql
+
+# Verify tables
+psql "$DATABASE_URL" -c "\dt"
+
+# Expected output:
+#  Schema |      Name       | Type  |  Owner
+# --------+-----------------+-------+----------
+#  public | categories      | table | postgres
+#  public | transactions    | table | postgres
+#  public | users           | table | postgres
+#  public | ...             | ...   | ...
+```
+
+---
+
+## 3B. Install Dependencies (Opsi B - Private Subnet)
+
+> **📝 Section ini untuk Opsi B (Private Subnet dengan Bastion Host).**
+> Gunakan jika EC2 backend ada di **Private Subnet** (tidak ada akses internet langsung).
+> Lihat [Architecture](../architecture.md) untuk detail arsitektur.
+
+### Arsitektur Private Subnet
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                       AWS VPC                                    │
+│  ┌────────────────────┐    ┌────────────────────────────────┐   │
+│  │  PUBLIC SUBNET     │    │       PRIVATE SUBNET           │   │
+│  │                    │    │                                │   │
+│  │  ┌──────────────┐  │    │  ┌──────────────────────────┐  │   │
+│  │  │ Bastion Host │──┼────┼─►│   Backend (Go)           │  │   │
+│  │  │ (t3.nano)    │  │ SSH│  │   EC2 t3.micro           │  │   │
+│  │  │ Ubuntu 22.04 │  │    │  │   Ubuntu 22.04           │  │   │
+│  │  └──────────────┘  │    │  └──────────┬───────────────┘  │   │
+│  │         ▲          │    │             │                  │   │
+│  │       SSH          │    │   ┌─────────▼────────────┐     │   │
+│  │     (Your IP)      │    │   │   AWS RDS + Redis    │     │   │
+│  └────────────────────┘    │   └──────────────────────┘     │   │
+│                            └────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Keuntungan:**
+- ✅ Backend tidak exposed ke internet
+- ✅ Lebih aman untuk production
+- ✅ Akses via API Gateway (VPC Link)
+
+### Step 3B.1: Setup Bastion Host
+
+SSH ke Bastion terlebih dahulu:
+```bash
+ssh -i finlapor-key.pem ubuntu@[BASTION_PUBLIC_IP]
+```
+
+Di Bastion, install tools:
+```bash
+# Update system
+sudo apt update && sudo apt upgrade -y
+
+# Install tools
+sudo apt install -y curl wget git unzip
+
+# Install Docker (untuk save images)
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+sudo usermod -aG docker $USER
+
+# Logout dan login lagi
+exit
+```
+
+### Step 3B.2: Download Dependencies di Bastion
+
+SSH kembali ke Bastion:
+```bash
+ssh -i finlapor-key.pem ubuntu@[BASTION_PUBLIC_IP]
+```
+
+Download semua yang diperlukan:
+```bash
+# 1. Clone repository
+git clone https://github.com/aan-andiyanaS/finlapor.git
+
+# 2. Download Go
+wget https://go.dev/dl/go1.21.6.linux-amd64.tar.gz
+
+# 3. Download Docker images (untuk offline install)
+docker pull golang:alpine
+docker pull alpine:latest
+docker pull redis:7-alpine
+docker save golang:alpine alpine:latest redis:7-alpine -o docker-images.tar
+
+# 4. Download Docker deb packages untuk Ubuntu (offline install)
+mkdir -p docker-debs
+cd docker-debs
+curl -fsSL https://download.docker.com/linux/ubuntu/dists/jammy/pool/stable/amd64/containerd.io_1.6.28-1_amd64.deb -o containerd.io.deb
+curl -fsSL https://download.docker.com/linux/ubuntu/dists/jammy/pool/stable/amd64/docker-ce_24.0.9-1~ubuntu.22.04~jammy_amd64.deb -o docker-ce.deb
+curl -fsSL https://download.docker.com/linux/ubuntu/dists/jammy/pool/stable/amd64/docker-ce-cli_24.0.9-1~ubuntu.22.04~jammy_amd64.deb -o docker-ce-cli.deb
+curl -fsSL https://download.docker.com/linux/ubuntu/dists/jammy/pool/stable/amd64/docker-compose-plugin_2.24.5-1~ubuntu.22.04~jammy_amd64.deb -o docker-compose-plugin.deb
+cd ..
+
+echo "✅ Semua dependencies sudah didownload"
+```
+
+### Step 3B.3: Transfer ke Backend (Private Subnet)
+
+Masih di Bastion:
+```bash
+# Copy finlapor project
+scp -i ~/.ssh/finlapor-key.pem -r finlapor/ ubuntu@[BACKEND_PRIVATE_IP]:/home/ubuntu/
+
+# Copy Go installer
+scp -i ~/.ssh/finlapor-key.pem go1.21.6.linux-amd64.tar.gz ubuntu@[BACKEND_PRIVATE_IP]:/home/ubuntu/
+
+# Copy Docker images
+scp -i ~/.ssh/finlapor-key.pem docker-images.tar ubuntu@[BACKEND_PRIVATE_IP]:/home/ubuntu/
+
+# Copy Docker deb packages
+scp -i ~/.ssh/finlapor-key.pem -r docker-debs/ ubuntu@[BACKEND_PRIVATE_IP]:/home/ubuntu/
+
+echo "✅ Transfer selesai"
+```
+
+### Step 3B.4: SSH ke Backend via Bastion
+
+Dari laptop local:
+```bash
+# SSH Jump command
+ssh -J ubuntu@[BASTION_PUBLIC_IP] ubuntu@[BACKEND_PRIVATE_IP] -i finlapor-key.pem
+
+# Atau setup SSH config untuk kemudahan:
+cat >> ~/.ssh/config << 'EOF'
+Host bastion
+    HostName [BASTION_PUBLIC_IP]
+    User ubuntu
+    IdentityFile ~/.ssh/finlapor-key.pem
+
+Host finlapor-backend
+    HostName [BACKEND_PRIVATE_IP]
+    User ubuntu
+    IdentityFile ~/.ssh/finlapor-key.pem
+    ProxyJump bastion
+EOF
+
+# Lalu cukup:
+ssh finlapor-backend
+```
+
+### Step 3B.5: Install Docker di Backend (Offline)
+
+Di Backend EC2:
+```bash
+# Install Docker dari deb packages
+cd docker-debs
+sudo dpkg -i containerd.io.deb docker-ce-cli.deb docker-ce.deb docker-compose-plugin.deb
+
+# Start Docker
+sudo systemctl start docker
+sudo systemctl enable docker
+
+# Add user ke docker group
+sudo usermod -aG docker $USER
+
+# Verify
+docker --version
+docker compose version
+
+# Logout dan login lagi
+exit
+```
+
+SSH kembali:
+```bash
+ssh finlapor-backend
+```
+
+### Step 3B.6: Load Docker Images (Offline)
+
+```bash
+# Load pre-downloaded images
+docker load -i docker-images.tar
+
+# Verify images
+docker images
+# Harus ada: golang:alpine, alpine:latest, redis:7-alpine
+```
+
+### Step 3B.7: Install Go (Opsional)
+
+```bash
+# Extract Go
+sudo rm -rf /usr/local/go
+sudo tar -C /usr/local -xzf go1.21.6.linux-amd64.tar.gz
+
+# Setup PATH
+echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
+source ~/.bashrc
+
+# Verify
+go version
+```
+
+### Step 3B.8: Configure Environment
+
+```bash
+cd ~/finlapor
+
+# Create .env file
+nano backend/.env
+```
+
+Isi dengan (lihat Step 3.8 untuk format lengkap).
+
+### Step 3B.9: Run Migrations via Bastion Tunnel
+
+Karena di Private Subnet tidak bisa langsung akses RDS dari laptop:
+
+**Di laptop local, buat SSH tunnel:**
+```bash
+# Buat tunnel melalui Bastion ke RDS (port 5433 local -> RDS 5432)
+ssh -i finlapor-key.pem -L 5433:finlapor-db.xxxxx.rds.amazonaws.com:5432 ubuntu@[BASTION_PUBLIC_IP]
+
+# Di terminal lain, jalankan migrations via tunnel
+psql -h localhost -p 5433 -U postgres -d finlapor -f database/migrations/001_initial.sql
+psql -h localhost -p 5433 -U postgres -d finlapor -f database/migrations/002_multi_category.sql
+psql -h localhost -p 5433 -U postgres -d finlapor -f database/migrations/003_add_user_age.sql
+```
+
+Atau jalankan langsung dari EC2 Backend jika sudah ada PostgreSQL client.
 
 ---
 
@@ -356,6 +663,181 @@ curl http://[EC2_PUBLIC_IP]:8080/health
 
 ---
 
+## 4B. Backend-Only Docker (RDS + S3)
+
+> **📝 Section ini untuk setup minimalis dengan AWS Managed Services.**
+> Cocok jika Anda menggunakan AWS RDS (PostgreSQL) dan S3, tanpa Redis lokal.
+
+### Arsitektur Backend-Only
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     Ubuntu EC2                                  │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │  Docker Container: finlapor-backend                     │    │
+│  │  Port: 8080                                             │    │
+│  └─────────────────┬───────────────────────────────────────┘    │
+└────────────────────┼────────────────────────────────────────────┘
+                     │
+      ┌──────────────┼──────────────┬──────────────┐
+      ▼              ▼              ▼              ▼
+ ┌─────────┐   ┌─────────┐   ┌─────────┐   ┌─────────┐
+ │ AWS RDS │   │ AWS S3  │   │ HF API  │   │ Lambda  │
+ │ Postgres│   │ Storage │   │ AI/Chat │   │ AI Svc  │
+ └─────────┘   └─────────┘   └─────────┘   └─────────┘
+```
+
+**Keuntungan:**
+- ✅ Setup paling simpel
+- ✅ Tidak perlu `docker-compose`
+- ✅ Semua managed by AWS
+- ✅ Mudah scale dan maintain
+
+### Step 4B.1: Setup Environment File
+
+```bash
+cd ~/finlapor
+nano backend/.env
+```
+
+Isi dengan:
+```env
+# === DATABASE (AWS RDS) ===
+DATABASE_URL=postgres://postgres:YOUR_PASSWORD@finlapor-db.xxxxx.rds.amazonaws.com:5432/finlapor?sslmode=require
+
+# === S3 STORAGE (AWS S3) ===
+S3_ENDPOINT=https://s3.ap-southeast-1.amazonaws.com
+S3_ACCESS_KEY=AKIAXXXXXXXXXXXXXXXXXX
+S3_SECRET_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+S3_BUCKET=finlapor-storage-xxxxx
+S3_REGION=ap-southeast-1
+
+# === JWT & SERVER ===
+JWT_SECRET=your-super-secret-key-minimum-32-characters
+PORT=8080
+APP_ENV=production
+FRONTEND_URL=https://finlapor.airi.click
+
+# === AI (HuggingFace) ===
+HF_TOKEN=hf_xxxxxxxx
+HF_LLM_MODEL=Qwen/Qwen2.5-72B-Instruct
+HF_OCR_MODEL=naver-clova-ix/donut-base-finetuned-cord-v2
+
+# === REDIS (Opsional - bisa kosongkan jika tidak pakai) ===
+# REDIS_URL=redis://localhost:6379
+```
+
+Simpan dengan `Ctrl+X`, `Y`, `Enter`.
+
+### Step 4B.2: Build Docker Image
+
+```bash
+cd ~/finlapor
+
+# Build backend image
+docker build -t finlapor-backend ./backend
+
+# Verify image
+docker images | grep finlapor
+# Output: finlapor-backend   latest   xxxxx   xx MB
+```
+
+### Step 4B.3: Run Backend Container
+
+```bash
+# Run container
+docker run -d \
+  --name finlapor-backend \
+  --restart unless-stopped \
+  -p 8080:8080 \
+  --env-file ./backend/.env \
+  finlapor-backend
+
+# Cek status
+docker ps
+
+# Output:
+# CONTAINER ID   IMAGE              STATUS         PORTS
+# xxxxxxxxxxxx   finlapor-backend   Up x minutes   0.0.0.0:8080->8080/tcp
+```
+
+### Step 4B.4: Verifikasi
+
+```bash
+# Health check lokal
+curl http://localhost:8080/health
+# Output: {"status":"ok"}
+
+# Health check dari luar (jika Public Subnet)
+curl http://[EC2_PUBLIC_IP]:8080/health
+
+# Lihat logs
+docker logs finlapor-backend
+
+# Follow logs
+docker logs -f finlapor-backend
+```
+
+### Step 4B.5: Management Commands
+
+```bash
+# Stop container
+docker stop finlapor-backend
+
+# Start container
+docker start finlapor-backend
+
+# Restart container
+docker restart finlapor-backend
+
+# Remove container
+docker rm -f finlapor-backend
+
+# Rebuild dan deploy ulang
+docker build -t finlapor-backend ./backend
+docker rm -f finlapor-backend
+docker run -d \
+  --name finlapor-backend \
+  --restart unless-stopped \
+  -p 8080:8080 \
+  --env-file ./backend/.env \
+  finlapor-backend
+```
+
+### Step 4B.6: Auto-start on Boot
+
+Dengan `--restart unless-stopped`, container akan otomatis start saat EC2 reboot.
+
+Untuk memastikan Docker service juga auto-start:
+```bash
+sudo systemctl enable docker
+```
+
+### Step 4B.7: Update Deployment
+
+Saat ada update code:
+```bash
+cd ~/finlapor
+
+# Pull latest code
+git pull origin main
+
+# Rebuild dan deploy
+docker build -t finlapor-backend ./backend
+docker rm -f finlapor-backend
+docker run -d \
+  --name finlapor-backend \
+  --restart unless-stopped \
+  -p 8080:8080 \
+  --env-file ./backend/.env \
+  finlapor-backend
+
+# Verify
+docker logs finlapor-backend
+```
+
+---
+
 ## 5. Setup Systemd Service
 
 > **📝 Section ini untuk Go Binary deployment. Skip jika pakai Docker Compose.**
@@ -377,10 +859,10 @@ After=network.target
 
 [Service]
 Type=simple
-User=ec2-user
-WorkingDirectory=/home/ec2-user/finlapor/backend
-ExecStart=/home/ec2-user/finlapor/backend/finlapor-server
-EnvironmentFile=/home/ec2-user/finlapor/backend/.env
+User=ubuntu
+WorkingDirectory=/home/ubuntu/finlapor/backend
+ExecStart=/home/ubuntu/finlapor/backend/finlapor-server
+EnvironmentFile=/home/ubuntu/finlapor/backend/.env
 Restart=always
 RestartSec=5
 
@@ -458,7 +940,7 @@ docker logs finlapor-backend
 
 **Solusi:** Gunakan Bastion Jump:
 ```bash
-ssh -J ec2-user@[BASTION_IP] ec2-user@[BACKEND_PRIVATE_IP] -i finlapor-key.pem
+ssh -J ubuntu@[BASTION_IP] ubuntu@[BACKEND_PRIVATE_IP] -i finlapor-key.pem
 ```
 
 ### Tidak bisa docker pull (Private Subnet)

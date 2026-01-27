@@ -371,7 +371,7 @@ Rate: 100 requests per 1 minute
 curl http://[EC2_PUBLIC_IP]:8080/health
 
 # 2. Jika timeout, cek dari dalam EC2
-ssh ec2-user@[EC2_IP]
+ssh ubuntu@[EC2_IP]
 curl http://localhost:8080/health
 
 # 3. Cek service berjalan
