@@ -173,7 +173,7 @@ finlapor-backend-private-sg:
 └──────────────┴──────────┴────────────────────────┴─────────────────┘
 ```
 
-```bash
+
 ## 3. Install Dependencies (Opsi A: Public Subnet)
 
 > **📝 Section ini untuk Opsi A (Public Subnet dengan akses internet).**
