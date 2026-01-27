@@ -170,8 +170,8 @@ finlapor-backend-private-sg:
 ├──────────────┼──────────┼────────────────────────┼─────────────────┤
 │ SSH          │ 22       │ Private IP Bastation   │ Via Bastion     │
 │ Custom TCP   │ 8080     │ 0.0.0.0/0              │ API (via API GW)│
-
----
+└──────────────┴──────────┴────────────────────────┴─────────────────┘
+```
 
 ## 3. Install Dependencies (Opsi A: Public Subnet)
 
