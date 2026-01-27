@@ -3,6 +3,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
+
 interface OCRResult {
     vendor: string
     total: number
@@ -49,7 +51,7 @@ export default function ScannerPage() {
     const fetchCategories = async () => {
         try {
             const token = localStorage.getItem('access_token')
-            const res = await fetch('http://localhost:8080/api/categories', {
+            const res = await fetch(`${API_URL}/api/categories`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             })
             if (res.ok) {
@@ -89,7 +91,7 @@ export default function ScannerPage() {
             const formData = new FormData()
             formData.append('file', imageFile)
 
-            const uploadRes = await fetch('http://localhost:8080/api/upload', {
+            const uploadRes = await fetch(`${API_URL}/api/upload`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}` },
                 body: formData
@@ -103,7 +105,7 @@ export default function ScannerPage() {
             const imageUrl = uploadData.data.url
 
             // Call OCR API
-            const ocrRes = await fetch('http://localhost:8080/api/ocr/scan', {
+            const ocrRes = await fetch(`${API_URL}/api/ocr/scan`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -131,7 +133,7 @@ export default function ScannerPage() {
 
         try {
             const token = localStorage.getItem('token')
-            const res = await fetch('http://localhost:8080/api/transactions', {
+            const res = await fetch(`${API_URL}/api/transactions`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

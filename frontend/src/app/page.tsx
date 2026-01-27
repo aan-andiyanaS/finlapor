@@ -9,7 +9,7 @@ import { motion } from 'framer-motion'
 // Animation variants
 const fadeInUp = {
     hidden: { opacity: 0, y: 30 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: 'easeOut' } }
+    visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: 'easeOut' as const } }
 }
 
 const staggerContainer = {
@@ -23,7 +23,7 @@ const staggerContainer = {
 const floatAnimation = {
     animate: {
         y: [0, -15, 0],
-        transition: { duration: 4, repeat: Infinity, ease: 'easeInOut' }
+        transition: { duration: 4, repeat: Infinity, ease: 'easeInOut' as const }
     }
 }
 
@@ -31,7 +31,7 @@ const pulseGlow = {
     animate: {
         scale: [1, 1.05, 1],
         opacity: [0.5, 0.8, 0.5],
-        transition: { duration: 3, repeat: Infinity, ease: 'easeInOut' }
+        transition: { duration: 3, repeat: Infinity, ease: 'easeInOut' as const }
     }
 }
 

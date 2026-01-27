@@ -6,6 +6,8 @@ import {
     LineChart, Line, ResponsiveContainer
 } from 'recharts'
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
+
 // Types
 interface Category {
     id: string
@@ -94,7 +96,7 @@ export default function ReportsPage() {
             const token = localStorage.getItem('access_token')
 
             // Fetch transactions
-            const txRes = await fetch('http://localhost:8080/api/transactions?limit=1000', {
+            const txRes = await fetch(`${API_URL}/api/transactions?limit=1000`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             })
             if (txRes.ok) {
@@ -103,7 +105,7 @@ export default function ReportsPage() {
             }
 
             // Fetch categories
-            const catRes = await fetch('http://localhost:8080/api/categories', {
+            const catRes = await fetch(`${API_URL}/api/categories`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             })
             if (catRes.ok) {

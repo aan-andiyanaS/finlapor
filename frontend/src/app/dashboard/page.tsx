@@ -9,6 +9,8 @@ import {
 } from 'recharts'
 import { AnimatedCounter, staggerContainer, fadeInUp, getGreeting } from '@/components/ui/animations'
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
+
 interface Category {
     id: string
     name: string
@@ -52,7 +54,7 @@ export default function DashboardPage() {
                 const token = localStorage.getItem('access_token')
 
                 // Fetch summary
-                const summaryRes = await fetch('http://localhost:8080/api/dashboard/summary', {
+                const summaryRes = await fetch(`${API_URL}/api/dashboard/summary`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 })
                 if (summaryRes.ok) {
@@ -66,7 +68,7 @@ export default function DashboardPage() {
                 }
 
                 // Fetch recent transactions
-                const txRes = await fetch('http://localhost:8080/api/transactions?limit=5', {
+                const txRes = await fetch(`${API_URL}/api/transactions?limit=5`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 })
                 if (txRes.ok) {
@@ -75,7 +77,7 @@ export default function DashboardPage() {
                 }
 
                 // Fetch all transactions for charts
-                const allTxRes = await fetch('http://localhost:8080/api/transactions?limit=1000', {
+                const allTxRes = await fetch(`${API_URL}/api/transactions?limit=1000`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 })
                 if (allTxRes.ok) {

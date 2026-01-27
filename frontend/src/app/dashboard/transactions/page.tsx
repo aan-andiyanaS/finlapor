@@ -4,6 +4,8 @@ import { useState, useEffect, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { uploadApi } from '@/lib/api'
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
+
 interface Category {
     id: string
     name: string
@@ -89,7 +91,7 @@ export default function TransactionsPage() {
         try {
             const token = localStorage.getItem('access_token')
             // Fetch all transactions (high limit to get all)
-            const res = await fetch('http://localhost:8080/api/transactions?limit=1000', {
+            const res = await fetch(`${API_URL}/api/transactions?limit=1000`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             })
             if (res.ok) {
@@ -107,7 +109,7 @@ export default function TransactionsPage() {
     const fetchCategories = async () => {
         try {
             const token = localStorage.getItem('access_token')
-            const res = await fetch('http://localhost:8080/api/categories', {
+            const res = await fetch(`${API_URL}/api/categories`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             })
             if (res.ok) {
@@ -241,8 +243,8 @@ export default function TransactionsPage() {
             console.log('Payload to send:', JSON.stringify(payload, null, 2))
 
             const url = editingId
-                ? `http://localhost:8080/api/transactions/${editingId}`
-                : 'http://localhost:8080/api/transactions'
+                ? `${API_URL}/api/transactions/${editingId}`
+                : `${API_URL}/api/transactions`
 
             const res = await fetch(url, {
                 method: editingId ? 'PUT' : 'POST',
@@ -314,7 +316,7 @@ export default function TransactionsPage() {
         if (!deletingId) return
         try {
             const token = localStorage.getItem('access_token')
-            const res = await fetch(`http://localhost:8080/api/transactions/${deletingId}`, {
+            const res = await fetch(`${API_URL}/api/transactions/${deletingId}`, {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${token}` }
             })

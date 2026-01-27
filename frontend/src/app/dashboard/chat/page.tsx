@@ -2,6 +2,8 @@
 
 import { useState, useRef, useEffect } from 'react'
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
+
 type Message = {
     id: string
     role: 'user' | 'assistant'
@@ -34,7 +36,7 @@ export default function ChatPage() {
     const fetchChatHistory = async () => {
         try {
             const token = localStorage.getItem('access_token')
-            const res = await fetch('http://localhost:8080/api/chat/history', {
+            const res = await fetch(`${API_URL}/api/chat/history`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             })
             if (res.ok) {
@@ -81,7 +83,7 @@ export default function ChatPage() {
 
         try {
             const token = localStorage.getItem('access_token')
-            const res = await fetch('http://localhost:8080/api/chat', {
+            const res = await fetch(`${API_URL}/api/chat`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
