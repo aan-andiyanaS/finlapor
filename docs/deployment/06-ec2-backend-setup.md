@@ -170,58 +170,19 @@ finlapor-backend-private-sg:
 ├──────────────┼──────────┼────────────────────────┼─────────────────┤
 │ SSH          │ 22       │ Private IP Bastation   │ Via Bastion     │
 │ Custom TCP   │ 8080     │ 0.0.0.0/0              │ API (via API GW)│
-└──────────────┴──────────┴────────────────────────┴─────────────────┘
-```
 
 ---
 
-## 3. Install Dependencies
+## 3. Install Dependencies (Opsi A: Public Subnet)
+
+> **📝 Section ini untuk Opsi A (Public Subnet dengan akses internet).**
+> Untuk **Opsi B (Private Subnet)**, lompat ke [Section 3B](#3b-install-dependencies-opsi-b---private-subnet).
 
 ### Step 3.1: Connect ke EC2
-**ini dilakukan di local**
 
-**Opsi A:**
+Dari laptop local:
 ```bash
 ssh -i finlapor-key.pem ubuntu@[EC2_PUBLIC_IP]
-```
-
-**Opsi B (via Bastion):**
-##### Metode 1: SSH Jump
-```bash
-
-cat >> ~/.ssh/config << 'EOF'
-```
-```bash
-Host bastion
-    HostName [BASTION_PUBLIC_IP]
-    User ubuntu
-    IdentityFile ~/.ssh/finlapor-key.pem
-
-Host finlapor-backend
-    HostName [BACKEND_PRIVATE_IP]
-    User ubuntu
-    IdentityFile ~/.ssh/finlapor-key.pem
-    ProxyJump bastion
-```
-Untuk Windows
-```bash
-C:\Users\(UserName)\.ssh\config
-```
-```bash
-Host bastion
-    HostName [BASTION_PUBLIC_IP]
-    User ec2-user
-    IdentityFile PATH\finlapor-key.pem
-
-Host finlapor-backend
-    HostName [BACKEND_PRIVATE_IP]
-    User ec2-user
-    IdentityFile PATH\finlapor-key.pem
-    ProxyJump bastion
-```
-##### Lalu cukup:
-```bash
-ssh finlapor-backend
 ```
 
 ### Step 3.2: Update System (Ubuntu)
@@ -504,12 +465,16 @@ echo "✅ Transfer selesai"
 ### Step 3B.4: SSH ke Backend via Bastion
 
 Dari laptop local:
-```bash
-# SSH Jump command
-ssh -J ubuntu@[BASTION_PUBLIC_IP] ubuntu@[BACKEND_PRIVATE_IP] -i finlapor-key.pem
 
-# Atau setup SSH config untuk kemudahan:
-cat >> ~/.ssh/config << 'EOF'
+##### Metode 1: SSH Jump
+```bash
+ssh -J ubuntu@[BASTION_PUBLIC_IP] ubuntu@[BACKEND_PRIVATE_IP] -i finlapor-key.pem
+```
+
+##### Metode 2: Setup SSH config untuk kemudahan
+
+**Linux/macOS** - Edit file `~/.ssh/config`:
+```
 Host bastion
     HostName [BASTION_PUBLIC_IP]
     User ubuntu
@@ -520,9 +485,24 @@ Host finlapor-backend
     User ubuntu
     IdentityFile ~/.ssh/finlapor-key.pem
     ProxyJump bastion
-EOF
+```
 
-# Lalu cukup:
+**Windows** - Edit file `C:\Users\(UserName)\.ssh\config`:
+```
+Host bastion
+    HostName [BASTION_PUBLIC_IP]
+    User ubuntu
+    IdentityFile C:\Users\(UserName)\.ssh\finlapor-key.pem
+
+Host finlapor-backend
+    HostName [BACKEND_PRIVATE_IP]
+    User ubuntu
+    IdentityFile C:\Users\(UserName)\.ssh\finlapor-key.pem
+    ProxyJump bastion
+```
+
+##### Lalu cukup:
+```bash
 ssh finlapor-backend
 ```
 
