@@ -1,18 +1,8 @@
-services:
-  # Frontend (Next.js)
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    ports:
-      - "3000:3000"
-    environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8080
-    depends_on:
-      - backend
-    networks:
-      - finlapor-network
+# Backend + Infrastructure Docker Compose
+# Usage: docker-compose -f docker-compose.backend.yml up -d
+# Then run frontend locally: cd frontend && npm run dev
 
+services:
   # Backend (Go)
   backend:
     build:
@@ -29,6 +19,8 @@ services:
       - S3_SECRET_KEY=minioadmin
       - S3_BUCKET=finlapor
       - HF_TOKEN=${HF_TOKEN}
+      - HF_LLM_MODEL=${HF_LLM_MODEL:-mistralai/Mistral-7B-Instruct-v0.2}
+      - HF_OCR_MODEL=${HF_OCR_MODEL:-Salesforce/blip-image-captioning-base}
       - ENVIRONMENT=development
     depends_on:
       postgres:
