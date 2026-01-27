@@ -180,7 +180,7 @@ finlapor-backend-private-sg:
 > Untuk **Opsi B (Private Subnet)**, lompat ke [Section 3B](#3b-install-dependencies-opsi-b---private-subnet).
 
 ### Step 3.1: Connect ke EC2
-
+```
 Dari laptop local:
 ```bash
 ssh -i finlapor-key.pem ubuntu@[EC2_PUBLIC_IP]
