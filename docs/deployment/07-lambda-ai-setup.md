@@ -225,35 +225,61 @@ URL format: `https://xxxxxx.lambda-url.ap-southeast-1.on.aws/`
 
 ## 5. Connect ke Backend
 
-### Step 5.1: Update Backend Environment
+Backend menggunakan **AWS SDK** untuk memanggil Lambda secara langsung (bukan via Function URL).
 
-Di EC2, update `.env`:
+### Step 5.1: Buat IAM User untuk Lambda Invoke
 
-```bash
-# Lambda Function URL
-LAMBDA_FUNCTION_URL=https://xxxxxx.lambda-url.ap-southeast-1.on.aws
+1. AWS Console → **IAM** → **Users** → **Create user**
+2. User name: `finlapor-lambda-invoker`
+3. **Attach policies directly** → Create inline policy:
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": "lambda:InvokeFunction",
+            "Resource": "arn:aws:lambda:ap-southeast-1:*:function:finlapor-ai"
+        }
+    ]
+}
 ```
 
-### Step 5.2: Backend Code (Reference)
+4. **Create user** → **Create access key** → **Application running on AWS EC2**
+5. Copy **Access Key ID** dan **Secret Access Key**
 
-Backend akan call Lambda seperti ini:
+### Step 5.2: Update Backend Environment
+
+Di EC2, update `backend/.env`:
+
+```bash
+# Lambda Configuration (AWS SDK method)
+LAMBDA_FUNCTION_NAME=finlapor-ai
+AWS_REGION=ap-southeast-1
+AWS_ACCESS_KEY_ID=AKIA...        # dari Step 5.1
+AWS_SECRET_ACCESS_KEY=xxxxx...   # dari Step 5.1
+```
+
+### Step 5.3: Cara Kerja (Reference)
+
+Backend menggunakan AWS SDK untuk invoke Lambda:
 
 ```go
 // internal/services/lambda.go
-func (s *LambdaService) CallAI(ctx context.Context, action string, payload interface{}) ([]byte, error) {
-    url := os.Getenv("LAMBDA_FUNCTION_URL")
-    
-    body, _ := json.Marshal(map[string]interface{}{
-        "action":  action,
-        "payload": payload,
+func (s *LambdaService) Invoke(ctx context.Context, req *LambdaRequest) (*LambdaResponse, error) {
+    result, err := s.client.Invoke(ctx, &lambda.InvokeInput{
+        FunctionName: aws.String(s.functionName),  // "finlapor-ai"
+        Payload:      payload,
     })
-    
-    resp, err := http.Post(url, "application/json", bytes.NewBuffer(body))
     // ...
 }
 ```
 
-### Step 5.3: Test Endpoints
+> **📝 Note:** Function URL tetap berguna untuk testing via curl/Postman, 
+> tapi backend production menggunakan AWS SDK karena lebih cepat dan aman.
+
+### Step 5.4: Test Endpoints (via Function URL)
 
 ```bash
 # 1. Test Health
