@@ -227,29 +227,11 @@ URL format: `https://xxxxxx.lambda-url.ap-southeast-1.on.aws/`
 
 Backend menggunakan **AWS SDK** untuk memanggil Lambda secara langsung (bukan via Function URL).
 
-### Step 5.1: Buat IAM User untuk Lambda Invoke
+### Step 5.1: Update Backend Environment
 
-1. AWS Console → **IAM** → **Users** → **Create user**
-2. User name: `finlapor-lambda-invoker`
-3. **Attach policies directly** → Create inline policy:
+Gunakan **credentials dari IAM user `finlapor-admin`** yang sudah dibuat di [02. AWS Account Setup](./02-aws-account-setup.md).
 
-```json
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": "lambda:InvokeFunction",
-            "Resource": "arn:aws:lambda:ap-southeast-1:*:function:finlapor-ai"
-        }
-    ]
-}
-```
-
-4. **Create user** → **Create access key** → **Application running on AWS EC2**
-5. Copy **Access Key ID** dan **Secret Access Key**
-
-### Step 5.2: Update Backend Environment
+> **📝 Note:** User `finlapor-admin` sudah memiliki policy `AWSLambda_FullAccess` yang mencakup permission `lambda:InvokeFunction`.
 
 Di EC2, update `backend/.env`:
 
@@ -257,8 +239,8 @@ Di EC2, update `backend/.env`:
 # Lambda Configuration (AWS SDK method)
 LAMBDA_FUNCTION_NAME=finlapor-ai
 AWS_REGION=ap-southeast-1
-AWS_ACCESS_KEY_ID=AKIA...        # dari Step 5.1
-AWS_SECRET_ACCESS_KEY=xxxxx...   # dari Step 5.1
+AWS_ACCESS_KEY_ID=AKIA...        # dari finlapor-admin (02-aws-account-setup.md)
+AWS_SECRET_ACCESS_KEY=xxxxx...   # dari finlapor-admin (02-aws-account-setup.md)
 ```
 
 ### Step 5.3: Cara Kerja (Reference)
