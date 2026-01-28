@@ -36,10 +36,22 @@ Deploy Python AI service ke AWS Lambda untuk OCR dan chat functionality.
 ```
 Frontend ──► Backend (Go) ──► AWS Lambda ──► HuggingFace API
                                    │
-                                   ├── OCR (Donut model)
-                                   ├── Categorize (Classification)
-                                   └── Chat (Mistral-7B)
+                                   ├── health   (Status check)
+                                   ├── ocr      (Donut model)
+                                   ├── chat     (Qwen-72B + Age personalization)
+                                   ├── categorize (BART zero-shot)
+                                   └── insight  (Spending analysis)
 ```
+
+### Available Actions
+
+| Action | Description | Input | Output |
+|--------|-------------|-------|--------|
+| `health` | Status check | - | Service info, model names |
+| `ocr` | Extract text from receipt | `image_url` atau `image_base64` | Vendor, date, items, total |
+| `chat` | Financial assistant | `message`, `context`, `user_age` | Reply, suggestions |
+| `categorize` | Auto-categorize transaction | `description` | Category, confidence |
+| `insight` | Spending insights | `transactions` array | Insights, summary |
 
 ---
 
@@ -50,9 +62,10 @@ Frontend ──► Backend (Go) ──► AWS Lambda ──► HuggingFace API
 Cek folder `ai-service/`:
 ```bash
 ls ai-service/
-# handlers/
-# lambda_function.py
-# requirements.txt
+# lambda_function.py   ← Main handler
+# requirements.txt     ← Dependencies
+# README.md
+# serverless.yml       ← Serverless Framework config (optional)
 ```
 
 ### Step 1.2: HuggingFace Token
@@ -107,8 +120,8 @@ Timeout: 30 seconds (OCR bisa lambat)
 | Key | Value | Keterangan |
 |-----|-------|------------|
 | `HF_TOKEN` | `hf_xxxxxxxx` | HuggingFace API token |
-| `HF_API_URL` | `https://api-inference.huggingface.co` | HF Inference API |
-| `LOG_LEVEL` | `INFO` | Logging level |
+| `HF_LLM_MODEL` | `Qwen/Qwen2.5-72B-Instruct` | Model untuk chat |
+| `HF_OCR_MODEL` | `naver-clova-ix/donut-base-finetuned-cord-v2` | Model untuk OCR |
 
 3. Save
 
@@ -129,14 +142,15 @@ mkdir -p package
 # Install dependencies
 pip install -r requirements.txt -t package/
 
-# Copy source code
+# Copy source code (hanya lambda_function.py, tidak ada folder handlers)
 cp lambda_function.py package/
-cp -r handlers package/
 
 # Create ZIP
 cd package
 zip -r ../deployment.zip .
 cd ..
+
+# Hasil: deployment.zip (~1 MB karena hanya requests library)
 ```
 
 **Step 3.2: Upload ke Lambda:**
@@ -159,9 +173,8 @@ COPY requirements.txt ${LAMBDA_TASK_ROOT}
 RUN pip install -r requirements.txt
 
 COPY lambda_function.py ${LAMBDA_TASK_ROOT}
-COPY handlers/ ${LAMBDA_TASK_ROOT}/handlers/
 
-CMD ["lambda_function.handler"]
+CMD ["lambda_function.lambda_handler"]
 ```
 
 **Build dan push ke ECR:**
@@ -240,16 +253,31 @@ func (s *LambdaService) CallAI(ctx context.Context, action string, payload inter
 }
 ```
 
-### Step 5.3: Test Endpoint
+### Step 5.3: Test Endpoints
 
 ```bash
-# Test OCR
+# 1. Test Health
 curl -X POST https://xxxxxx.lambda-url.ap-southeast-1.on.aws/ \
   -H "Content-Type: application/json" \
   -d '{"action": "health"}'
 
 # Expected:
-{"status": "ok", "message": "AI Service is running"}
+{
+  "statusCode": 200,
+  "body": "{\"status\":\"ok\",\"service\":\"finlapor-ai\",\"version\":\"2.0\",\"hf_configured\":true,\"models\":{\"ocr\":\"naver-clova-ix/donut-base-finetuned-cord-v2\",\"llm\":\"Qwen/Qwen2.5-72B-Instruct\"}}"
+}
+
+# 2. Test Chat
+curl -X POST https://xxxxxx.lambda-url.ap-southeast-1.on.aws/ \
+  -H "Content-Type: application/json" \
+  -d '{"action": "chat", "message": "Halo", "user_age": 25}'
+
+# 3. Test Categorize
+curl -X POST https://xxxxxx.lambda-url.ap-southeast-1.on.aws/ \
+  -H "Content-Type: application/json" \
+  -d '{"action": "categorize", "description": "Makan siang di KFC"}'
+
+# Expected: {"statusCode": 200, "body": "{\"category\":\"Makanan\",\"confidence\":0.85}"}
 ```
 
 ---

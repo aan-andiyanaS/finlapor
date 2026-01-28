@@ -704,6 +704,14 @@ curl -fsSL https://download.docker.com/linux/ubuntu/dists/jammy/pool/stable/amd6
 curl -fsSL https://download.docker.com/linux/ubuntu/dists/jammy/pool/stable/amd64/docker-compose-plugin_2.24.5-1~ubuntu.22.04~jammy_amd64.deb -o docker-compose-plugin.deb
 cd ..
 
+# 5. Download Python 3.11 (untuk Lambda AI lokal testing/development - opsional)
+mkdir -p python-debs
+cd python-debs
+curl -fsSL http://archive.ubuntu.com/ubuntu/pool/main/p/python3.11/python3.11_3.11.0~rc1-1~22.04_amd64.deb -o python3.11.deb
+curl -fsSL http://archive.ubuntu.com/ubuntu/pool/main/p/python3.11/python3.11-minimal_3.11.0~rc1-1~22.04_amd64.deb -o python3.11-minimal.deb
+curl -fsSL http://archive.ubuntu.com/ubuntu/pool/universe/p/python3.11/python3.11-venv_3.11.0~rc1-1~22.04_amd64.deb -o python3.11-venv.deb
+cd ..
+
 echo "✅ Semua dependencies sudah didownload"
 ```
 
@@ -722,6 +730,9 @@ scp -i ~/.ssh/finlapor-key.pem docker-images.tar ubuntu@[BACKEND_PRIVATE_IP]:/ho
 
 # Copy Docker deb packages
 scp -i ~/.ssh/finlapor-key.pem -r docker-debs/ ubuntu@[BACKEND_PRIVATE_IP]:/home/ubuntu/
+
+# Copy Python deb packages (opsional)
+scp -i ~/.ssh/finlapor-key.pem -r python-debs/ ubuntu@[BACKEND_PRIVATE_IP]:/home/ubuntu/
 
 echo "✅ Transfer selesai"
 ```
@@ -822,6 +833,45 @@ source ~/.bashrc
 
 # Verify
 go version
+```
+
+### Step 3B.7b: Install Python 3.11 (Opsional - untuk AI testing)
+
+> **📝 Note:** Python hanya diperlukan jika Anda ingin testing Lambda AI secara lokal.
+> Untuk production, AI service berjalan di AWS Lambda, bukan di EC2.
+
+```bash
+# Install Python dari deb packages yang sudah ditransfer
+cd ~/python-debs
+sudo dpkg -i python3.11-minimal.deb python3.11.deb python3.11-venv.deb
+
+# Jika ada dependency error
+sudo apt --fix-broken install -y
+
+# Verify
+python3.11 --version
+# Output: Python 3.11.x
+
+# Install pip
+curl -sS https://bootstrap.pypa.io/get-pip.py | python3.11
+
+# Verify pip
+python3.11 -m pip --version
+```
+
+**Testing AI Service Lokal (Opsional):**
+```bash
+cd ~/finlapor/ai-service
+
+# Create virtual environment
+python3.11 -m venv venv
+source venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Test locally
+python lambda_function.py
 ```
 
 ### Step 3B.8: Configure Environment
