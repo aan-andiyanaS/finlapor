@@ -419,7 +419,11 @@ openssl rand -base64 32
 
 **Opsi 3: Command Line (Windows PowerShell)**
 ```powershell
+#bisa
 [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
+
+#atau coba
+[Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Minimum 0 -Maximum 256 }))
 ```
 
 > ⚠️ **PENTING:** 
