@@ -304,28 +304,77 @@ nano backend/.env
 
 Isi dengan:
 ```env
-# === DATABASE (AWS RDS) ===
-DATABASE_URL=postgres://postgres:YOUR_PASSWORD@finlapor-db.xxxxx.rds.amazonaws.com:5432/finlapor?sslmode=require
+# =====================================================
+# PRODUCTION ENVIRONMENT VARIABLES - FinLapor
+# =====================================================
+# PETUNJUK: Salin file ini ke backend/.env.production
+# dan isi semua nilai dengan kredensial production Anda
+# =====================================================
 
-# === REDIS ===
-REDIS_URL=redis://localhost:6379
+# ===================
+# DATABASE (AWS RDS)
+# ===================
+# Ganti dengan endpoint RDS PostgreSQL Anda
+DATABASE_URL=postgres://postgres:YOUR_RDS_PASSWORD@finlapor-db.xxxxxxxxx.ap-southeast-1.rds.amazonaws.com:5432/finlapor?sslmode=require
 
-# === S3 STORAGE ===
+# ===================
+# REDIS (ElastiCache - Opsional)
+# ===================
+# Jika tidak pakai ElastiCache, bisa pakai Redis di Docker atau kosongkan
+# REDIS_URL=finlapor-cache.xxxxxxxxx.cache.amazonaws.com:6379
+REDIS_URL=
+
+# ===================
+# JWT SECRET
+# ===================
+# WAJIB GANTI! Gunakan string random minimal 32 karakter
+# Generate dengan: openssl rand -hex 32
+JWT_SECRET=GANTI_DENGAN_RANDOM_STRING_MINIMAL_32_KARAKTER
+
+# ===================
+# AWS S3 STORAGE
+# ===================
 S3_ENDPOINT=https://s3.ap-southeast-1.amazonaws.com
-S3_ACCESS_KEY=AKIA...
-S3_SECRET_KEY=...
+S3_ACCESS_KEY=AKIAXXXXXXXXXXXXXXXXXX
+S3_SECRET_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 S3_BUCKET=finlapor-storage-xxxxx
 S3_REGION=ap-southeast-1
 
-# === JWT & SERVER ===
-JWT_SECRET=your-super-secret-key-minimum-32-characters
+# ===================
+# SERVER CONFIG
+# ===================
 PORT=8080
 APP_ENV=production
 
-# === AI (HuggingFace) ===
-HF_TOKEN=hf_xxxxxxxx
-HF_LLM_MODEL=Qwen/Qwen2.5-72B-Instruct
+# ===================
+# HUGGING FACE (AI Features - Mode Direct)
+# ===================
+# Digunakan jika USE_LAMBDA=false (default)
+HF_TOKEN=hf_xxxxxxxxxxxxxxxxxxxxxxxx
 HF_OCR_MODEL=naver-clova-ix/donut-base-finetuned-cord-v2
+HF_LLM_MODEL=mistralai/Mistral-7B-Instruct-v0.2
+
+# ===================
+# AWS LAMBDA (AI Features - Mode Lambda)
+# ===================
+# Set USE_LAMBDA=true untuk menggunakan Lambda
+# Lambda lebih scalable, tapi perlu deploy ai-service dulu
+USE_LAMBDA=false
+
+# Lambda function name (setelah deploy dengan serverless)
+LAMBDA_FUNCTION_NAME=finlapor-ai-service
+
+# AWS credentials untuk invoke Lambda
+# Buat IAM user dengan policy: AWSLambda_FullAccess
+AWS_REGION=ap-southeast-1
+AWS_ACCESS_KEY_ID=AKIAXXXXXXXXXXXXXXXXXX
+AWS_SECRET_ACCESS_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+# ===================
+# FRONTEND URL (CORS)
+# ===================
+FRONTEND_URL=https://finlapor.airi.click
+
 ```
 
 Simpan dengan `Ctrl+X`, `Y`, `Enter`.
