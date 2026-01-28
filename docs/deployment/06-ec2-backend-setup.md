@@ -835,22 +835,92 @@ nano backend/.env
 
 Isi dengan format yang sama seperti [Step 3.8](#step-38-konfigurasi-environment) di atas.
 
-### Step 3B.9: Run Migrations via Bastion Tunnel
+### Step 3B.9: Run Database Migrations
 
-Karena di Private Subnet tidak bisa langsung akses RDS dari laptop:
+Ada 3 cara untuk menjalankan migrasi di Private Subnet:
+
+#### Metode 1: Via SSH Tunnel dari Laptop
 
 **Di laptop local, buat SSH tunnel:**
 ```bash
 # Buat tunnel melalui Bastion ke RDS (port 5433 local -> RDS 5432)
 ssh -i finlapor-key.pem -L 5433:finlapor-db.xxxxx.rds.amazonaws.com:5432 ubuntu@[BASTION_PUBLIC_IP]
 
-# Di terminal lain, jalankan migrations via tunnel
+# Di terminal lain, jalankan migrations via tunnel (perlu psql di laptop)
 psql -h localhost -p 5433 -U postgres -d finlapor -f database/migrations/001_initial.sql
 psql -h localhost -p 5433 -U postgres -d finlapor -f database/migrations/002_multi_category.sql
 psql -h localhost -p 5433 -U postgres -d finlapor -f database/migrations/003_add_user_age.sql
 ```
 
-Atau jalankan langsung dari EC2 Backend jika sudah ada PostgreSQL client.
+#### Metode 2: Menggunakan Docker (Recommended untuk Private Subnet)
+
+Jika `psql` tidak terinstall di EC2 dan tidak bisa `apt install` (karena private subnet), gunakan Docker:
+
+```bash
+# SSH ke Backend
+ssh finlapor-backend
+
+# Pindah ke folder migrations
+cd ~/finlapor/database/migrations
+
+# Set DATABASE_URL (ganti dengan nilai sebenarnya)
+export DATABASE_URL="postgres://postgres:YOUR_PASSWORD@finlapor-db.xxxxx.rds.amazonaws.com:5432/finlapor?sslmode=require"
+
+# Jalankan migrasi menggunakan Docker postgres image
+# Pastikan postgres:15-alpine sudah ada (load dari docker-images.tar jika offline)
+
+# Migrasi 001_initial.sql
+docker run --rm --network host \
+  -v $(pwd):/migrations \
+  -e DATABASE_URL="$DATABASE_URL" \
+  postgres:15-alpine \
+  psql "$DATABASE_URL" -f /migrations/001_initial.sql
+
+# Migrasi 002_multi_category.sql
+docker run --rm --network host \
+  -v $(pwd):/migrations \
+  -e DATABASE_URL="$DATABASE_URL" \
+  postgres:15-alpine \
+  psql "$DATABASE_URL" -f /migrations/002_multi_category.sql
+
+# Migrasi 003_add_user_age.sql
+docker run --rm --network host \
+  -v $(pwd):/migrations \
+  -e DATABASE_URL="$DATABASE_URL" \
+  postgres:15-alpine \
+  psql "$DATABASE_URL" -f /migrations/003_add_user_age.sql
+
+# Verifikasi tabel
+docker run --rm --network host \
+  postgres:15-alpine \
+  psql "$DATABASE_URL" -c "\dt"
+```
+
+> **📝 Tips:** Jika postgres image belum ada, download di Bastion lalu transfer:
+> ```bash
+> # Di Bastion
+> docker pull postgres:15-alpine
+> docker save postgres:15-alpine -o postgres-alpine.tar
+> scp -i ~/.ssh/finlapor-key.pem postgres-alpine.tar ubuntu@[BACKEND_IP]:/home/ubuntu/
+> 
+> # Di Backend
+> docker load -i postgres-alpine.tar
+> ```
+
+#### Metode 3: Install psql Offline
+
+Transfer PostgreSQL client dari Bastion:
+
+```bash
+# Di Bastion (punya internet)
+mkdir -p ~/psql-debs && cd ~/psql-debs
+sudo apt-get download postgresql-client-16 postgresql-client-common libpq5
+scp -i ~/.ssh/finlapor-key.pem ~/psql-debs/*.deb ubuntu@[BACKEND_IP]:/home/ubuntu/
+
+# Di Backend
+cd ~ && sudo dpkg -i *.deb
+psql "$DATABASE_URL" -f ~/finlapor/database/migrations/001_initial.sql
+```
 
 ---
 
