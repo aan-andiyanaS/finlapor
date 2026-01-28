@@ -330,6 +330,216 @@ HF_OCR_MODEL=naver-clova-ix/donut-base-finetuned-cord-v2
 
 Simpan dengan `Ctrl+X`, `Y`, `Enter`.
 
+---
+
+### 📍 Cara Mendapatkan Setiap Environment Variable
+
+#### 1. DATABASE_URL (AWS RDS)
+
+**Format:** `postgres://USER:PASSWORD@ENDPOINT:PORT/DATABASE?sslmode=require`
+
+**Langkah mendapatkan:**
+1. AWS Console → **RDS** → **Databases**
+2. Klik database `finlapor-db`
+3. Tab **Connectivity & security**
+4. Copy **Endpoint**: `finlapor-db.xxxxxxxx.ap-southeast-1.rds.amazonaws.com`
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  RDS Console → finlapor-db                                      │
+├─────────────────────────────────────────────────────────────────┤
+│  Endpoint: finlapor-db.xxxxxxxx.ap-southeast-1.rds.amazonaws.com│
+│  Port: 5432                                                     │
+│  Master username: postgres                                      │
+│  Database name: finlapor                                        │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Contoh hasil:**
+```
+DATABASE_URL=postgres://postgres:MySecurePass123@finlapor-db.abc123xyz.ap-southeast-1.rds.amazonaws.com:5432/finlapor?sslmode=require
+```
+
+---
+
+#### 2. S3 Variables (AWS S3 + IAM)
+
+**S3_ENDPOINT:**
+- Format: `https://s3.[REGION].amazonaws.com`
+- Singapore: `https://s3.ap-southeast-1.amazonaws.com`
+
+**S3_BUCKET:**
+1. AWS Console → **S3** → **Buckets**
+2. Copy nama bucket: `finlapor-storage-abc123`
+
+**S3_REGION:**
+- Lihat di S3 Console → kolom **AWS Region**
+- Singapore: `ap-southeast-1`
+
+**S3_ACCESS_KEY & S3_SECRET_KEY:**
+1. AWS Console → **IAM** → **Users**
+2. Klik user `finlapor-s3-user`
+3. Tab **Security credentials**
+4. **Access keys** → **Create access key**
+5. Pilih **Application running outside AWS**
+6. ⚠️ **SIMPAN KEDUA KEY!** (Secret hanya ditampilkan sekali)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  IAM → Users → finlapor-s3-user → Security credentials          │
+├─────────────────────────────────────────────────────────────────┤
+│  Access key ID:     AKIAIOSFODNN7EXAMPLE                        │
+│  Secret access key: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY    │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Contoh hasil:**
+```
+S3_ENDPOINT=https://s3.ap-southeast-1.amazonaws.com
+S3_ACCESS_KEY=AKIAIOSFODNN7EXAMPLE
+S3_SECRET_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+S3_BUCKET=finlapor-storage-abc123
+S3_REGION=ap-southeast-1
+```
+
+---
+
+#### 3. JWT_SECRET (Generate Sendiri)
+
+**Cara generate secure random string:**
+
+**Opsi 1: Online Generator**
+- [https://randomkeygen.com/](https://randomkeygen.com/) → pilih "256-bit WEP Key"
+
+**Opsi 2: Command Line (Linux/macOS)**
+```bash
+openssl rand -base64 32
+# Output: xK7Yz9Qa2Ws4Ed5Rf6Tg7Hy8Ui9Op0Lk1Mj2Nb3Vc=
+```
+
+**Opsi 3: Command Line (Windows PowerShell)**
+```powershell
+[Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
+```
+
+> ⚠️ **PENTING:** 
+> - Minimal 32 karakter
+> - Jangan gunakan contoh di atas! Generate sendiri
+> - Simpan dengan aman, jangan share ke siapapun
+
+**Contoh hasil:**
+```
+JWT_SECRET=xK7Yz9Qa2Ws4Ed5Rf6Tg7Hy8Ui9Op0Lk1Mj2Nb3Vc4Xd5Ae6Bf7Cg8Dh9
+```
+
+---
+
+#### 4. HF_TOKEN (HuggingFace)
+
+**Langkah mendapatkan:**
+1. Buka [https://huggingface.co/](https://huggingface.co/)
+2. Login / Daftar
+3. Klik **Profile** (kanan atas) → **Settings**
+4. Menu kiri: **Access Tokens**
+5. Klik **New token**
+6. Name: `finlapor-production`
+7. Role: **Read** (cukup untuk inference)
+8. Klik **Generate a token**
+9. Copy token yang dimulai dengan `hf_...`
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  HuggingFace → Settings → Access Tokens                         │
+├─────────────────────────────────────────────────────────────────┤
+│  Token name: finlapor-production                                 │
+│  Token:      hf_AbCdEfGhIjKlMnOpQrStUvWxYz1234567890            │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Contoh hasil:**
+```
+HF_TOKEN=hf_AbCdEfGhIjKlMnOpQrStUvWxYz1234567890
+```
+
+---
+
+#### 5. HF_LLM_MODEL & HF_OCR_MODEL (HuggingFace Models)
+
+**Model yang Direkomendasikan:**
+
+| Variable | Model | Fungsi | Free Tier? |
+|----------|-------|--------|------------|
+| `HF_LLM_MODEL` | `Qwen/Qwen2.5-72B-Instruct` | Chatbot AI | ✅ Ya |
+| `HF_OCR_MODEL` | `naver-clova-ix/donut-base-finetuned-cord-v2` | OCR Struk | ✅ Ya |
+
+**Alternatif LLM Models (jika ada masalah):**
+- `mistralai/Mistral-7B-Instruct-v0.2` - Lebih ringan
+- `meta-llama/Llama-2-7b-chat-hf` - Perlu request access
+
+**Cara menemukan model:**
+1. Buka [https://huggingface.co/models](https://huggingface.co/models)
+2. Filter: **Text Generation** atau **Image-to-Text**
+3. Copy nama model (format: `organization/model-name`)
+
+**Contoh hasil:**
+```
+HF_LLM_MODEL=Qwen/Qwen2.5-72B-Instruct
+HF_OCR_MODEL=naver-clova-ix/donut-base-finetuned-cord-v2
+```
+
+---
+
+#### 6. REDIS_URL
+
+**Opsi A: Docker Redis (Local di EC2)**
+```
+REDIS_URL=redis://localhost:6379
+```
+
+**Opsi B: AWS ElastiCache (Managed)**
+1. AWS Console → **ElastiCache** → **Redis clusters**
+2. Klik cluster → **Cluster details**
+3. Copy **Primary endpoint**
+
+```
+REDIS_URL=redis://finlapor-cache.xxxxxx.cache.amazonaws.com:6379
+```
+
+---
+
+#### 7. PORT & APP_ENV
+
+Ini sudah fixed, tidak perlu cari di AWS:
+
+```
+PORT=8080
+APP_ENV=production
+```
+
+---
+
+### ✅ Checklist Environment Variables
+
+Sebelum lanjut, pastikan Anda sudah punya semua ini:
+
+| Variable | Source | Status |
+|----------|--------|--------|
+| `DATABASE_URL` | RDS Console → Endpoint | [ ] |
+| `S3_ENDPOINT` | `https://s3.[region].amazonaws.com` | [ ] |
+| `S3_ACCESS_KEY` | IAM → Users → Access keys | [ ] |
+| `S3_SECRET_KEY` | IAM → Users → Access keys | [ ] |
+| `S3_BUCKET` | S3 Console → Bucket name | [ ] |
+| `S3_REGION` | S3 Console → Region | [ ] |
+| `JWT_SECRET` | Generate sendiri (min 32 char) | [ ] |
+| `HF_TOKEN` | HuggingFace → Access Tokens | [ ] |
+| `HF_LLM_MODEL` | `Qwen/Qwen2.5-72B-Instruct` | [ ] |
+| `HF_OCR_MODEL` | `naver-clova-ix/donut-base-finetuned-cord-v2` | [ ] |
+| `REDIS_URL` | `redis://localhost:6379` atau ElastiCache | [ ] |
+| `PORT` | `8080` (fixed) | [ ] |
+| `APP_ENV` | `production` (fixed) | [ ] |
+
+---
+
 ### Step 3.9: Run Database Migrations
 
 ```bash
