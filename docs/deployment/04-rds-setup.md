@@ -253,6 +253,7 @@ export DATABASE_URL="postgres://postgres:YOUR_PASSWORD@finlapor-db.xxxxxxxx.ap-s
 
 ### Step 3.4: Test Koneksi
 
+**Jika psql terinstall:**
 ```bash
 psql "$DATABASE_URL" -c "SELECT version();"
 
@@ -260,8 +261,19 @@ psql "$DATABASE_URL" -c "SELECT version();"
 # PostgreSQL 16.x on ...
 ```
 
+**Jika menggunakan Docker (Private Subnet):**
+```bash
+sudo docker run --rm --network host \
+  postgres:15-alpine \
+  psql "$DATABASE_URL" -c "SELECT version();"
+
+# Expected output:
+# PostgreSQL 16.x on x86_64-pc-linux-gnu ...
+```
+
 ### Step 3.5: Jalankan Migrations
 
+**Jika psql terinstall:**
 ```bash
 cd ~/finlapor
 
@@ -273,6 +285,29 @@ psql "$DATABASE_URL" -f database/migrations/002_multi_category.sql
 
 # Migration 3: User age field
 psql "$DATABASE_URL" -f database/migrations/003_add_user_age.sql
+```
+
+**Jika menggunakan Docker (Private Subnet):**
+```bash
+cd ~/finlapor/database/migrations
+
+# Migration 1: Initial schema
+sudo docker run --rm --network host \
+  -v $(pwd):/migrations \
+  postgres:15-alpine \
+  psql "$DATABASE_URL" -f /migrations/001_initial.sql
+
+# Migration 2: Multi-category support
+sudo docker run --rm --network host \
+  -v $(pwd):/migrations \
+  postgres:15-alpine \
+  psql "$DATABASE_URL" -f /migrations/002_multi_category.sql
+
+# Migration 3: User age field
+sudo docker run --rm --network host \
+  -v $(pwd):/migrations \
+  postgres:15-alpine \
+  psql "$DATABASE_URL" -f /migrations/003_add_user_age.sql
 ```
 
 ### Step 3.6: Verifikasi Tables
