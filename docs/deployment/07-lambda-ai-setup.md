@@ -340,7 +340,124 @@ curl -X POST https://xxxxxx.lambda-url.ap-southeast-1.on.aws/ \
 
 ---
 
-## 6. Troubleshooting
+## 6. Koneksi Lambda dari Private Subnet
+
+> **⚠️ PENTING:** Backend di **Private Subnet tidak bisa langsung** memanggil AWS Lambda karena tidak ada akses internet ke AWS API endpoints.
+
+### Masalah
+
+| Backend Location | Lambda Access | Status |
+|------------------|---------------|--------|
+| Public Subnet | ✅ Via Internet Gateway | Langsung berhasil |
+| Private Subnet | ❌ Tidak ada route ke internet | **Timeout** |
+
+### Solusi
+
+Ada 3 opsi untuk menghubungkan Backend di Private Subnet ke Lambda:
+
+---
+
+### Opsi A: VPC Endpoint untuk Lambda (Recommended)
+
+VPC Endpoint memungkinkan akses ke AWS services tanpa keluar VPC.
+
+**Biaya:** ~$7.5/bulan per endpoint
+
+**Setup:**
+1. AWS Console → **VPC** → **Endpoints** → **Create endpoint**
+2. Konfigurasi:
+   ```
+   Name: finlapor-lambda-endpoint
+   Service category: AWS services
+   Service: com.amazonaws.ap-southeast-1.lambda
+   VPC: finlapor-vpc
+   Subnets: Pilih Private Subnet
+   Security Group: finlapor-backend-private-sg (allow HTTPS 443)
+   ```
+3. **Create endpoint**
+
+**Verifikasi:**
+```bash
+# Di Backend EC2
+aws lambda invoke \
+  --function-name finlapor-ai \
+  --endpoint-url https://lambda.ap-southeast-1.amazonaws.com \
+  --payload '{"action": "health"}' \
+  response.json
+```
+
+---
+
+### Opsi B: NAT Gateway
+
+NAT Gateway memberikan akses internet ke private subnet.
+
+**Biaya:** ~$32/bulan + data transfer
+
+**Setup:**
+1. AWS Console → **VPC** → **NAT Gateways** → **Create NAT gateway**
+2. Konfigurasi:
+   ```
+   Name: finlapor-nat
+   Subnet: Public Subnet (bukan private!)
+   Connectivity: Public
+   Elastic IP: Allocate Elastic IP
+   ```
+3. **Create NAT gateway**
+
+4. Update Route Table Private Subnet:
+   ```
+   VPC → Route Tables → Private Route Table → Edit routes
+   
+   Add route:
+   Destination: 0.0.0.0/0
+   Target: NAT Gateway (finlapor-nat)
+   ```
+
+**Verifikasi:**
+```bash
+# Di Backend EC2 (private subnet)
+curl -I https://lambda.ap-southeast-1.amazonaws.com
+# Expected: HTTP/2 403 (artinya bisa reach, perlu credentials)
+```
+
+---
+
+### Opsi C: Pindahkan Backend ke Public Subnet (Budget Friendly)
+
+Untuk **demo/UAS** dengan budget terbatas, pindahkan backend ke public subnet.
+
+**Biaya:** $0 tambahan
+
+**Langkah:**
+1. Launch EC2 baru di Public Subnet, atau
+2. Modifikasi subnet association EC2 yang ada
+
+**Security yang perlu diperhatikan:**
+```
+Security Group Backend (di Public Subnet):
+- Inbound: 
+  - SSH (22) dari IP Anda saja
+  - HTTP (8080) dari CloudFlare IPs atau VPC
+- Outbound:
+  - All traffic (untuk akses Lambda, RDS, dll)
+```
+
+> **💡 Tips untuk UAS:** Opsi C adalah yang paling praktis dan hemat. Pastikan Security Group dikonfigurasi dengan benar.
+
+---
+
+### Perbandingan Opsi
+
+| Opsi | Biaya/bulan | Kompleksitas | Keamanan | Rekomendasi |
+|------|-------------|--------------|----------|-------------|
+| **A. VPC Endpoint** | ~$7.5 | Medium | ✅ Tinggi | Production |
+| **B. NAT Gateway** | ~$32+ | Medium | ✅ Tinggi | Enterprise |
+| **C. Public Subnet** | $0 | Rendah | ⚠️ Perlu SG ketat | Demo/UAS |
+
+---
+
+## 7. Troubleshooting
 
 ### Error: Task timed out
 
