@@ -1015,6 +1015,166 @@ curl http://[EC2_PUBLIC_IP]:8080/health
 
 ---
 
+## 4A. Transfer Pre-built Docker Image (Private Subnet)
+
+> **⚠️ PENTING:** Jika EC2 backend di **Private Subnet**, build Docker image akan **gagal** karena tidak ada akses internet untuk download dependencies.
+> 
+> Solusi: Build image di laptop/Bastion yang punya internet, lalu transfer ke Backend.
+
+### Arsitektur Transfer
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│  Laptop (Local) │────▶│    Bastion      │────▶│  Backend EC2    │
+│  - Build image  │ SCP │  (Public Subnet)│ SCP │ (Private Subnet)│
+│  - Save to .tar │     │  - Relay file   │     │  - Load image   │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+```
+
+### Step 4A.1: Build Docker Image di Laptop (Windows/Mac/Linux)
+
+```bash
+# Di laptop lokal dengan internet
+cd finlapor
+
+# Build backend image
+docker compose build backend
+
+# Atau dengan docker-compose.production.yml
+docker compose -f docker-compose.production.yml build backend
+
+# Verifikasi image sudah ter-build
+docker images | grep backend
+# Expected: finlapor-backend   latest   xxxxx   SIZE
+```
+
+### Step 4A.2: Save Image ke File .tar
+
+```bash
+# Save image ke file tar
+docker save finlapor-backend:latest -o backend-image.tar
+
+# Cek ukuran file
+# Windows PowerShell:
+Get-Item backend-image.tar | Select-Object Name, @{N='Size(MB)';E={[math]::Round($_.Length/1MB,2)}}
+
+# Linux/Mac:
+ls -lh backend-image.tar
+# Expected: ~50-150MB tergantung dependencies
+```
+
+### Step 4A.3: Transfer via Bastion ke Backend
+
+**Metode 1: Dua tahap (Recommended untuk file besar)**
+
+```bash
+# Step 1: Transfer dari laptop ke Bastion
+scp -i finlapor-key.pem backend-image.tar bastion:/tmp/
+
+# Step 2: SSH ke Bastion
+ssh bastion
+
+# Step 3: Transfer dari Bastion ke Backend
+scp -i ~/.ssh/finlapor-key.pem /tmp/backend-image.tar ubuntu@10.0.137.14:/home/ubuntu/
+
+# Step 4: (Optional) Hapus file di Bastion untuk hemat storage
+rm /tmp/backend-image.tar
+
+# Keluar dari Bastion
+exit
+```
+
+**Metode 2: ProxyJump satu baris (jika koneksi stabil)**
+
+```bash
+# Transfer langsung via Bastion sebagai jump host
+scp -i finlapor-key.pem -o ProxyJump=bastion backend-image.tar ubuntu@10.0.137.14:/home/ubuntu/
+```
+
+### Step 4A.4: Load Image di Backend EC2
+
+```bash
+# SSH ke Backend
+ssh finlapor-backend
+
+# Cek file sudah ada
+ls -lh ~/backend-image.tar
+
+# Load image ke Docker
+sudo docker load -i ~/backend-image.tar
+
+# Verifikasi image sudah ter-load
+sudo docker images | grep backend
+# Expected: finlapor-backend   latest   xxxxx   SIZE
+
+# (Optional) Hapus file tar untuk hemat storage
+rm ~/backend-image.tar
+```
+
+### Step 4A.5: Jalankan Backend dengan Docker Compose
+
+```bash
+cd ~/finlapor
+
+# Pastikan .env sudah dikonfigurasi (lihat Step 3.8)
+cat backend/.env
+
+# Jalankan backend dan redis
+sudo docker compose up -d backend redis
+
+# Cek status
+sudo docker compose ps
+
+# Lihat logs
+sudo docker compose logs -f backend
+```
+
+### Step 4A.6: Verifikasi
+
+```bash
+# Test health endpoint
+curl http://localhost:8080/health
+# Expected: {"status":"ok"}
+
+# Test database connection
+curl http://localhost:8080/api/health
+# Expected: {"status":"ok","database":"connected"}
+```
+
+### Troubleshooting Transfer
+
+**Error: Connection timed out saat SCP**
+```
+# Pastikan Security Group Bastion allow SSH dari IP Anda
+# Pastikan Security Group Backend allow SSH dari Bastion
+
+# Test koneksi dulu
+ssh bastion
+ssh ubuntu@10.0.137.14
+```
+
+**Error: No space left on device**
+```
+# Cek disk space
+df -h
+
+# Hapus file tidak perlu
+sudo docker system prune -a
+rm -rf ~/finlapor/*.tar
+```
+
+**Error: Image not found saat docker compose up**
+```
+# Cek nama image yang ter-load
+docker images
+
+# Pastikan nama image di docker-compose.yml matching
+# Atau build ulang dengan nama yang benar:
+docker tag OLD_NAME:latest finlapor-backend:latest
+```
+
+---
+
 ## 4B. Backend-Only Docker (RDS + S3)
 
 > **📝 Section ini untuk setup minimalis dengan AWS Managed Services.**
