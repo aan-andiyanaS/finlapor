@@ -433,12 +433,22 @@ Subnet ID: Pilih Private Subnet (contoh: subnet-xxxxxx | finlapor-private-1)
 
 **Step 4: Security Group**
 ```
-☑ Select existing security group
-Pilih: finlapor-backend-private-sg
+finlapor-lambda-enpoint-sg:
+Inbound
+┌──────────┬──────────┬───────────────────────────────┬─────────────────────┐
+│ Type     │ Port     │ Source                        │ Description         │
+├──────────┼──────────┼───────────────────────────────┼─────────────────────┤
+│ HTTP     │ 443      │ finlapor-backend-private-sg   │ Backend to Lamda    │
+│          │          │ atau                          │                     │
+│          │          │ 10.0.0.0/16                   │                     │
+└──────────┴──────────┴───────────────────────────────┴─────────────────────┘
 
-Atau buat baru dengan rules:
-- Inbound: HTTPS (443) dari 10.0.0.0/16 (VPC CIDR)
-- Outbound: All traffic
+Outbound
+┌────────────┬──────────┬────────────┬──────────────┐
+│ Type       │ Port     │ Source     │ Description  │
+├────────────┼──────────┼────────────┼──────────────┤
+│ All Trapic │ 443      │ 0.0.0.0/0  │              │
+└────────────┴──────────┴────────────┴──────────────┘
 ```
 
 **Step 5: Policy**
