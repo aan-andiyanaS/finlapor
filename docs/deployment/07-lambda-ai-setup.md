@@ -344,116 +344,340 @@ curl -X POST https://xxxxxx.lambda-url.ap-southeast-1.on.aws/ \
 
 > **⚠️ PENTING:** Backend di **Private Subnet tidak bisa langsung** memanggil AWS Lambda karena tidak ada akses internet ke AWS API endpoints.
 
-### Masalah
+### 6.1 Mengapa Timeout?
 
-| Backend Location | Lambda Access | Status |
-|------------------|---------------|--------|
-| Public Subnet | ✅ Via Internet Gateway | Langsung berhasil |
-| Private Subnet | ❌ Tidak ada route ke internet | **Timeout** |
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         AWS Cloud                               │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │                    finlapor-vpc                          │   │
+│  │                                                          │   │
+│  │  ┌──────────────────┐    ┌──────────────────────────┐   │   │
+│  │  │  Private Subnet  │    │     Public Subnet        │   │   │
+│  │  │                  │    │                          │   │   │
+│  │  │  ┌────────────┐  │    │  ┌──────────────────┐   │   │   │
+│  │  │  │  Backend   │──┼────┼──│ Internet Gateway │───┼───┼───│──► AWS Lambda API
+│  │  │  │    EC2     │  │    │  └──────────────────┘   │   │   │    (BLOCKED!)
+│  │  │  └────────────┘  │    │                          │   │   │
+│  │  │       │          │    │                          │   │   │
+│  │  │       ▼          │    │                          │   │   │
+│  │  │  ┌────────────┐  │    │                          │   │   │
+│  │  │  │    RDS     │  │    │                          │   │   │
+│  │  │  │ (Internal) │  │    │                          │   │   │
+│  │  │  └────────────┘  │    │                          │   │   │
+│  │  └──────────────────┘    └──────────────────────────┘   │   │
+│  └─────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────┘
 
-### Solusi
+❌ Private Subnet TIDAK punya route ke Internet Gateway
+   → Tidak bisa reach AWS Lambda API endpoints
+   → Hasil: Connection timeout
+```
+
+### 6.2 Solusi
 
 Ada 3 opsi untuk menghubungkan Backend di Private Subnet ke Lambda:
 
+| Opsi | Biaya/bulan | Kompleksitas | Keamanan | Rekomendasi |
+|------|-------------|--------------|----------|-------------|
+| **A. VPC Endpoint** | ~$7.5 | Medium | ✅ Tinggi | Production |
+| **B. NAT Gateway** | ~$32+ | Medium | ✅ Tinggi | Enterprise |
+| **C. Public Subnet** | $0 | Rendah | ⚠️ Perlu SG ketat | **Demo/UAS** |
+
 ---
 
-### Opsi A: VPC Endpoint untuk Lambda (Recommended)
+### Opsi A: VPC Endpoint untuk Lambda (Recommended untuk Production)
 
 VPC Endpoint memungkinkan akses ke AWS services tanpa keluar VPC.
 
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         AWS Cloud                               │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │                    finlapor-vpc                          │   │
+│  │                                                          │   │
+│  │  ┌──────────────────┐         ┌───────────────────┐     │   │
+│  │  │  Private Subnet  │         │   VPC Endpoint    │     │   │
+│  │  │                  │         │   (Lambda)        │     │   │
+│  │  │  ┌────────────┐  │         │                   │     │   │
+│  │  │  │  Backend   │──┼────────▶│ ────────────────▶ │─────┼───│──► AWS Lambda API
+│  │  │  │    EC2     │  │ Private │                   │     │   │    ✅ BERHASIL!
+│  │  │  └────────────┘  │  Link   └───────────────────┘     │   │
+│  │  └──────────────────┘                                    │   │
+│  └─────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
 **Biaya:** ~$7.5/bulan per endpoint
 
-**Setup:**
-1. AWS Console → **VPC** → **Endpoints** → **Create endpoint**
-2. Konfigurasi:
-   ```
-   Name: finlapor-lambda-endpoint
-   Service category: AWS services
-   Service: com.amazonaws.ap-southeast-1.lambda
-   VPC: finlapor-vpc
-   Subnets: Pilih Private Subnet
-   Security Group: finlapor-backend-private-sg (allow HTTPS 443)
-   ```
-3. **Create endpoint**
+#### Step-by-step Setup VPC Endpoint:
 
-**Verifikasi:**
+**Step 1: Buka VPC Console**
+```
+AWS Console → VPC → Endpoints (sidebar kiri) → Create endpoint
+```
+
+**Step 2: Konfigurasi Endpoint**
+```
+Name tag: finlapor-lambda-endpoint
+Service category: ☑ AWS services
+Services: Cari "lambda" → pilih com.amazonaws.ap-southeast-1.lambda
+VPC: finlapor-vpc (atau finlapor-vpc-secure)
+```
+
+**Step 3: Pilih Subnets**
+```
+Availability Zone: ap-southeast-1a (atau sesuai private subnet Anda)
+Subnet ID: Pilih Private Subnet (contoh: subnet-xxxxxx | finlapor-private-1)
+```
+
+**Step 4: Security Group**
+```
+☑ Select existing security group
+Pilih: finlapor-backend-private-sg
+
+Atau buat baru dengan rules:
+- Inbound: HTTPS (443) dari 10.0.0.0/16 (VPC CIDR)
+- Outbound: All traffic
+```
+
+**Step 5: Policy**
+```
+☑ Full access (untuk testing)
+```
+
+**Step 6: Create endpoint**
+
+Tunggu status berubah dari "Pending" ke "Available" (~2-5 menit)
+
+#### Verifikasi VPC Endpoint:
+
 ```bash
-# Di Backend EC2
+# SSH ke Backend EC2
+ssh finlapor-backend
+
+# Test koneksi ke Lambda via endpoint
+# Set AWS credentials dulu
+export AWS_ACCESS_KEY_ID=AKIA...
+export AWS_SECRET_ACCESS_KEY=xxxxx...
+export AWS_REGION=ap-southeast-1
+
+# Invoke Lambda
 aws lambda invoke \
   --function-name finlapor-ai \
-  --endpoint-url https://lambda.ap-southeast-1.amazonaws.com \
   --payload '{"action": "health"}' \
+  --cli-binary-format raw-in-base64-out \
   response.json
+
+cat response.json
+# Expected: {"statusCode": 200, "body": "{\"status\":\"ok\",...}"}
 ```
 
 ---
 
 ### Opsi B: NAT Gateway
 
-NAT Gateway memberikan akses internet ke private subnet.
+NAT Gateway memberikan akses internet ke private subnet untuk SEMUA traffic.
 
-**Biaya:** ~$32/bulan + data transfer
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         AWS Cloud                               │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │                    finlapor-vpc                          │   │
+│  │                                                          │   │
+│  │  ┌──────────────────┐    ┌──────────────────────────┐   │   │
+│  │  │  Private Subnet  │    │     Public Subnet        │   │   │
+│  │  │                  │    │                          │   │   │
+│  │  │  ┌────────────┐  │    │  ┌──────────────────┐   │   │   │
+│  │  │  │  Backend   │──┼───▶┼──│  NAT Gateway     │───┼───┼───│──► Internet
+│  │  │  │    EC2     │  │    │  └──────────────────┘   │   │   │    ✅ BERHASIL!
+│  │  │  └────────────┘  │    │          │              │   │   │
+│  │  └──────────────────┘    │          ▼              │   │   │
+│  │                          │  ┌──────────────────┐   │   │   │
+│  │                          │  │ Internet Gateway │   │   │   │
+│  │                          │  └──────────────────┘   │   │   │
+│  │                          └──────────────────────────┘   │   │
+│  └─────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-**Setup:**
-1. AWS Console → **VPC** → **NAT Gateways** → **Create NAT gateway**
-2. Konfigurasi:
-   ```
-   Name: finlapor-nat
-   Subnet: Public Subnet (bukan private!)
-   Connectivity: Public
-   Elastic IP: Allocate Elastic IP
-   ```
-3. **Create NAT gateway**
+**Biaya:** ~$32/bulan + $0.045/GB data transfer
 
-4. Update Route Table Private Subnet:
-   ```
-   VPC → Route Tables → Private Route Table → Edit routes
-   
-   Add route:
-   Destination: 0.0.0.0/0
-   Target: NAT Gateway (finlapor-nat)
-   ```
+#### Step-by-step Setup NAT Gateway:
 
-**Verifikasi:**
+**Step 1: Allocate Elastic IP**
+```
+AWS Console → VPC → Elastic IPs → Allocate Elastic IP address
+Network Border Group: ap-southeast-1
+Allocate
+```
+
+**Step 2: Create NAT Gateway**
+```
+AWS Console → VPC → NAT Gateways → Create NAT gateway
+
+Name: finlapor-nat
+Subnet: Pilih PUBLIC Subnet (bukan private!)
+Connectivity type: Public
+Elastic IP allocation ID: Pilih yang baru diallocate
+Create NAT gateway
+```
+
+Tunggu status "Available" (~2-5 menit)
+
+**Step 3: Update Route Table Private Subnet**
+```
+VPC → Route Tables → Pilih route table untuk Private Subnet
+Tab "Routes" → Edit routes → Add route
+
+Destination: 0.0.0.0/0
+Target: NAT Gateway → pilih finlapor-nat
+
+Save changes
+```
+
+#### Verifikasi NAT Gateway:
+
 ```bash
-# Di Backend EC2 (private subnet)
+# SSH ke Backend EC2 (private subnet)
+ssh finlapor-backend
+
+# Test akses internet
+curl -I https://www.google.com
+# Expected: HTTP/2 200
+
+# Test akses Lambda API
 curl -I https://lambda.ap-southeast-1.amazonaws.com
-# Expected: HTTP/2 403 (artinya bisa reach, perlu credentials)
+# Expected: HTTP/2 403 (forbidden karena perlu credentials, tapi artinya bisa reach)
+
+# Test invoke Lambda
+aws lambda invoke \
+  --function-name finlapor-ai \
+  --payload '{"action": "health"}' \
+  --cli-binary-format raw-in-base64-out \
+  response.json
+
+cat response.json
+# Expected: {"statusCode": 200, "body": "{\"status\":\"ok\",...}"}
 ```
 
 ---
 
-### Opsi C: Pindahkan Backend ke Public Subnet (Budget Friendly)
+### Opsi C: Pindahkan Backend ke Public Subnet (Budget Friendly - Recommended untuk UAS)
 
-Untuk **demo/UAS** dengan budget terbatas, pindahkan backend ke public subnet.
+Untuk **demo/UAS** dengan budget terbatas, deploy backend di public subnet.
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         AWS Cloud                               │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │                    finlapor-vpc                          │   │
+│  │                                                          │   │
+│  │  ┌──────────────────┐    ┌──────────────────────────┐   │   │
+│  │  │  Private Subnet  │    │     Public Subnet        │   │   │
+│  │  │                  │    │                          │   │   │
+│  │  │  ┌────────────┐  │    │  ┌────────────┐          │   │   │
+│  │  │  │    RDS     │◀─┼────┼──│  Backend   │──────────┼───┼───│──► AWS Lambda API
+│  │  │  │            │  │    │  │    EC2     │          │   │   │    ✅ BERHASIL!
+│  │  │  └────────────┘  │    │  └────────────┘          │   │   │
+│  │  └──────────────────┘    │          │               │   │   │
+│  │                          │          ▼               │   │   │
+│  │                          │  ┌──────────────────┐    │   │   │
+│  │                          │  │ Internet Gateway │    │   │   │
+│  │                          │  └──────────────────┘    │   │   │
+│  │                          └──────────────────────────┘   │   │
+│  └─────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────┘
+```
 
 **Biaya:** $0 tambahan
 
-**Langkah:**
-1. Launch EC2 baru di Public Subnet, atau
-2. Modifikasi subnet association EC2 yang ada
+#### Step-by-step: Launch Backend di Public Subnet
 
-**Security yang perlu diperhatikan:**
+**Step 1: Launch EC2 di Public Subnet**
 ```
-Security Group Backend (di Public Subnet):
-- Inbound: 
-  - SSH (22) dari IP Anda saja
-  - HTTP (8080) dari CloudFlare IPs atau VPC
-- Outbound:
-  - All traffic (untuk akses Lambda, RDS, dll)
+EC2 Console → Launch Instance
+
+Name: finlapor-backend-public
+AMI: Ubuntu 24.04 LTS
+Instance type: t2.micro (free tier) atau t3.small
+Key pair: finlapor-key
+
+Network settings:
+  VPC: finlapor-vpc
+  Subnet: Pilih PUBLIC Subnet
+  Auto-assign public IP: Enable
+  Security group: Create or select existing
 ```
 
-> **💡 Tips untuk UAS:** Opsi C adalah yang paling praktis dan hemat. Pastikan Security Group dikonfigurasi dengan benar.
+**Step 2: Security Group (PENTING!)**
+```
+Security Group: finlapor-backend-public-sg
+
+Inbound rules:
+- Type: SSH, Port: 22, Source: Your IP only (x.x.x.x/32)
+- Type: Custom TCP, Port: 8080, Source: CloudFlare IPs (103.21.244.0/22, dll)
+  ATAU Source: 0.0.0.0/0 untuk testing
+
+Outbound rules:
+- Type: All traffic, Destination: 0.0.0.0/0
+```
+
+> **⚠️ Security:** Jangan buka port 22 ke 0.0.0.0/0. Gunakan IP Anda saja atau Bastion.
+
+**Step 3: Setup Backend (sama seperti di Private Subnet)**
+```bash
+# SSH ke EC2 Public
+ssh -i finlapor-key.pem ubuntu@[PUBLIC_IP]
+
+# Clone repo
+git clone https://github.com/aan-andiyanaS/finlapor.git
+cd finlapor
+
+# Setup .env
+nano backend/.env
+# Isi environment variables...
+
+# Jalankan dengan Docker
+docker compose up -d
+```
+
+**Step 4: Update Security Group RDS**
+```
+RDS Security Group → Edit inbound rules:
+Add: PostgreSQL (5432) dari finlapor-backend-public-sg
+```
+
+#### Verifikasi:
+
+```bash
+# Di EC2 Public Subnet
+# Test akses Lambda
+curl -X POST https://YOUR_LAMBDA_URL.lambda-url.ap-southeast-1.on.aws/ \
+  -H "Content-Type: application/json" \
+  -d '{"action": "health"}'
+
+# Expected: {"statusCode": 200, "body": "{\"status\":\"ok\",...}"}
+
+# Test via Backend API
+curl http://localhost:8080/health
+# Expected: {"status": "ok", ...}
+```
 
 ---
 
-### Perbandingan Opsi
+### 6.3 Perbandingan Detail
 
-| Opsi | Biaya/bulan | Kompleksitas | Keamanan | Rekomendasi |
-|------|-------------|--------------|----------|-------------|
-| **A. VPC Endpoint** | ~$7.5 | Medium | ✅ Tinggi | Production |
-| **B. NAT Gateway** | ~$32+ | Medium | ✅ Tinggi | Enterprise |
-| **C. Public Subnet** | $0 | Rendah | ⚠️ Perlu SG ketat | Demo/UAS |
+| Aspek | VPC Endpoint | NAT Gateway | Public Subnet |
+|-------|-------------|-------------|---------------|
+| **Biaya/bulan** | ~$7.5 | ~$32+ | $0 |
+| **Setup time** | 10 menit | 15 menit | 30 menit |
+| **Keamanan** | ✅ Sangat aman | ✅ Aman | ⚠️ Perlu SG ketat |
+| **Maintenance** | Rendah | Rendah | Perlu monitoring |
+| **Scope akses** | Hanya Lambda | Semua internet | Semua internet |
+| **Best for** | Production | Enterprise | Demo/UAS |
+
+> **💡 Rekomendasi untuk UAS:** Gunakan **Opsi C (Public Subnet)** untuk menghemat biaya. Pastikan Security Group dikonfigurasi dengan benar untuk keamanan.
 
 ---
 
