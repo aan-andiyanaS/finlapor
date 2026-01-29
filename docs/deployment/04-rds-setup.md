@@ -181,6 +181,24 @@ RDS Security Group harus mengizinkan koneksi dari EC2 Backend.
 
 ## 3. Run Database Migrations
 
+> **❓ FAQ: Kenapa perlu install PostgreSQL client jika sudah pakai RDS?**
+> 
+> AWS RDS adalah **PostgreSQL Server** (tempat data disimpan). Tapi Anda tetap butuh 
+> **PostgreSQL Client** (`psql`) untuk mengirim perintah SQL ke server tersebut.
+> 
+> ```
+> ┌─────────────────────┐        ┌─────────────────────┐
+> │  EC2 Backend        │        │  AWS RDS            │
+> │                     │        │                     │
+> │  psql (client)      │───────►│  PostgreSQL Server  │
+> │  mengirim SQL       │  SQL   │  menyimpan data     │
+> └─────────────────────┘        └─────────────────────┘
+> ```
+> 
+> **Ringkasan:**
+> - **RDS** = database server (managed, tidak perlu install)
+> - **psql** = database client (perlu install untuk menjalankan migration)
+
 ### Step 3.1: SSH ke EC2 Backend
 
 **Opsi A (Public Subnet):**
@@ -195,11 +213,33 @@ ssh -J ubuntu@[BASTION_IP] ubuntu@[BACKEND_PRIVATE_IP] -i finlapor-key.pem
 
 ### Step 3.2: Install PostgreSQL Client
 
+**Ubuntu (Public Subnet - bisa akses internet):**
 ```bash
-# Amazon Linux 2023
-sudo yum install -y postgresql15
+sudo apt update && sudo apt install -y postgresql-client
+psql --version
+```
 
-# Verifikasi
+**Private Subnet (tidak bisa apt install):**
+
+Gunakan salah satu metode berikut:
+
+**Metode A: Docker postgres image (Recommended)**
+```bash
+# Jika postgres image sudah ada
+sudo docker run --rm postgres:15-alpine psql --version
+
+# Jika belum ada, download di Bastion lalu transfer (lihat Step 3B.9 di 06-ec2-backend-setup.md)
+```
+
+**Metode B: Transfer deb packages dari Bastion**
+```bash
+# Di Bastion (punya internet)
+mkdir -p ~/psql-debs && cd ~/psql-debs
+sudo apt-get download postgresql-client-16 postgresql-client-common libpq5
+scp -i ~/.ssh/finlapor-key.pem ~/psql-debs/*.deb ubuntu@[BACKEND_IP]:/home/ubuntu/
+
+# Di Backend
+cd ~ && sudo dpkg -i *.deb
 psql --version
 ```
 
