@@ -312,6 +312,7 @@ sudo docker run --rm --network host \
 
 ### Step 3.6: Verifikasi Tables
 
+**Jika psql:**
 ```bash
 psql "$DATABASE_URL" -c "\dt"
 
@@ -327,8 +328,25 @@ psql "$DATABASE_URL" -c "\dt"
 #  public | reports         | table | postgres
 ```
 
----
+**Jika menggunakan Docker (Private Subnet):**
+```bash
+sudo docker run --rm --network host \
+  postgres:15-alpine \
+  psql "$DATABASE_URL" -c "SELECT version();"
 
+# Expected output:
+#  Schema |      Name       | Type  |  Owner
+# --------+-----------------+-------+----------
+#  public | categories      | table | postgres
+#  public | transactions    | table | postgres
+#  public | users           | table | postgres
+#  public | budgets         | table | postgres
+#  public | chat_history    | table | postgres
+#  public | refresh_tokens  | table | postgres
+#  public | reports         | table | postgres
+```
+
+---
 ## 4. Setup Demo User (Opsional)
 
 Demo user memudahkan testing dan presentasi.
