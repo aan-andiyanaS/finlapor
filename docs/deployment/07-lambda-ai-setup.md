@@ -243,6 +243,56 @@ AWS_ACCESS_KEY_ID=AKIA...        # dari finlapor-admin (02-aws-account-setup.md)
 AWS_SECRET_ACCESS_KEY=xxxxx...   # dari finlapor-admin (02-aws-account-setup.md)
 ```
 
+### Step 5.2: Verifikasi Koneksi Backend ke Lambda
+
+**Metode 1: Cek log saat Backend start**
+
+Restart backend dan cek log:
+```bash
+# Restart backend
+cd ~/finlapor
+docker compose restart backend
+
+# Cek log
+docker compose logs backend | grep -i lambda
+
+# Expected output jika berhasil:
+# ✅ Lambda service initialized: finlapor-ai (region: ap-southeast-1)
+
+# Jika gagal (credentials tidak ada/salah):
+# ⚠️ AWS credentials not configured, Lambda service disabled
+```
+
+**Metode 2: Test via Backend API**
+
+Setelah backend running, test endpoint yang menggunakan Lambda:
+```bash
+# Test AI Chat (memerlukan login terlebih dahulu)
+curl -X POST http://localhost:8080/api/ai/chat \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -d '{"message": "Halo"}'
+
+# Expected response jika Lambda connected:
+# {"response": "Halo! Ada yang bisa saya bantu..."}
+
+# Jika Lambda tidak connected:
+# {"error": "lambda service not configured"}
+```
+
+**Metode 3: Test Lambda langsung via AWS CLI (di Bastion)**
+```bash
+# Di Bastion (yang punya internet)
+aws lambda invoke \
+  --function-name finlapor-ai \
+  --payload '{"action": "health"}' \
+  --cli-binary-format raw-in-base64-out \
+  response.json
+
+cat response.json
+# Expected: {"statusCode": 200, "body": "{\"status\":\"ok\",...}"}
+```
+
 ### Step 5.3: Cara Kerja (Reference)
 
 Backend menggunakan AWS SDK untuk invoke Lambda:
