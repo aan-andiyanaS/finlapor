@@ -332,7 +332,7 @@ psql "$DATABASE_URL" -c "\dt"
 ```bash
 sudo docker run --rm --network host \
   postgres:15-alpine \
-  psql "$DATABASE_URL" -c "SELECT version();"
+  psql "$DATABASE_URL" -c "\dt"
 
 # Expected output:
 #  Schema |      Name       | Type  |  Owner
