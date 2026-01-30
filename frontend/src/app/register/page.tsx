@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
@@ -72,8 +73,14 @@ export default function RegisterPage() {
             <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-blue-500 to-blue-600 p-12 flex-col justify-between">
                 <div>
                     <Link href="/" className="inline-flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
-                            <span className="text-white font-bold text-2xl">F</span>
+                        <div className="w-12 h-12 rounded-xl bg-white p-1.5 shadow-lg">
+                            <Image
+                                src="/logo.png"
+                                alt="FinLapor Logo"
+                                width={40}
+                                height={40}
+                                className="rounded-lg"
+                            />
                         </div>
                         <span className="text-2xl font-bold text-white">FinLapor</span>
                     </Link>
@@ -114,9 +121,13 @@ export default function RegisterPage() {
                     {/* Mobile Logo */}
                     <div className="lg:hidden text-center mb-8">
                         <Link href="/" className="inline-flex items-center gap-3">
-                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/25">
-                                <span className="text-white font-bold text-2xl">F</span>
-                            </div>
+                            <Image
+                                src="/logo.png"
+                                alt="FinLapor Logo"
+                                width={48}
+                                height={48}
+                                className="rounded-xl shadow-lg shadow-blue-500/25"
+                            />
                             <span className="text-2xl font-bold text-slate-900 dark:text-white">FinLapor</span>
                         </Link>
                     </div>

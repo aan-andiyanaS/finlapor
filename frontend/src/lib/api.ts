@@ -299,16 +299,25 @@ export const uploadApi = {
     },
 
     async uploadFile(file: File): Promise<string> {
-        const { upload_url, file_url } = await this.getPresignedUrl(file.name, file.type);
+        // Use direct upload to backend (works for both local and S3)
+        const formData = new FormData();
+        formData.append('file', file);
 
-        await fetch(upload_url, {
-            method: 'PUT',
-            body: file,
+        const token = localStorage.getItem('access_token');
+        const response = await fetch(`${API_URL}/api/upload`, {
+            method: 'POST',
             headers: {
-                'Content-Type': file.type,
+                'Authorization': `Bearer ${token}`,
             },
+            body: formData,
         });
 
-        return file_url;
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error?.message || 'Upload failed');
+        }
+
+        const data = await response.json();
+        return data.data.url;
     },
 };

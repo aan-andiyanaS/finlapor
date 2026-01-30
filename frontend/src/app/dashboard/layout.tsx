@@ -98,11 +98,18 @@ export default function DashboardLayout({
         return (
             <div className="min-h-screen bg-gray-50 dark:bg-slate-900 flex items-center justify-center transition-colors">
                 <div className="text-center">
-                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center mx-auto mb-4 shadow-lg">
-                        <span className="text-white font-bold text-2xl">F</span>
+                    <div className="relative w-20 h-20 mx-auto mb-6">
+                        <Image
+                            src="/logo.png"
+                            alt="FinLapor"
+                            width={80}
+                            height={80}
+                            className="animate-pulse drop-shadow-2xl"
+                            priority
+                        />
+                        <div className="absolute inset-0 bg-blue-500/20 rounded-full animate-ping"></div>
                     </div>
-                    <div className="spinner mx-auto mb-4"></div>
-                    <p className="text-slate-500 dark:text-slate-400">Memuat...</p>
+                    <p className="text-slate-500 dark:text-slate-400 font-medium">Memuat FinLapor...</p>
                 </div>
             </div>
         )

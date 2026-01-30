@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { useTheme } from 'next-themes'
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
+import ChatbotWidget from '@/components/ChatbotWidget'
 
 // Animation variants
 const fadeInUp = {
@@ -98,7 +99,7 @@ export default function Home() {
             </nav>
 
             {/* Hero Section */}
-            <section className="pt-32 pb-20 px-4 relative">
+            <section className="pt-32 pb-28 px-4 relative">
                 {/* Floating Decorative Elements */}
                 <motion.div
                     className="absolute top-20 left-10 text-6xl opacity-20"
@@ -423,11 +424,11 @@ export default function Home() {
                     </div>
 
                     {/* Trust badges */}
-                    <div className="flex flex-wrap justify-center items-center gap-8 opacity-50">
-                        <span className="text-slate-400 dark:text-slate-500 font-medium">Didukung oleh:</span>
-                        <span className="text-2xl font-bold text-slate-300 dark:text-slate-600">AWS</span>
-                        <span className="text-2xl font-bold text-slate-300 dark:text-slate-600">Cloudflare</span>
-                        <span className="text-2xl font-bold text-slate-300 dark:text-slate-600">🤗 HuggingFace</span>
+                    <div className="flex flex-wrap justify-center items-center gap-8">
+                        <span className="text-slate-500 dark:text-slate-400 font-medium">Powered by:</span>
+                        <span className="text-2xl font-bold text-slate-500 dark:text-slate-400">AWS</span>
+                        <span className="text-2xl font-bold text-slate-500 dark:text-slate-400">Cloudflare</span>
+                        <span className="text-2xl font-bold text-slate-500 dark:text-slate-400">🤗 HuggingFace</span>
                     </div>
                 </div>
             </section>
@@ -524,6 +525,9 @@ export default function Home() {
                     </div>
                 </div>
             </footer>
+
+            {/* Chatbot Widget */}
+            <ChatbotWidget />
         </main >
     )
 }

@@ -72,6 +72,7 @@ export default function ReportsPage() {
     const [exporting, setExporting] = useState(false)
     const [exportType, setExportType] = useState<'pdf' | 'excel' | null>(null)
     const [showMobileFilter, setShowMobileFilter] = useState(false)
+    const [trendChartType, setTrendChartType] = useState<'line' | 'bar'>('line')
     const chartRef = useRef<HTMLDivElement>(null)
 
     const [filters, setFilters] = useState<FilterState>({
@@ -274,13 +275,12 @@ export default function ReportsPage() {
         return Array.from(dailyMap.values())
     }, [filteredTransactions])
 
-    // Export functions - Optimized PDF with smaller file size
+    // Export functions - Bank Statement Style PDF with Pie Charts
     const exportToPDF = async () => {
         setExporting(true)
         setExportType('pdf')
 
         try {
-            const html2canvas = (await import('html2canvas')).default
             const jsPDF = (await import('jspdf')).default
 
             const pdf = new jsPDF('p', 'mm', 'a4')
@@ -288,154 +288,368 @@ export default function ReportsPage() {
             const pageHeight = pdf.internal.pageSize.getHeight()
             const margin = 12
             let yPosition = margin
+            let currentPage = 1
 
-            // Header with logo-like styling
-            pdf.setFillColor(15, 23, 42) // slate-900
-            pdf.rect(0, 0, pageWidth, 35, 'F')
+            // Colors for pie chart
+            const PIE_COLORS = [
+                [6, 182, 212],   // cyan
+                [139, 92, 246],  // purple
+                [245, 158, 11], // amber
+                [239, 68, 68],  // red
+                [16, 185, 129], // green
+                [236, 72, 153], // pink
+                [59, 130, 246], // blue
+                [132, 204, 22], // lime
+            ]
 
-            pdf.setFontSize(18)
-            pdf.setTextColor(255, 255, 255)
-            pdf.text('FinLapor', margin, 15)
-
-            pdf.setFontSize(10)
-            pdf.setTextColor(148, 163, 184) // slate-400
-            pdf.text('Laporan Keuangan', margin, 22)
-
-            pdf.setFontSize(8)
-            pdf.text(`Periode: ${new Date(filters.dateFrom).toLocaleDateString('id-ID')} - ${new Date(filters.dateTo).toLocaleDateString('id-ID')}`, margin, 28)
-
-            // Date generated on the right
-            const dateStr = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
-            pdf.setTextColor(148, 163, 184)
-            pdf.text(dateStr, pageWidth - margin - pdf.getTextWidth(dateStr), 28)
-
-            yPosition = 45
-
-            // Summary Section
-            const summaryData = summary()
-            pdf.setFillColor(30, 41, 59) // slate-800
-            pdf.roundedRect(margin, yPosition, pageWidth - margin * 2, 28, 3, 3, 'F')
-
-            pdf.setFontSize(9)
-            pdf.setTextColor(148, 163, 184)
-            const colWidth = (pageWidth - margin * 2) / 4
-
-            // Income
-            pdf.text('Pemasukan', margin + 5, yPosition + 8)
-            pdf.setFontSize(11)
-            pdf.setTextColor(34, 197, 94) // green-500
-            pdf.text(`Rp ${summaryData.totalIncome.toLocaleString('id-ID')}`, margin + 5, yPosition + 18)
-
-            // Expense
-            pdf.setFontSize(9)
-            pdf.setTextColor(148, 163, 184)
-            pdf.text('Pengeluaran', margin + colWidth + 5, yPosition + 8)
-            pdf.setFontSize(11)
-            pdf.setTextColor(239, 68, 68) // red-500
-            pdf.text(`Rp ${summaryData.totalExpense.toLocaleString('id-ID')}`, margin + colWidth + 5, yPosition + 18)
-
-            // Balance
-            pdf.setFontSize(9)
-            pdf.setTextColor(148, 163, 184)
-            pdf.text('Saldo', margin + colWidth * 2 + 5, yPosition + 8)
-            pdf.setFontSize(11)
-            pdf.setTextColor(summaryData.balance >= 0 ? 59 : 239, summaryData.balance >= 0 ? 130 : 68, summaryData.balance >= 0 ? 246 : 68)
-            pdf.text(`Rp ${summaryData.balance.toLocaleString('id-ID')}`, margin + colWidth * 2 + 5, yPosition + 18)
-
-            // Transaction Count
-            pdf.setFontSize(9)
-            pdf.setTextColor(148, 163, 184)
-            pdf.text('Transaksi', margin + colWidth * 3 + 5, yPosition + 8)
-            pdf.setFontSize(11)
-            pdf.setTextColor(168, 85, 247) // purple-500
-            pdf.text(`${summaryData.transactionCount}`, margin + colWidth * 3 + 5, yPosition + 18)
-
-            yPosition += 38
-
-            // Capture charts with lower quality for smaller file size
-            if (chartRef.current) {
-                const canvas = await html2canvas(chartRef.current, {
-                    scale: 1.2, // Lower scale for smaller file
-                    backgroundColor: '#1e293b',
-                    logging: false,
-                    useCORS: true
-                })
-
-                const imgData = canvas.toDataURL('image/jpeg', 0.7) // JPEG with 70% quality
-                const imgWidth = pageWidth - (margin * 2)
-                const imgHeight = (canvas.height * imgWidth) / canvas.width
-
-                // Check if need new page
-                if (yPosition + imgHeight > pageHeight - margin) {
-                    pdf.addPage()
-                    yPosition = margin
-                }
-
-                const maxHeight = Math.min(imgHeight, pageHeight - yPosition - margin - 10)
-                pdf.addImage(imgData, 'JPEG', margin, yPosition, imgWidth, maxHeight)
-                yPosition += maxHeight + 8
+            // Helper for adding page footer
+            const addFooter = () => {
+                pdf.setFontSize(8)
+                pdf.setTextColor(128, 128, 128)
+                pdf.text(`Halaman ${currentPage}`, margin, pageHeight - 8)
+                pdf.text(`FinLapor - ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`, pageWidth - margin - 55, pageHeight - 8)
             }
 
-            // Transaction table with better styling
-            if (yPosition > pageHeight - 60) {
+            // Helper for adding new page
+            const addNewPage = () => {
+                addFooter()
                 pdf.addPage()
+                currentPage++
                 yPosition = margin
             }
 
-            // Table header
-            pdf.setFillColor(30, 41, 59)
-            pdf.roundedRect(margin, yPosition, pageWidth - margin * 2, 8, 2, 2, 'F')
+            // Helper to draw pie chart
+            const drawPieChart = (centerX: number, centerY: number, radius: number, data: { name: string, value: number }[], title: string) => {
+                const total = data.reduce((sum, d) => sum + d.value, 0)
+                if (total === 0) return
 
-            pdf.setFontSize(8)
-            pdf.setTextColor(148, 163, 184)
-            pdf.text('No', margin + 3, yPosition + 5.5)
-            pdf.text('Tanggal', margin + 12, yPosition + 5.5)
-            pdf.text('Deskripsi', margin + 35, yPosition + 5.5)
-            pdf.text('Kategori', margin + 90, yPosition + 5.5)
-            pdf.text('Jumlah', pageWidth - margin - 30, yPosition + 5.5)
-            yPosition += 10
+                // Title
+                pdf.setFontSize(9)
+                pdf.setTextColor(30, 41, 59)
+                pdf.text(title, centerX - pdf.getTextWidth(title) / 2, centerY - radius - 8)
 
-            // Table rows
-            const maxRows = Math.min(filtered.length, 30) // Limit rows
-            filtered.slice(0, maxRows).forEach((tx, index) => {
-                if (yPosition > pageHeight - 15) {
-                    pdf.addPage()
-                    yPosition = margin
-                }
+                let startAngle = -Math.PI / 2 // Start from top
 
-                // Alternating row colors
-                if (index % 2 === 0) {
-                    pdf.setFillColor(30, 41, 59, 0.3)
-                    pdf.rect(margin, yPosition - 3, pageWidth - margin * 2, 7, 'F')
-                }
+                data.forEach((item, index) => {
+                    const sliceAngle = (item.value / total) * 2 * Math.PI
+                    const endAngle = startAngle + sliceAngle
 
-                pdf.setFontSize(7)
-                pdf.setTextColor(200, 200, 200)
-                pdf.text(`${index + 1}`, margin + 3, yPosition + 1)
-                pdf.text(new Date(tx.date).toLocaleDateString('id-ID'), margin + 12, yPosition + 1)
-                pdf.text((tx.description || '-').substring(0, 25), margin + 35, yPosition + 1)
-                pdf.text((tx.items?.[0]?.category?.name || tx.category?.name || 'Lainnya').substring(0, 15), margin + 90, yPosition + 1)
+                    // Draw pie slice using lines (simplified approach)
+                    const color = PIE_COLORS[index % PIE_COLORS.length]
+                    pdf.setFillColor(color[0], color[1], color[2])
 
-                pdf.setTextColor(tx.type === 'income' ? 34 : 239, tx.type === 'income' ? 197 : 68, tx.type === 'income' ? 94 : 68)
-                const amountText = `${tx.type === 'income' ? '+' : '-'}Rp ${(tx.total_amount || tx.amount).toLocaleString('id-ID')}`
-                pdf.text(amountText, pageWidth - margin - 3 - pdf.getTextWidth(amountText), yPosition + 1)
+                    // Create pie slice path
+                    const steps = 20
+                    const points: [number, number][] = [[centerX, centerY]]
+                    for (let i = 0; i <= steps; i++) {
+                        const angle = startAngle + (sliceAngle * i / steps)
+                        points.push([
+                            centerX + radius * Math.cos(angle),
+                            centerY + radius * Math.sin(angle)
+                        ])
+                    }
 
-                yPosition += 6
-            })
+                    // Draw polygon
+                    if (points.length > 2) {
+                        pdf.setDrawColor(255, 255, 255)
+                        pdf.setLineWidth(0.5)
 
-            if (filtered.length > maxRows) {
-                pdf.setFontSize(7)
-                pdf.setTextColor(148, 163, 184)
-                pdf.text(`... dan ${filtered.length - maxRows} transaksi lainnya`, margin + 3, yPosition + 3)
+                        // Use triangle fan approach
+                        for (let i = 1; i < points.length - 1; i++) {
+                            const triangle = [points[0], points[i], points[i + 1]]
+                            pdf.triangle(
+                                triangle[0][0], triangle[0][1],
+                                triangle[1][0], triangle[1][1],
+                                triangle[2][0], triangle[2][1],
+                                'F'
+                            )
+                        }
+                    }
+
+                    startAngle = endAngle
+                })
+
+                // Draw legend below
+                let legendY = centerY + radius + 8
+                const legendX = centerX - 30
+                data.slice(0, 5).forEach((item, index) => { // Max 5 items in legend
+                    const color = PIE_COLORS[index % PIE_COLORS.length]
+                    pdf.setFillColor(color[0], color[1], color[2])
+                    pdf.rect(legendX, legendY - 2, 4, 4, 'F')
+
+                    pdf.setFontSize(6)
+                    pdf.setTextColor(51, 65, 85)
+                    const percent = ((item.value / total) * 100).toFixed(0)
+                    const text = `${item.name.substring(0, 12)} (${percent}%)`
+                    pdf.text(text, legendX + 6, legendY + 1)
+                    legendY += 6
+                })
             }
 
-            // Footer
-            pdf.setFontSize(7)
-            pdf.setTextColor(100, 100, 100)
-            pdf.text(`Generated by FinLapor • ${new Date().toLocaleString('id-ID')}`, margin, pageHeight - 5)
+            // ===== HEADER SECTION =====
+            pdf.setFillColor(30, 41, 59)
+            pdf.rect(0, 0, pageWidth, 40, 'F')
 
-            // Save with compression
-            pdf.save(`FinLapor-Laporan-${filters.dateFrom}-${filters.dateTo}.pdf`)
+            pdf.setFontSize(22)
+            pdf.setTextColor(59, 130, 246)
+            pdf.text('F', margin, 18)
+            pdf.setFontSize(18)
+            pdf.setTextColor(255, 255, 255)
+            pdf.text('inLapor', margin + 10, 18)
+
+            pdf.setFontSize(9)
+            pdf.setTextColor(148, 163, 184)
+            pdf.text('LAPORAN MUTASI KEUANGAN', margin, 28)
+
+            // Filter info
+            const filterText = filters.type === 'all' ? 'Semua Transaksi' : filters.type === 'income' ? 'Pemasukan' : 'Pengeluaran'
+            pdf.text(`Filter: ${filterText}`, margin, 35)
+
+            // Date range on right
+            pdf.setFontSize(8)
+            const periodText = `Periode: ${new Date(filters.dateFrom).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })} - ${new Date(filters.dateTo).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}`
+            pdf.text(periodText, pageWidth - margin - pdf.getTextWidth(periodText), 18)
+
+            const printDate = `Dicetak: ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`
+            pdf.text(printDate, pageWidth - margin - pdf.getTextWidth(printDate), 26)
+
+            yPosition = 48
+
+            // ===== SUMMARY BOX =====
+            const summaryData = summary()
+            pdf.setFillColor(241, 245, 249)
+            pdf.roundedRect(margin, yPosition, pageWidth - margin * 2, 28, 2, 2, 'F')
+            pdf.setDrawColor(203, 213, 225)
+            pdf.roundedRect(margin, yPosition, pageWidth - margin * 2, 28, 2, 2, 'S')
+
+            const summaryBoxWidth = (pageWidth - margin * 2) / 4
+
+            // Responsive summary based on filter
+            if (filters.type === 'all') {
+                // Show all 4 metrics
+                pdf.setFontSize(7)
+                pdf.setTextColor(100, 116, 139)
+                pdf.text('Total Pemasukan', margin + 6, yPosition + 8)
+                pdf.setFontSize(10)
+                pdf.setTextColor(34, 197, 94)
+                pdf.text(`Rp ${summaryData.totalIncome.toLocaleString('id-ID')}`, margin + 6, yPosition + 17)
+
+                pdf.setFontSize(7)
+                pdf.setTextColor(100, 116, 139)
+                pdf.text('Total Pengeluaran', margin + summaryBoxWidth + 6, yPosition + 8)
+                pdf.setFontSize(10)
+                pdf.setTextColor(239, 68, 68)
+                pdf.text(`Rp ${summaryData.totalExpense.toLocaleString('id-ID')}`, margin + summaryBoxWidth + 6, yPosition + 17)
+
+                pdf.setFontSize(7)
+                pdf.setTextColor(100, 116, 139)
+                pdf.text('Saldo Akhir', margin + summaryBoxWidth * 2 + 6, yPosition + 8)
+                pdf.setFontSize(10)
+                pdf.setTextColor(summaryData.balance >= 0 ? 34 : 239, summaryData.balance >= 0 ? 197 : 68, summaryData.balance >= 0 ? 94 : 68)
+                pdf.text(`Rp ${summaryData.balance.toLocaleString('id-ID')}`, margin + summaryBoxWidth * 2 + 6, yPosition + 17)
+
+                pdf.setFontSize(7)
+                pdf.setTextColor(100, 116, 139)
+                pdf.text('Transaksi', margin + summaryBoxWidth * 3 + 6, yPosition + 8)
+                pdf.setFontSize(10)
+                pdf.setTextColor(59, 130, 246)
+                pdf.text(`${summaryData.transactionCount}`, margin + summaryBoxWidth * 3 + 6, yPosition + 17)
+            } else if (filters.type === 'income') {
+                pdf.setFontSize(7)
+                pdf.setTextColor(100, 116, 139)
+                pdf.text('Total Pemasukan', margin + 6, yPosition + 8)
+                pdf.setFontSize(12)
+                pdf.setTextColor(34, 197, 94)
+                pdf.text(`Rp ${summaryData.totalIncome.toLocaleString('id-ID')}`, margin + 6, yPosition + 18)
+
+                pdf.setFontSize(7)
+                pdf.setTextColor(100, 116, 139)
+                pdf.text('Jumlah Transaksi', margin + (pageWidth - margin * 2) / 2, yPosition + 8)
+                pdf.setFontSize(12)
+                pdf.setTextColor(59, 130, 246)
+                pdf.text(`${summaryData.transactionCount} transaksi`, margin + (pageWidth - margin * 2) / 2, yPosition + 18)
+            } else {
+                pdf.setFontSize(7)
+                pdf.setTextColor(100, 116, 139)
+                pdf.text('Total Pengeluaran', margin + 6, yPosition + 8)
+                pdf.setFontSize(12)
+                pdf.setTextColor(239, 68, 68)
+                pdf.text(`Rp ${summaryData.totalExpense.toLocaleString('id-ID')}`, margin + 6, yPosition + 18)
+
+                pdf.setFontSize(7)
+                pdf.setTextColor(100, 116, 139)
+                pdf.text('Jumlah Transaksi', margin + (pageWidth - margin * 2) / 2, yPosition + 8)
+                pdf.setFontSize(12)
+                pdf.setTextColor(59, 130, 246)
+                pdf.text(`${summaryData.transactionCount} transaksi`, margin + (pageWidth - margin * 2) / 2, yPosition + 18)
+            }
+
+            yPosition += 35
+
+            // ===== PIE CHARTS SECTION =====
+            const pieData = pieChartData()
+            const chartRadius = 22
+            const chartSectionHeight = 75
+
+            if (filters.type === 'all' && (pieData.incomeData.length > 0 || pieData.expenseData.length > 0)) {
+                // Show both charts side by side
+                pdf.setFontSize(10)
+                pdf.setTextColor(30, 41, 59)
+                pdf.text('DISTRIBUSI KATEGORI', margin, yPosition)
+                yPosition += 5
+
+                if (pieData.expenseData.length > 0) {
+                    drawPieChart(margin + 45, yPosition + chartRadius + 10, chartRadius, pieData.expenseData, 'Pengeluaran')
+                }
+                if (pieData.incomeData.length > 0) {
+                    drawPieChart(pageWidth - margin - 45, yPosition + chartRadius + 10, chartRadius, pieData.incomeData, 'Pemasukan')
+                }
+                yPosition += chartSectionHeight
+            } else if (filters.type === 'income' && pieData.incomeData.length > 0) {
+                pdf.setFontSize(10)
+                pdf.setTextColor(30, 41, 59)
+                pdf.text('DISTRIBUSI PEMASUKAN PER KATEGORI', margin, yPosition)
+                yPosition += 5
+                drawPieChart(pageWidth / 2, yPosition + chartRadius + 10, chartRadius + 5, pieData.incomeData, '')
+                yPosition += chartSectionHeight
+            } else if (filters.type === 'expense' && pieData.expenseData.length > 0) {
+                pdf.setFontSize(10)
+                pdf.setTextColor(30, 41, 59)
+                pdf.text('DISTRIBUSI PENGELUARAN PER KATEGORI', margin, yPosition)
+                yPosition += 5
+                drawPieChart(pageWidth / 2, yPosition + chartRadius + 10, chartRadius + 5, pieData.expenseData, '')
+                yPosition += chartSectionHeight
+            }
+
+            // ===== TRANSACTION TABLE =====
+            pdf.setFontSize(10)
+            pdf.setTextColor(30, 41, 59)
+            pdf.text('RINCIAN MUTASI', margin, yPosition)
+            yPosition += 6
+
+            // Adjusted column widths - total should be pageWidth - margin * 2 = 186mm for A4
+            const contentWidth = pageWidth - margin * 2
+            const colWidths = {
+                no: 8,
+                date: 22,
+                desc: 50,
+                category: 28,
+                debit: 26,
+                credit: 26,
+                balance: 26
+            }
+
+            // Table Header
+            pdf.setFillColor(30, 41, 59)
+            pdf.rect(margin, yPosition, contentWidth, 7, 'F')
+
+            pdf.setFontSize(6)
+            pdf.setTextColor(255, 255, 255)
+            let xPos = margin + 2
+            pdf.text('NO', xPos, yPosition + 4.5)
+            xPos += colWidths.no
+            pdf.text('TANGGAL', xPos, yPosition + 4.5)
+            xPos += colWidths.date
+            pdf.text('KETERANGAN', xPos, yPosition + 4.5)
+            xPos += colWidths.desc
+            pdf.text('KATEGORI', xPos, yPosition + 4.5)
+            xPos += colWidths.category
+            pdf.text('DEBIT (-)', xPos, yPosition + 4.5)
+            xPos += colWidths.debit
+            pdf.text('KREDIT (+)', xPos, yPosition + 4.5)
+            xPos += colWidths.credit
+            pdf.text('SALDO', xPos, yPosition + 4.5)
+
+            yPosition += 8
+
+            // Table Rows
+            let runningBalance = 0
+            const sortedTx = [...filtered].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+
+            sortedTx.forEach((tx, index) => {
+                if (yPosition > pageHeight - 20) {
+                    addNewPage()
+
+                    // Redraw table header
+                    pdf.setFillColor(30, 41, 59)
+                    pdf.rect(margin, yPosition, contentWidth, 7, 'F')
+                    pdf.setFontSize(6)
+                    pdf.setTextColor(255, 255, 255)
+                    let xPos = margin + 2
+                    pdf.text('NO', xPos, yPosition + 4.5)
+                    xPos += colWidths.no
+                    pdf.text('TANGGAL', xPos, yPosition + 4.5)
+                    xPos += colWidths.date
+                    pdf.text('KETERANGAN', xPos, yPosition + 4.5)
+                    xPos += colWidths.desc
+                    pdf.text('KATEGORI', xPos, yPosition + 4.5)
+                    xPos += colWidths.category
+                    pdf.text('DEBIT (-)', xPos, yPosition + 4.5)
+                    xPos += colWidths.debit
+                    pdf.text('KREDIT (+)', xPos, yPosition + 4.5)
+                    xPos += colWidths.credit
+                    pdf.text('SALDO', xPos, yPosition + 4.5)
+                    yPosition += 8
+                }
+
+                const amount = tx.total_amount || tx.amount
+                if (tx.type === 'income') {
+                    runningBalance += amount
+                } else {
+                    runningBalance -= amount
+                }
+
+                // Alternating row
+                if (index % 2 === 0) {
+                    pdf.setFillColor(248, 250, 252)
+                    pdf.rect(margin, yPosition - 2.5, contentWidth, 6, 'F')
+                }
+
+                pdf.setFontSize(6)
+                pdf.setTextColor(51, 65, 85)
+
+                xPos = margin + 2
+                pdf.text(`${index + 1}`, xPos, yPosition + 1)
+                xPos += colWidths.no
+
+                pdf.text(new Date(tx.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' }), xPos, yPosition + 1)
+                xPos += colWidths.date
+
+                pdf.text((tx.description || '-').substring(0, 25), xPos, yPosition + 1)
+                xPos += colWidths.desc
+
+                pdf.text((tx.items?.[0]?.category?.name || tx.category?.name || '-').substring(0, 14), xPos, yPosition + 1)
+                xPos += colWidths.category
+
+                // Debit
+                if (tx.type === 'expense') {
+                    pdf.setTextColor(239, 68, 68)
+                    pdf.text(amount.toLocaleString('id-ID'), xPos, yPosition + 1)
+                }
+                pdf.setTextColor(51, 65, 85)
+                xPos += colWidths.debit
+
+                // Credit
+                if (tx.type === 'income') {
+                    pdf.setTextColor(34, 197, 94)
+                    pdf.text(amount.toLocaleString('id-ID'), xPos, yPosition + 1)
+                }
+                pdf.setTextColor(51, 65, 85)
+                xPos += colWidths.credit
+
+                // Balance
+                pdf.setTextColor(runningBalance >= 0 ? 34 : 239, runningBalance >= 0 ? 100 : 68, runningBalance >= 0 ? 100 : 68)
+                pdf.text(runningBalance.toLocaleString('id-ID'), xPos, yPosition + 1)
+
+                yPosition += 5.5
+            })
+
+            // Bottom line
+            pdf.setDrawColor(203, 213, 225)
+            pdf.line(margin, yPosition, pageWidth - margin, yPosition)
+
+            addFooter()
+            pdf.save(`FinLapor-Mutasi-${filters.dateFrom}-${filters.dateTo}.pdf`)
         } catch (error) {
             console.error('Error exporting PDF:', error)
             alert('Gagal mengexport PDF')
@@ -835,24 +1049,62 @@ export default function ReportsPage() {
                             </div>
                         </div>
 
-                        {/* Section: Analisis Tren - Line Chart (hide when expense filter) */}
+                        {/* Section: Analisis Tren - Toggle Line/Bar Chart */}
                         {filters.type !== 'expense' && (
                             <div className="card p-6">
-                                <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">📈 Analisis Tren</h2>
-                                <p className="text-slate-500 dark:text-slate-400 text-sm mb-6">Grafik pergerakan saldo dari waktu ke waktu</p>
+                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
+                                    <div>
+                                        <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-1">📈 Analisis Tren</h2>
+                                        <p className="text-slate-500 dark:text-slate-400 text-sm">Grafik pergerakan saldo dari waktu ke waktu</p>
+                                    </div>
+                                    {/* Chart Type Toggle */}
+                                    <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1 mt-3 sm:mt-0">
+                                        <button
+                                            onClick={() => setTrendChartType('line')}
+                                            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${trendChartType === 'line'
+                                                ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                                                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                                                }`}
+                                        >
+                                            📈 Line
+                                        </button>
+                                        <button
+                                            onClick={() => setTrendChartType('bar')}
+                                            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${trendChartType === 'bar'
+                                                ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                                                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                                                }`}
+                                        >
+                                            📊 Bar
+                                        </button>
+                                    </div>
+                                </div>
 
                                 {trendChartData().length > 0 ? (
                                     <ResponsiveContainer width="100%" height={300}>
-                                        <LineChart data={trendChartData()}>
-                                            <CartesianGrid strokeDasharray="3 3" stroke="#475569" />
-                                            <XAxis dataKey="date" stroke="#94a3b8" />
-                                            <YAxis stroke="#94a3b8" tickFormatter={(value) => `${(value / 1000000).toFixed(1)}jt`} />
-                                            <Tooltip
-                                                formatter={(value: number) => [`Rp ${value.toLocaleString('id-ID')}`, 'Saldo']}
-                                                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px' }}
-                                            />
-                                            <Line type="monotone" dataKey="balance" stroke="#06b6d4" strokeWidth={2} dot={{ fill: '#06b6d4' }} />
-                                        </LineChart>
+                                        {trendChartType === 'line' ? (
+                                            <LineChart data={trendChartData()}>
+                                                <CartesianGrid strokeDasharray="3 3" stroke="#475569" />
+                                                <XAxis dataKey="date" stroke="#94a3b8" />
+                                                <YAxis stroke="#94a3b8" tickFormatter={(value) => `${(value / 1000000).toFixed(1)}jt`} />
+                                                <Tooltip
+                                                    formatter={(value: number) => [`Rp ${value.toLocaleString('id-ID')}`, 'Saldo']}
+                                                    contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px' }}
+                                                />
+                                                <Line type="monotone" dataKey="balance" stroke="#06b6d4" strokeWidth={2} dot={{ fill: '#06b6d4' }} />
+                                            </LineChart>
+                                        ) : (
+                                            <BarChart data={trendChartData()}>
+                                                <CartesianGrid strokeDasharray="3 3" stroke="#475569" />
+                                                <XAxis dataKey="date" stroke="#94a3b8" />
+                                                <YAxis stroke="#94a3b8" tickFormatter={(value) => `${(value / 1000000).toFixed(1)}jt`} />
+                                                <Tooltip
+                                                    formatter={(value: number) => [`Rp ${value.toLocaleString('id-ID')}`, 'Saldo']}
+                                                    contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px' }}
+                                                />
+                                                <Bar dataKey="balance" fill="#06b6d4" radius={[4, 4, 0, 0]} />
+                                            </BarChart>
+                                        )}
                                     </ResponsiveContainer>
                                 ) : (
                                     <div className="h-[300px] flex items-center justify-center text-slate-400">

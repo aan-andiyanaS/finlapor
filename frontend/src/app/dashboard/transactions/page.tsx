@@ -48,6 +48,24 @@ const getCategoryIcon = (name?: string): string => {
     return iconMap[name] || '📁'
 }
 
+// File type detection helpers
+const isImageFile = (url?: string): boolean => {
+    if (!url) return false
+    const ext = url.toLowerCase().split('.').pop() || ''
+    return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext)
+}
+
+const isPdfFile = (url?: string): boolean => {
+    if (!url) return false
+    return url.toLowerCase().endsWith('.pdf')
+}
+
+const isDocFile = (url?: string): boolean => {
+    if (!url) return false
+    const ext = url.toLowerCase().split('.').pop() || ''
+    return ['doc', 'docx'].includes(ext)
+}
+
 interface ItemState {
     category_id: string
     amount: string
@@ -71,6 +89,7 @@ export default function TransactionsPage() {
     const [file, setFile] = useState<File | null>(null)
     const [uploading, setUploading] = useState(false)
     const [expandedId, setExpandedId] = useState<string | null>(null)
+    const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
     const [description, setDescription] = useState('')
     const [date, setDate] = useState(new Date().toISOString().split('T')[0])
     const [items, setItems] = useState<ItemState[]>([{ category_id: '', amount: '', note: '', qty: '1' }])
@@ -488,7 +507,48 @@ export default function TransactionsPage() {
                                             {tx.receipt_url && (
                                                 <div className="mb-4">
                                                     <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Bukti:</p>
-                                                    <img src={tx.receipt_url} alt="Receipt" className="max-w-xs rounded-xl border border-slate-200 dark:border-slate-700" />
+                                                    {isPdfFile(tx.receipt_url) ? (
+                                                        <a
+                                                            href={tx.receipt_url}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="inline-flex items-center gap-2 px-4 py-2 bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400 rounded-xl hover:bg-red-200 dark:hover:bg-red-500/30 transition-colors"
+                                                        >
+                                                            📄 Lihat PDF
+                                                        </a>
+                                                    ) : isDocFile(tx.receipt_url) ? (
+                                                        <a
+                                                            href={tx.receipt_url}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 rounded-xl hover:bg-blue-200 dark:hover:bg-blue-500/30 transition-colors"
+                                                        >
+                                                            📝 Lihat Dokumen
+                                                        </a>
+                                                    ) : isImageFile(tx.receipt_url) ? (
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); setLightboxUrl(tx.receipt_url || null); }}
+                                                            className="group relative cursor-pointer"
+                                                        >
+                                                            <img
+                                                                src={tx.receipt_url}
+                                                                alt="Receipt"
+                                                                className="w-24 h-24 object-cover rounded-xl border border-slate-200 dark:border-slate-700 hover:border-purple-400 transition-colors"
+                                                            />
+                                                            <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                <span className="text-white text-2xl">🔍</span>
+                                                            </div>
+                                                        </button>
+                                                    ) : (
+                                                        <a
+                                                            href={tx.receipt_url}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-700/50 text-slate-600 dark:text-slate-400 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                                                        >
+                                                            📎 Lihat File
+                                                        </a>
+                                                    )}
                                                 </div>
                                             )}
 
@@ -642,10 +702,11 @@ export default function TransactionsPage() {
                                 <label className="block text-sm font-medium text-slate-300 mb-1.5">Bukti (Opsional)</label>
                                 <input
                                     type="file"
-                                    accept="image/*"
+                                    accept="image/*,.pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                                     onChange={(e) => setFile(e.target.files ? e.target.files[0] : null)}
                                     className="w-full text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-slate-700 file:text-white hover:file:bg-slate-600"
                                 />
+                                <p className="text-xs text-slate-500 mt-1">Format: Gambar, PDF, DOC, DOCX (maks 10MB)</p>
                             </div>
 
                             {/* Buttons */}
@@ -686,6 +747,26 @@ export default function TransactionsPage() {
                             <button onClick={confirmDelete} className="flex-1 py-3 px-4 rounded-xl bg-red-500 text-white font-medium hover:bg-red-600">Hapus</button>
                         </div>
                     </div>
+                </div>
+            )}
+            {/* Lightbox Modal for Receipt Image */}
+            {lightboxUrl && (
+                <div
+                    className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4"
+                    onClick={() => setLightboxUrl(null)}
+                >
+                    <button
+                        className="absolute top-4 right-4 text-white text-4xl hover:text-gray-300 transition-colors"
+                        onClick={() => setLightboxUrl(null)}
+                    >
+                        ✕
+                    </button>
+                    <img
+                        src={lightboxUrl}
+                        alt="Receipt Full Size"
+                        className="max-w-full max-h-[90vh] rounded-xl shadow-2xl"
+                        onClick={(e) => e.stopPropagation()}
+                    />
                 </div>
             )}
         </div>
