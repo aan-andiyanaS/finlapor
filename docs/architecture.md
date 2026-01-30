@@ -121,7 +121,151 @@ Dokumentasi lengkap arsitektur sistem FinLapor.
 | **AWS Lambda** | Serverless compute |
 | **Hugging Face** | AI model inference |
 | **Donut** | OCR for receipts |
-| **Mistral-7B** | LLM for chat & categorization |
+| **Qwen 2.5-72B** | LLM for chat & analysis |
+| **BART Zero-shot** | Auto-categorization |
+
+---
+
+## 🔄 Application Flows
+
+### User Authentication Flow
+
+```mermaid
+sequenceDiagram
+    participant U as User (Browser)
+    participant F as Frontend (Next.js)
+    participant B as Backend (Go Fiber)
+    participant DB as PostgreSQL
+    participant R as Redis
+
+    Note over U,R: Registration Flow
+    U->>F: Buka halaman Register
+    F->>B: POST /api/auth/register
+    B->>B: Hash password (bcrypt)
+    B->>DB: Insert user record
+    B->>B: Generate JWT access + refresh token
+    B->>R: Store refresh token
+    B-->>F: Return tokens + user data
+    F->>F: Store tokens in localStorage
+    F-->>U: Redirect ke Dashboard
+
+    Note over U,R: Login Flow
+    U->>F: Masukkan email/password
+    F->>B: POST /api/auth/login
+    B->>DB: Fetch user by email
+    B->>B: Verify password (bcrypt)
+    B->>B: Generate JWT tokens
+    B->>R: Store refresh token
+    B-->>F: Return tokens + user data
+    F-->>U: Redirect ke Dashboard
+
+    Note over U,R: Token Refresh Flow
+    U->>F: Access token expired
+    F->>B: POST /api/auth/refresh
+    B->>R: Validate refresh token
+    B->>B: Generate new access token
+    B-->>F: Return new access token
+    F->>F: Update stored token
+```
+
+### Transaction Management Flow
+
+```mermaid
+flowchart TB
+    A[User Input] --> B{Input Method?}
+    
+    B -->|Manual| C[Form Input]
+    C --> D[Pilih Kategori]
+    D --> E[Masukkan Amount & Description]
+    
+    B -->|Scan Struk| F[Upload Image]
+    F --> G[POST /api/ocr/scan]
+    G --> H[HuggingFace Donut OCR]
+    H --> I[Extract: vendor, date, total, items]
+    I --> J[POST /api/ai/categorize]
+    J --> K[BART Zero-shot Classification]
+    K --> L[Suggest Category]
+    L --> E
+    
+    E --> M[POST /api/transactions]
+    M --> N{Multi-category?}
+    
+    N -->|Single| O[Save to transactions table]
+    N -->|Multiple| P[Save transaction + transaction_items]
+    
+    O --> Q[(PostgreSQL)]
+    P --> Q
+    
+    Q --> R[Update Dashboard]
+    R --> S[GET /api/dashboard/summary]
+    S --> T[Display Charts & Stats]
+```
+
+### AI Service Flow
+
+```mermaid
+flowchart LR
+    subgraph Frontend
+        A[Chat Page]
+        B[Scanner Page]
+    end
+    
+    subgraph Backend["Backend (Go Fiber)"]
+        C[Chat Handler]
+        D[OCR Handler]
+        E[HuggingFace Service]
+        F[Lambda Service]
+    end
+    
+    subgraph External["External Services"]
+        G[AWS Lambda]
+        H[HuggingFace API]
+    end
+    
+    subgraph Models["AI Models"]
+        I[Donut - OCR]
+        J[Qwen 2.5-72B - Chat]
+        K[BART - Categorize]
+    end
+    
+    A --> C
+    B --> D
+    C --> E
+    D --> E
+    E --> F
+    F --> G
+    E --> H
+    G --> H
+    H --> I
+    H --> J
+    H --> K
+```
+
+### AI Chat with Age-Based Personalization
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant F as Frontend
+    participant B as Backend
+    participant HF as HuggingFace API
+
+    U->>F: Ketik pertanyaan
+    F->>B: POST /api/chat {message, user_age}
+    B->>B: Fetch user's transaction data
+    B->>B: Build personalized prompt based on age
+    
+    Note over B: Age < 25: Casual, friendly tone
+    Note over B: Age 25-45: Professional tone
+    Note over B: Age > 45: Respectful, clear tone
+    
+    B->>HF: POST /v1/chat/completions
+    HF->>HF: Qwen 2.5-72B inference
+    HF-->>B: AI response
+    B->>B: Save to chat_history
+    B-->>F: Return formatted response
+    F-->>U: Display AI reply with suggestions
+```
 
 ---
 
@@ -212,12 +356,16 @@ erDiagram
     users ||--o{ companies : owns
     users ||--o{ transactions : creates
     users ||--o{ categories : customizes
+    users ||--o{ category_groups : creates
     users ||--o{ budgets : sets
     users ||--o{ reports : generates
     users ||--o{ refresh_tokens : has
     users ||--o{ chat_history : chats
+    category_groups ||--o{ categories : contains
     categories ||--o{ transactions : categorizes
+    categories ||--o{ transaction_items : categorizes
     categories ||--o{ budgets : limits
+    transactions ||--o{ transaction_items : contains
 
     users {
         UUID id PK
@@ -239,12 +387,25 @@ erDiagram
         timestamp created_at
     }
 
-    categories {
+    category_groups {
         UUID id PK
         UUID user_id FK
         string name
         string icon
+        string color
+        int sort_order
+        timestamp created_at
+    }
+
+    categories {
+        UUID id PK
+        UUID user_id FK
+        UUID group_id FK
+        string name
+        string icon
+        string color
         string type
+        boolean is_default
         timestamp created_at
     }
 
@@ -254,11 +415,21 @@ erDiagram
         UUID category_id FK
         string type
         decimal amount
+        decimal total_amount
         text description
         date date
         text receipt_url
         timestamp created_at
         timestamp updated_at
+    }
+
+    transaction_items {
+        UUID id PK
+        UUID transaction_id FK
+        UUID category_id FK
+        decimal amount
+        text note
+        timestamp created_at
     }
 
     budgets {
@@ -267,7 +438,10 @@ erDiagram
         UUID category_id FK
         decimal amount
         string period
+        date start_date
+        date end_date
         timestamp created_at
+        timestamp updated_at
     }
 
     reports {
@@ -283,7 +457,7 @@ erDiagram
     refresh_tokens {
         UUID id PK
         UUID user_id FK
-        text token
+        text token UK
         timestamp expires_at
         timestamp created_at
     }
@@ -292,23 +466,27 @@ erDiagram
         UUID id PK
         UUID user_id FK
         text message
-        text response
+        string role
         timestamp created_at
     }
 ```
+
+> **Note:** Fitur Multi-Category Transaction memungkinkan satu transaksi dipecah ke beberapa kategori menggunakan `transaction_items`.
 
 ### Tables Overview
 
 | Table | Description | Key Relations |
 |-------|-------------|---------------|
-| `users` | User accounts | Base table |
+| `users` | User accounts with age for AI personalization | Base table |
 | `companies` | Business mode companies | → users |
-| `categories` | Transaction categories (system + custom) | → users |
+| `category_groups` | Grouping for categories | → users |
+| `categories` | Transaction categories (system + custom) | → users, → category_groups |
 | `transactions` | Income/expense records | → users, → categories |
-| `budgets` | Category spending limits | → users, → categories |
+| `transaction_items` | Multi-category split items | → transactions, → categories |
+| `budgets` | Category spending limits with date range | → users, → categories |
 | `reports` | Generated financial reports | → users |
 | `refresh_tokens` | JWT refresh tokens | → users |
-| `chat_history` | AI chat conversations | → users |
+| `chat_history` | AI chat with role (user/assistant) | → users |
 
 ### Key Relationships
 
