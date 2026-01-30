@@ -1,10 +1,24 @@
-# Docker Compose untuk Local Development
-# Mencakup: Backend + PostgreSQL + Redis (tanpa Frontend)
+# Docker Compose Full Stack - Local Development
+# Mencakup: Frontend + Backend + PostgreSQL + Redis
 # Semua service menggunakan env dari: backend/.env
-# Jalankan: docker compose up -d
-# Frontend dijalankan terpisah dengan: cd frontend && npm run dev
+# Jalankan: docker compose -f docker-compose.full.yml up -d
 
 services:
+  # Frontend (Next.js)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8080
+    depends_on:
+      - backend
+    networks:
+      - finlapor-network
+    restart: unless-stopped
+
   # Backend (Go)
   backend:
     build:

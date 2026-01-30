@@ -1,27 +1,30 @@
-version: '3.8'
+# Docker Compose untuk Production Deployment
+# Jalankan: docker compose -f docker-compose.production.yml up -d
+# Backend membaca konfigurasi dari: backend/.env.production
+# Menggunakan AWS RDS untuk PostgreSQL dan AWS S3 untuk storage
 
 services:
+  # Backend (Go) - reads from backend/.env.production
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: finlapor-backend
     ports:
       - "8080:8080"
     env_file:
-      - ./backend/.env
+      - ./backend/.env.production
     depends_on:
       - redis
     restart: always
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8080/health" ]
+      test: [ "CMD", "wget", "-q", "--spider", "http://localhost:8080/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
 
+  # Redis Cache (lokal di EC2)
   redis:
     image: redis:7-alpine
-    container_name: finlapor-redis
     ports:
       - "6379:6379"
     volumes:
