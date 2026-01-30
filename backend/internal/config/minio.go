@@ -4,16 +4,27 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
 
 func InitMinIO(cfg *Config) (*minio.Client, error) {
-	endpoint := "localhost:9000"
-	accessKeyID := "minioadmin"
-	secretAccessKey := "minioadmin"
-	useSSL := false
+	// Read from config (environment variables)
+	endpoint := cfg.S3Endpoint
+	accessKeyID := cfg.S3AccessKey
+	secretAccessKey := cfg.S3SecretKey
+	bucketName := cfg.S3Bucket
+
+	// Remove protocol prefix for MinIO client
+	endpoint = strings.TrimPrefix(endpoint, "https://")
+	endpoint = strings.TrimPrefix(endpoint, "http://")
+
+	// Determine SSL based on original endpoint
+	useSSL := strings.HasPrefix(cfg.S3Endpoint, "https://")
+
+	log.Printf("📦 Connecting to S3/MinIO: %s (SSL: %v)", endpoint, useSSL)
 
 	// Initialize MinIO client
 	minioClient, err := minio.New(endpoint, &minio.Options{
@@ -25,7 +36,6 @@ func InitMinIO(cfg *Config) (*minio.Client, error) {
 	}
 
 	// Ensure bucket exists
-	bucketName := "finlapor"
 	ctx := context.Background()
 
 	exists, err := minioClient.BucketExists(ctx, bucketName)

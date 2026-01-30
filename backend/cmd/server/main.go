@@ -10,6 +10,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/joho/godotenv"
+	"github.com/minio/minio-go/v7"
 	"github.com/yourusername/finlapor/backend/internal/config"
 	"github.com/yourusername/finlapor/backend/internal/handlers"
 	"github.com/yourusername/finlapor/backend/internal/middleware"
@@ -41,10 +42,17 @@ func main() {
 	categoryRepo := repository.NewCategoryRepository(db)
 	reportRepo := repository.NewReportRepository(db)
 
-	// Initialize MinIO client
-	minioClient, err := config.InitMinIO(cfg)
-	if err != nil {
-		log.Printf("⚠️ Failed to connect to MinIO: %v", err)
+	// Initialize S3/MinIO client (only when using S3 storage)
+	var minioClient *minio.Client
+	if cfg.StorageType == "s3" {
+		minioClient, err = config.InitMinIO(cfg)
+		if err != nil {
+			log.Printf("⚠️ Failed to connect to S3: %v", err)
+		} else {
+			log.Println("✅ Connected to S3 storage")
+		}
+	} else {
+		log.Printf("📁 Using local file storage at: %s", cfg.UploadDir)
 	}
 
 	// Initialize services
@@ -88,6 +96,12 @@ func main() {
 			"timestamp": time.Now().Format(time.RFC3339),
 		})
 	})
+
+	// Serve uploaded files (for local storage mode)
+	if cfg.StorageType == "local" {
+		app.Static("/uploads", cfg.UploadDir)
+		log.Printf("📂 Serving static files from: %s", cfg.UploadDir)
+	}
 
 	// API routes - both /api and /api/v1 for compatibility
 	api := app.Group("/api")
