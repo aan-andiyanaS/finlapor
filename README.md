@@ -148,27 +148,18 @@ cd finlapor
 > 💡 **Catatan:** Untuk development lokal, gunakan Docker. Untuk production, gunakan AWS RDS.
 
 ```bash
-# LOCAL DEVELOPMENT: Start PostgreSQL, Redis, and MinIO via Docker
-docker-compose up -d postgres redis minio
+# LOCAL DEVELOPMENT: Start Backend, PostgreSQL, dan Redis
+docker compose up -d
 
-# Run migrations (Local Docker)
-Get-Content database\migrations\001_initial.sql | docker exec -i finlapor-postgres-1 psql -U postgres -d finlapor
+# Verifikasi containers running
+docker ps
 
-# PRODUCTION: Gunakan AWS RDS endpoint di .env
-# DATABASE_URL=postgres://postgres:PASSWORD@finlapor-db.xxxxx.rds.amazonaws.com:5432/finlapor
+# Akses
+# Backend API: http://localhost:8080
+# Health Check: http://localhost:8080/health
 ```
 
-### 3. Run Backend
-
-```bash
-cd backend
-cp .env.example .env
-# Edit .env - adjust database credentials if needed
-
-go run cmd/server/main.go
-```
-
-### 4. Run Frontend
+### 3. Run Frontend
 
 ```bash
 cd frontend
@@ -176,14 +167,13 @@ npm install
 npm run dev
 ```
 
-### 5. Open App
+### 4. Open App
 
 - **Frontend**: http://localhost:3000
 - **Backend API**: http://localhost:8080
 - **API Health**: http://localhost:8080/health
-- **MinIO Console**: http://localhost:9001 (minioadmin/minioadmin)
 
-### 6. First User Registration
+### 5. First User Registration
 
 **No demo users!** Register your first account:
 
@@ -196,6 +186,7 @@ curl -X POST http://localhost:8080/api/auth/register \
 # Or via UI
 # Open http://localhost:3000 → Click "Daftar"
 ```
+
 
 ---
 

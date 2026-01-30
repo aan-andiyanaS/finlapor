@@ -8,7 +8,7 @@ Selamat datang di dokumentasi FinLapor! Pilih panduan sesuai kebutuhan Anda.
 
 | Dokumen | Untuk Siapa | Isi |
 |---------|-------------|-----|
-| [🛠️ Development](./development.md) | Developer | Setup lokal dengan Docker (PostgreSQL, Redis) |
+| [🛠️ Local Development](./local-development.md) | Developer | Setup lokal dengan Docker (PostgreSQL, Redis, Local Storage) |
 | [🚀 Getting Started](./getting-started.md) | Developer | Setup environment development lengkap |
 | [🏗️ Architecture](./architecture.md) | Developer/Architect | Diagram sistem, tech stack, database schema |
 | [📡 API Reference](./api-reference.md) | Developer | Dokumentasi lengkap semua endpoints |
@@ -22,8 +22,8 @@ Selamat datang di dokumentasi FinLapor! Pilih panduan sesuai kebutuhan Anda.
 
 ### 🆕 Mau Coba Lokal Dulu?
 
-1. **Baca [Development Guide](./development.md)** - Setup dengan Docker dalam 10 menit
-2. Clone repo, jalankan Docker, start backend & frontend
+1. **Baca [Local Development Guide](./local-development.md)** - Setup dengan Docker dalam 10 menit
+2. Clone repo, jalankan `docker compose up -d`, start frontend
 3. Akses http://localhost:3000
 
 ### Untuk Developer Baru
