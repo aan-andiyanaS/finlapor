@@ -380,6 +380,8 @@ psql "$DATABASE_URL" -c "SELECT email, name FROM users WHERE email = 'demo@finla
 
 ## 5. Troubleshooting
 
+> **📖 Lihat juga:** [Troubleshooting Guide](../troubleshooting.md) untuk panduan test koneksi RDS lengkap.
+
 ### Error: Connection refused
 
 **Gejala:**

@@ -1404,69 +1404,25 @@ journalctl -u finlapor -f
 
 ## 6. Troubleshooting
 
-### Port 8080 tidak bisa diakses
+> **📖 Panduan lengkap:** Lihat [Troubleshooting Guide](../troubleshooting.md) untuk:
+> - Test koneksi Docker, Redis, RDS, S3
+> - Health check script otomatis
+> - Full system integration test
 
-**Gejala:** `curl http://[IP]:8080` timeout
+### Quick Reference
 
-**Cek & Solusi:**
+| Masalah | Quick Fix |
+|---------|-----------|
+| Port 8080 timeout | Cek Security Group, pastikan port 8080 open |
+| Docker container crash | `docker logs finlapor-backend` untuk melihat error |
+| Redis tidak connect | `docker exec finlapor-redis redis-cli ping` |
+| SSH timeout ke Private | Gunakan ProxyJump via Bastion |
+| Docker pull timeout | Transfer images via Bastion (Step 3.3) |
 
-| Cek | Command | Solusi |
-|-----|---------|--------|
-| Service running? | `docker ps` atau `systemctl status finlapor` | Start service |
-| Port listening? | `netstat -tlnp \| grep 8080` | Pastikan bind ke 0.0.0.0 |
-| Security Group? | AWS Console | Buka port 8080 |
-| Firewall lokal? | `sudo iptables -L` | Allow port 8080 |
-
-### Docker build gagal
-
-**Gejala:** Build error saat `docker-compose up`
-
-**Solusi:**
-```bash
-# Lihat error detail
-docker-compose -f docker-compose.production.yml build --no-cache
-
-# Cek Dockerfile
-cat backend/Dockerfile
-
-# Pastikan multi-stage build benar
-```
-
-### Backend crash loop
-
-**Gejala:** Container restart terus
-
-**Debug:**
-```bash
-# Lihat logs
-docker logs finlapor-backend
-
-# Common errors:
-# - DATABASE_URL wrong: Cek connection string
-# - Redis connection refused: Pastikan redis container running
-# - Port already in use: `sudo lsof -i :8080`
-```
-
-### SSH timeout ke Private Subnet
-
-**Gejala:** SSH ke backend private IP timeout
-
-**Penyebab:** Tidak bisa SSH langsung ke private subnet
-
-**Solusi:** Gunakan Bastion Jump:
-```bash
-ssh -J ubuntu@[BASTION_IP] ubuntu@[BACKEND_PRIVATE_IP] -i finlapor-key.pem
-```
-
-### Tidak bisa docker pull (Private Subnet)
-
-**Gejala:** `docker pull` timeout
-
-**Penyebab:** Private Subnet tidak punya internet
-
-**Solusi:** Transfer via Bastion (lihat Step 3.3)
+**Lihat detail lengkap di → [troubleshooting.md](../troubleshooting.md)**
 
 ---
+
 
 ## ✅ Checklist
 

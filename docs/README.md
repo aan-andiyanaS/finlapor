@@ -14,6 +14,7 @@ Selamat datang di dokumentasi FinLapor! Pilih panduan sesuai kebutuhan Anda.
 | [📡 API Reference](./api-reference.md) | Developer | Dokumentasi lengkap semua endpoints |
 | [☁️ Deployment](./deployment.md) | DevOps/Developer | Deploy ke AWS & CloudFlare step-by-step |
 | [🔄 CI/CD](./cicd.md) | DevOps | Pipeline GitHub Actions |
+| [🔧 Troubleshooting](./troubleshooting.md) | Developer/DevOps | Panduan mengatasi masalah umum |
 | [📱 User Manual](./user-manual.md) | End User | Cara menggunakan aplikasi |
 
 ---
@@ -37,6 +38,11 @@ Selamat datang di dokumentasi FinLapor! Pilih panduan sesuai kebutuhan Anda.
 1. Ikuti [Deployment](./deployment.md) section by section:
    - **Opsi A**: Public Subnet (Sederhana, ~$25/bulan)
    - **Opsi B**: Private Subnet + API Gateway (Aman, ~$35/bulan)
+
+### Ada Masalah?
+
+1. Baca [Troubleshooting Guide](./troubleshooting.md) untuk solusi masalah umum
+2. Gunakan health check script untuk diagnosa cepat
 
 ### Untuk End User
 
@@ -80,6 +86,8 @@ Selamat datang di dokumentasi FinLapor! Pilih panduan sesuai kebutuhan Anda.
 
 ## 📞 Butuh Bantuan?
 
-- **Bug/Error**: Buat issue di [GitHub](https://github.com/aan-andiyanaS/finlapor/issues)
+- **Ada Error?**: Lihat [Troubleshooting Guide](./troubleshooting.md) terlebih dahulu
+- **Bug/Issue**: Buat issue di [GitHub](https://github.com/aan-andiyanaS/finlapor/issues)
 - **Questions**: Baca FAQ di [User Manual](./user-manual.md#faq)
 - **Contact**: support@finlapor.airi.click
+

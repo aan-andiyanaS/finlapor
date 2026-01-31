@@ -693,7 +693,10 @@ curl http://localhost:8080/health
 
 ## 7. Troubleshooting
 
+> **📖 Lihat juga:** [Troubleshooting Guide](../troubleshooting.md) untuk panduan umum test koneksi dan debugging.
+
 ### Error: Task timed out
+
 
 **Gejala:**
 ```

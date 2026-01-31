@@ -231,6 +231,8 @@ S3_REGION=ap-southeast-1
 
 ## 5. Troubleshooting
 
+> **📖 Lihat juga:** [Troubleshooting Guide](../troubleshooting.md) untuk panduan test koneksi S3 lengkap.
+
 ### Error: Access Denied
 
 **Gejala:**

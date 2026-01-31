@@ -279,4 +279,4 @@ aws cloudwatch get-metric-statistics \
 
 ## Next Step
 
-Jika ada masalah → [Troubleshooting Guide](./troubleshooting.md)
+Jika ada masalah → [Troubleshooting Guide](../troubleshooting.md)

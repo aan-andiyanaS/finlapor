@@ -344,146 +344,24 @@ Rate: 100 requests per 1 minute
 
 ## 7. Troubleshooting
 
-### Error 522: Connection Timed Out
+> **📖 Panduan lengkap:** Lihat [Troubleshooting Guide](../troubleshooting.md) untuk detail lengkap error CloudFlare.
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  Error 522                                                      │
-│  Connection timed out                                           │
-│                                                                 │
-│  CloudFlare tidak bisa terhubung ke server origin (EC2)         │
-└─────────────────────────────────────────────────────────────────┘
-```
+### Quick Reference
 
-**Penyebab & Solusi:**
+| Error | Penyebab | Quick Fix |
+|-------|----------|-----------|
+| **522** Connection Timed Out | EC2/Backend mati | Start instance, cek `docker ps` |
+| **524** Timeout Occurred | Request > 100 detik | Optimasi API lambat |
+| **521** Web Server Down | Backend reject connection | Pastikan bind ke `0.0.0.0:8080` |
+| **526** Invalid SSL | SSL mode salah | Set ke **Full** (bukan Strict) |
+| DNS tidak resolve | Nameserver belum update | Tunggu propagasi, flush DNS |
+| Pages build failed | Cek build logs | Test `npm run build` lokal |
+| CORS error | Origin tidak diizinkan | Update CORS config di backend |
 
-| Penyebab | Cara Cek | Solusi |
-|----------|----------|--------|
-| EC2 mati | AWS Console → EC2 status | Start instance |
-| Backend tidak jalan | SSH → `systemctl status finlapor` | Start service |
-| Port 8080 tertutup | Security Group | Buka port 8080 dari `0.0.0.0/0` |
-| Firewall lokal | SSH → `sudo iptables -L` | Allow port 8080 |
-| IP salah di DNS | CloudFlare DNS records | Update ke IP EC2 yang benar |
-
-**Langkah Debug:**
-```bash
-# 1. Cek EC2 bisa diakses langsung
-curl http://[EC2_PUBLIC_IP]:8080/health
-
-# 2. Jika timeout, cek dari dalam EC2
-ssh ubuntu@[EC2_IP]
-curl http://localhost:8080/health
-
-# 3. Cek service berjalan
-sudo systemctl status finlapor
-sudo docker ps
-```
+**Lihat detail lengkap di → [troubleshooting.md](../troubleshooting.md)**
 
 ---
 
-### Error 524: A Timeout Occurred
-
-**Penyebab:** Request terlalu lama (>100 detik).
-
-**Solusi:**
-1. Optimasi API yang lambat
-2. Untuk long-running task, gunakan async pattern:
-   - API return job ID segera
-   - Client polling status
-
----
-
-### Error 521: Web Server Is Down
-
-**Penyebab:** Server origin menolak koneksi CloudFlare.
-
-**Solusi:**
-1. Pastikan backend listen di `0.0.0.0:8080`, bukan `127.0.0.1:8080`
-2. Whitelist CloudFlare IP ranges di Security Group
-
-**CloudFlare IP Ranges:**
-```
-173.245.48.0/20
-103.21.244.0/22
-103.22.200.0/22
-(lihat lengkap di https://www.cloudflare.com/ips/)
-```
-
----
-
-### Error 526: Invalid SSL Certificate
-
-**Penyebab:** SSL mode "Full (Strict)" tapi server tidak punya SSL valid.
-
-**Solusi:**
-1. Turunkan ke mode **Full** (terima self-signed)
-2. Atau install Origin Certificate dari CloudFlare
-
----
-
-### DNS Not Resolving
-
-**Gejala:** `nslookup` tidak menemukan domain.
-
-**Solusi:**
-1. Pastikan nameservers sudah diupdate
-2. Tunggu propagasi (bisa sampai 24 jam)
-3. Flush DNS cache lokal:
-   ```bash
-   # Windows
-   ipconfig /flushdns
-   
-   # macOS
-   sudo dscacheutil -flushcache
-   
-   # Linux
-   sudo systemd-resolve --flush-caches
-   ```
-
----
-
-### Pages Build Failed
-
-**Gejala:** Deploy ke CloudFlare Pages gagal.
-
-**Langkah Debug:**
-1. Lihat build logs di CloudFlare Pages dashboard
-2. Common errors:
-
-| Error | Solusi |
-|-------|--------|
-| `npm ERR! missing script: build` | Pastikan `package.json` ada script `build` |
-| `ENOENT: no such file or directory` | Periksa root directory setting |
-| `Module not found` | Pastikan dependencies ada di `package.json` |
-| `next export` error | Pastikan semua pages static (tidak ada `getServerSideProps`) |
-
-**Test build lokal dulu:**
-```bash
-cd frontend
-npm install
-npm run build
-```
-
----
-
-### CORS Error di Browser
-
-**Gejala:** 
-```
-Access to fetch at 'https://api.finlapor.airi.click' from origin 
-'https://finlapor.pages.dev' has been blocked by CORS policy
-```
-
-**Solusi di Backend (Go Fiber):**
-```go
-app.Use(cors.New(cors.Config{
-    AllowOrigins: "https://finlapor.pages.dev, https://finlapor.airi.click",
-    AllowMethods: "GET,POST,PUT,DELETE,OPTIONS",
-    AllowHeaders: "Origin, Content-Type, Accept, Authorization",
-}))
-```
-
----
 
 ## Ringkasan Konfigurasi
 

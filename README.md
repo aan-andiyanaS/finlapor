@@ -238,13 +238,15 @@ finlapor/
 
 | Document | Description | Link |
 |----------|-------------|------|
-| **🛠️ Development** | Local setup with Docker | [docs/development.md](./docs/development.md) |
-| **Getting Started** | Setup development environment | [docs/getting-started.md](./docs/getting-started.md) |
-| **Architecture** | System design & diagrams | [docs/architecture.md](./docs/architecture.md) |
-| **API Reference** | Endpoint documentation | [docs/api-reference.md](./docs/api-reference.md) |
-| **Deployment Guide** | AWS deployment (2 options) | [docs/deployment.md](./docs/deployment.md) |
-| **CI/CD Pipeline** | Automated deployment | [docs/cicd.md](./docs/cicd.md) |
-| **User Manual** | End user guide | [docs/user-manual.md](./docs/user-manual.md) |
+| **🛠️ Local Development** | Local setup with Docker | [docs/local-development.md](./docs/local-development.md) |
+| **🚀 Getting Started** | Setup development environment | [docs/getting-started.md](./docs/getting-started.md) |
+| **🏗️ Architecture** | System design & diagrams | [docs/architecture.md](./docs/architecture.md) |
+| **📡 API Reference** | Endpoint documentation | [docs/api-reference.md](./docs/api-reference.md) |
+| **☁️ Deployment Guide** | AWS deployment (2 options) | [docs/deployment.md](./docs/deployment.md) |
+| **🔄 CI/CD Pipeline** | Automated deployment | [docs/cicd.md](./docs/cicd.md) |
+| **🔧 Troubleshooting** | Debugging & problem solving | [docs/troubleshooting.md](./docs/troubleshooting.md) |
+| **📱 User Manual** | End user guide | [docs/user-manual.md](./docs/user-manual.md) |
+
 
 ---
 
