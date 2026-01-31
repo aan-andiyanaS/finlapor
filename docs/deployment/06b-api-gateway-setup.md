@@ -13,15 +13,17 @@ Panduan membuat API Gateway untuk menghubungkan **CloudFlare Pages** ke **Backen
    - [Opsi A: API Gateway → Backend + Lambda](#opsi-a-api-gateway--backend--lambda)
    - [Opsi B: API Gateway → Backend saja](#opsi-b-api-gateway--backend-saja-recommended)
 3. [Perbandingan](#perbandingan)
-4. [Panduan Setup (Opsi B)](#panduan-setup-opsi-b)
-5. [Create HTTP API](#1-create-http-api)
-6. [Integrasi dengan EC2 Backend](#2-integrasi-dengan-ec2-backend)
-7. [VPC Link Setup](#3-vpc-link-setup)
-8. [Custom Domain](#4-custom-domain)
-9. [CORS Configuration](#5-cors-configuration)
-10. [Authentication](#6-authentication)
-11. [Monitoring & Logging](#7-monitoring--logging)
-12. [Troubleshooting](#8-troubleshooting)
+4. [Panduan Setup Opsi A](#panduan-setup-opsi-a-backend--lambda)
+5. [Panduan Setup Opsi B](#panduan-setup-opsi-b-backend-saja)
+6. [Create HTTP API](#1-create-http-api)
+7. [Setup NLB](#2-setup-nlb-network-load-balancer)
+8. [VPC Link Setup](#3-vpc-link-setup)
+9. [Integrasi dengan Backend](#4-integrasi-dengan-backend)
+10. [Custom Domain](#5-custom-domain)
+11. [CORS Configuration](#6-cors-configuration)
+12. [Authentication](#7-authentication)
+13. [Monitoring & Logging](#8-monitoring--logging)
+14. [Troubleshooting](#9-troubleshooting)
 
 ---
 
@@ -246,120 +248,154 @@ https://abc123xyz.execute-api.ap-southeast-1.amazonaws.com
 
 ---
 
-## 2. Integrasi dengan EC2 Backend
+## 2. Setup NLB (Network Load Balancer)
 
-### Step 2.1: Create Integration
+> **⚠️ Penting:** HTTP API VPC Link membutuhkan **ALB/NLB** atau **Cloud Map**. Tidak bisa langsung ke EC2!
 
-1. API Gateway → Pilih **finlapor-api**
-2. Sidebar: **Develop** → **Integrations**
-3. Click **Create**
+Kita akan buat **NLB** (lebih murah dari ALB, ~$6/bulan).
 
-Konfigurasi:
+### Step 2.1: Create Target Group
 
-```
-Integration type: Private resource
-Integration details:
-  - Select arn or id of existing resource
-  - Target service: VPC Link
-  
-URL: http://[EC2_PRIVATE_IP]:8080/{proxy}
-```
-
-> **⚠️ Important:** Karena EC2 di **Private Subnet**, HARUS menggunakan VPC Link!
-
-4. Click **Create**
-
-### Step 2.2: Create Route untuk Backend
-
-1. Sidebar: **Routes**
-2. Click **Create**
+1. EC2 Console → **Target Groups** (sidebar bawah)
+2. Click **Create target group**
 3. Konfigurasi:
 
 ```
-Method: ANY
-Path: /api/{proxy+}
+Target type: Instances
+Target group name: finlapor-backend-tg
+Protocol: TCP
+Port: 8080
+VPC: finlapor-vpc
+Health check protocol: HTTP
+Health check path: /api/health
 ```
 
-> **📝 `{proxy+}` adalah greedy parameter:**
-> - `/api/auth/login` → `{proxy}` = `auth/login`
-> - `/api/transactions` → `{proxy}` = `transactions`
+4. Click **Next**
+5. Register targets:
+   - Pilih EC2 backend instance
+   - Port: 8080
+   - Click **Include as pending below**
+6. Click **Create target group**
 
-4. Click **Create**
+### Step 2.2: Create NLB
 
-### Step 2.3: Attach Integration ke Route
+1. EC2 Console → **Load Balancers** → **Create Load Balancer**
+2. Pilih **Network Load Balancer** → **Create**
+3. Konfigurasi:
 
-1. Click route `/api/{proxy+}`
-2. **Attach integration** → Pilih integration yang dibuat
-3. Click **Attach integration**
+```
+Load balancer name: finlapor-nlb
+Scheme: Internal  ← PENTING! Karena di Private Subnet
+IP address type: IPv4
+
+Network mapping:
+  VPC: finlapor-vpc
+  Availability Zones: 
+    - ap-southeast-1a → Private Subnet
+    - ap-southeast-1b → Private Subnet
+```
+
+4. **Listeners and routing**:
+
+```
+Protocol: TCP
+Port: 80
+Default action: Forward to → finlapor-backend-tg
+```
+
+5. Click **Create load balancer**
+6. Tunggu status: **Active** (~2-3 menit)
+7. **Catat DNS name NLB**:
+```
+finlapor-nlb-xxxx.elb.ap-southeast-1.amazonaws.com
+```
 
 ---
 
 ## 3. VPC Link Setup
 
-VPC Link **WAJIB** untuk mengakses EC2 di Private Subnet.
-
 ### Step 3.1: Create VPC Link
 
-1. API Gateway → **VPC links** (sidebar bawah)
+1. API Gateway Console → **VPC links** (sidebar)
 2. Click **Create**
 3. Pilih **VPC link for HTTP APIs**
 4. Konfigurasi:
 
 ```
 Name: finlapor-vpc-link
-VPC: finlapor-vpc (vpc-xxxxxx)
+VPC: finlapor-vpc
 Subnets: 
-  - Private Subnet AZ-a (subnet-xxxxxx)
-  - Private Subnet AZ-b (subnet-yyyyyy)
-Security groups: finlapor-backend-sg
+  - Private Subnet AZ-a
+  - Private Subnet AZ-b
+Security groups: default atau buat baru
 ```
 
 5. Click **Create**
+6. Tunggu status: **Available** (~3-5 menit)
 
-### Step 3.2: Tunggu VPC Link Ready
+---
 
-Status harus **Available** (biasanya 3-5 menit)
+## 4. Integrasi dengan Backend
 
-### Step 3.3: Update Integration
+### Step 4.1: Create Integration
 
-1. Kembali ke **Integrations**
-2. Edit integration yang dibuat
-3. Update:
+1. API Gateway → **finlapor-api** → **Integrations**
+2. Click **Create**
+3. Konfigurasi:
 
+**Integration target:**
 ```
-Connection type: VPC Link
-VPC Link: finlapor-vpc-link
-URL: http://[EC2_PRIVATE_IP]:8080/{proxy}
-```
-
-### Step 3.4: Security Group untuk VPC Link
-
-Pastikan Security Group `finlapor-backend-sg` mengizinkan traffic dari VPC Link:
-
-```
-Inbound Rules:
-- Type: Custom TCP
-- Port: 8080
-- Source: VPC CIDR (10.0.0.0/16)
+Integration type: Private resource
 ```
 
-### Step 3.5: Test Koneksi
+**Integration details:**
+```
+Selection method: Select manually
+Target service: ALB/NLB  ← Pilih ini!
+Load balancer: finlapor-nlb
+Listener: 80 (TCP)
+```
+
+**VPC link:**
+```
+VPC link: finlapor-vpc-link
+```
+
+4. Click **Create**
+
+### Step 4.2: Create Route
+
+1. Sidebar: **Routes** → **Create**
+2. Konfigurasi:
+
+```
+Method: ANY
+Path: /api/{proxy+}
+```
+
+3. Click **Create**
+
+### Step 4.3: Attach Integration ke Route
+
+1. Click route `/api/{proxy+}`
+2. **Attach integration** → Pilih integration NLB
+3. Click **Attach integration**
+
+### Step 4.4: Test
 
 ```bash
-# Test via API Gateway
-curl https://abc123xyz.execute-api.ap-southeast-1.amazonaws.com/api/health
+curl https://[API_GATEWAY_URL]/api/health
 
-# Expected response:
+# Expected:
 {
   "status": "ok",
-  "service": "finlapor-backend",
-  "version": "1.0.0"
+  "service": "finlapor-backend"
 }
 ```
 
 ---
 
-## 4. Custom Domain
+## 5. Custom Domain
 
 ### Step 4.1: Request Certificate di ACM
 
