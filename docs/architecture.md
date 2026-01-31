@@ -6,82 +6,125 @@ Dokumentasi lengkap arsitektur sistem FinLapor.
 
 ## 📊 High-Level Architecture
 
-``````
+```mermaid
+flowchart TB
+    subgraph User["👤 USER"]
+        Browser["Browser/App"]
+    end
 
-                                     ┌─────────────────┐
-                                     │      USER       │
-                                     │  (Browser/App)  │
-                                     └────────┬────────┘
-                                              │
-                            ┌─────────────────┴─────────────────┐
-                            │                                   │
-                            ▼                                   ▼
-               ┌─────────────────────────────┐    ┌─────────────────────────────┐
-               │      CLOUDFLARE PAGES       │    │      CLOUDFLARE PROXY       │
-               │                             │    │                             │
-               │   📍 finlapor.airi.click           │    │   📍 api.finlapor.airi.click       │
-               │   Next.js Static Export     │    │   DDoS + SSL + Caching      │
-               │   FREE                      │    │   FREE                      │
-               └─────────────────────────────┘    └──────────────┬──────────────┘
-                                                                 │
-               ┌─────────────────────────────────────────────────┼──────────────┐
-               │                       AWS VPC                   │              │
-               │                                                 ▼              │
-               │                              ┌──────────────────────────────┐  │
-               │                              │   API GATEWAY (HTTP)         │  │
-               │                              │   ~$1/million requests       │  │
-               │                              └──────────────┬───────────────┘  │
-               │                                             │ VPC Link         │
-               │  ┌────────────────────┐                     │                  │
-               │  │   PUBLIC SUBNET    │                     │                  │
-               │  │                    │                     │                  │
-               │  │  ┌──────────────┐  │                     │                  │
-               │  │  │ Bastion Host │  │                     │                  │
-               │  │  │ (t3.nano)    │──┼─────SSH────┐        │                  │
-               │  │  │ ~$3.80/mo    │  │            │        │                  │
-               │  │  └──────────────┘  │            │        │                  │
-               │  │         ▲          │            │        │                  │
-               │  │       SSH          │            │        │                  │
-               │  │     (Your IP)      │            │        │                  │
-               │  └────────────────────┘            │        │                  │
-               │                                    │        │                  │
-               │  ┌─────────────────────────────────┼────────┼───────────────┐  │
-               │  │          PRIVATE SUBNET         │        │               │  │
-               │  │                                 │        ▼               │  │
-               │  │   │   Backend (Go)       │      │  ┌─────────────────┐  │  │
-               │  │   │   EC2 t3.micro       │◄─────┴─►│  AWS RDS        │  │  │
-               │  │   │   Fiber API          │         │  PostgreSQL     │  │  │
-               │  │   │   ~$8.50/month       │         │  + Redis Docker │  │  │
-               │  │   └──────────┬───────────┘         └─────────────────┘  │  │
-               │  │              │                                          │  │
-               │  │              │ VPC Endpoint ────────────────┐           │  │
-               │  │              │ (S3 Gateway - FREE)          │           │  │
-               │  └──────────────┼──────────────────────────────┼───────────┘  │
-               │                 │                              │              │
-               │                 │ AWS SDK (internal)           │              │
-               │                 ▼                              ▼              │
-               │      ┌───────────────────────┐      ┌───────────────────────┐  │
-               │      │      AWS LAMBDA       │      │        AWS S3         │  │
-               │      │   (AI Service)        │      │   (File Storage)      │  │
-               │      │   Python 3.11         │◄─────┤   ~$0.10/month        │  │
-               │      │   FREE tier           │      │                       │  │
-               │      └───────────┬───────────┘      └───────────────────────┘  │
-               │                  │                                             │
-               └──────────────────┼─────────────────────────────────────────────┘
-                                  │
-                                  ▼
-                     ┌───────────────────────────┐
-                     │    🤗 HUGGING FACE API    │
-                     │    OCR + LLM Models       │
-                     │    FREE (30k req/month)   │
-                     └───────────────────────────┘
-``````
+    subgraph CloudFlare["☁️ CLOUDFLARE"]
+        CFPages["📍 finlapor.airi.click<br/>CloudFlare Pages<br/>Next.js Static Export"]
+        CFProxy["📍 api.finlapor.airi.click<br/>CloudFlare Proxy<br/>DDoS + SSL + Caching"]
+    end
 
-**�� Architecture Highlights:**
+    subgraph AWS["🔶 AWS VPC"]
+        APIGateway["API Gateway HTTP<br/>~$1/million requests"]
+        
+        subgraph PublicSubnet["Public Subnet"]
+            Bastion["🔐 Bastion Host<br/>t3.nano ~$3.80/mo"]
+        end
+        
+        subgraph PrivateSubnet["Private Subnet"]
+            Backend["🖥️ Backend Go Fiber<br/>EC2 t3.micro ~$8.50/mo"]
+            RDS["🗄️ AWS RDS<br/>PostgreSQL + Redis"]
+        end
+        
+        Lambda["⚡ AWS Lambda<br/>AI Service Python 3.11"]
+        S3["📦 AWS S3<br/>File Storage ~$0.10/mo"]
+    end
+
+    subgraph External["🌐 External"]
+        HuggingFace["🤗 HuggingFace API<br/>OCR + LLM Models<br/>FREE 30k req/mo"]
+    end
+
+    Browser --> CFPages
+    Browser --> CFProxy
+    CFProxy --> APIGateway
+    APIGateway --> Backend
+    Bastion -.->|SSH| Backend
+    Backend <--> RDS
+    Backend --> Lambda
+    Backend -->|VPC Endpoint FREE| S3
+    Lambda --> HuggingFace
+```
+
+**🔐 Architecture Highlights:**
 - **Bastion Host**: SSH jump host in public subnet for secure access
 - **VPC Endpoint S3**: FREE gateway endpoint (saves $32/month by replacing NAT Gateway)
 - **Private Subnet**: Backend isolated from internet, only accessible via API Gateway
 - **Total Cost**: ~$13/month (EC2 $8.50 + Bastion $3.80 + API Gateway $1)
+
+---
+
+## 🔄 CI/CD Pipeline Architecture
+
+### Opsi A: Public Subnet Deployment
+
+```mermaid
+flowchart LR
+    subgraph GitHub["GitHub"]
+        Push["git push / tag v*"]
+        Actions["🔧 GitHub Actions"]
+    end
+
+    subgraph Build["Build Phase"]
+        Checkout["Checkout Code"]
+        BuildDocker["Build Docker Image"]
+        SaveTar["Save to tar.gz"]
+    end
+
+    subgraph Deploy["Deploy Phase"]
+        SSH["SSH Direct"]
+        Transfer["Transfer Image"]
+        Load["docker load"]
+        Run["docker compose up"]
+    end
+
+    subgraph AWS["AWS Public Subnet"]
+        EC2["🖥️ EC2 Backend<br/>Public IP"]
+    end
+
+    Push --> Actions
+    Actions --> Checkout --> BuildDocker --> SaveTar
+    SaveTar --> SSH --> Transfer --> Load --> Run
+    Run --> EC2
+```
+
+### Opsi B: Private Subnet Deployment (via Bastion)
+
+```mermaid
+flowchart LR
+    subgraph GitHub["GitHub"]
+        Push["git push / tag v*"]
+        Actions["🔧 GitHub Actions"]
+    end
+
+    subgraph Build["Build Phase"]
+        Checkout["Checkout Code"]
+        BuildDocker["Build Docker<br/>+ Pull Redis"]
+        SaveTar["Save all-images.tar.gz"]
+    end
+
+    subgraph Deploy["Deploy via Bastion"]
+        ProxyJump["SSH ProxyJump"]
+        Tunnel["🔐 Bastion Tunnel"]
+        Transfer["Transfer Images"]
+    end
+
+    subgraph AWS["AWS VPC"]
+        Bastion["Bastion Host<br/>Public Subnet"]
+        EC2["🖥️ EC2 Backend<br/>Private Subnet"]
+    end
+
+    Push --> Actions
+    Actions --> Checkout --> BuildDocker --> SaveTar
+    SaveTar --> ProxyJump --> Tunnel
+    Tunnel --> Bastion
+    Bastion -.->|Tunnel| EC2
+    Transfer --> EC2
+```
+
+> 📖 Detail implementasi CI/CD: [CI/CD Guide](./cicd.md)
 
 ---
 
