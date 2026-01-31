@@ -1509,7 +1509,17 @@ docker images
 
 ### 7.2 Export Image ke Tar (docker save)
 
-Untuk Opsi B (Private Subnet tanpa internet), export images dari laptop/komputer yang punya akses internet:
+Untuk Opsi B (Private Subnet tanpa internet), export images dari laptop/komputer yang punya akses internet.
+
+> **📌 Perbedaan `docker build` vs `docker pull`:**
+> 
+> | Command | Fungsi | Kapan Digunakan |
+> |---------|--------|-----------------|
+> | `docker build` | **Membuat** image dari Dockerfile + source code | Image custom (backend Anda) |
+> | `docker pull` | **Download** image dari Docker Hub | Image standar (Redis, Postgres, Nginx) |
+> 
+> - **Backend** → `docker build` karena dibuat dari source code Anda
+> - **Redis** → `docker pull` karena sudah tersedia di Docker Hub
 
 ```bash
 # Di LOCAL (laptop dengan internet)
