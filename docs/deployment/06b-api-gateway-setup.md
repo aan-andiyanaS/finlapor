@@ -137,7 +137,66 @@ flowchart TB
 
 ---
 
-## Panduan Setup (Opsi B)
+## Panduan Setup Opsi A (Backend + Lambda)
+
+Setup Opsi A **sama dengan Opsi B**, tapi dengan langkah tambahan untuk Lambda integration.
+
+### Langkah yang Sama:
+1. Create HTTP API ✅
+2. Setup VPC Link ✅
+3. Create Backend integration ✅
+4. Create route `/api/{proxy+}` ✅
+5. Custom domain ✅
+6. CORS ✅
+
+### Langkah Tambahan untuk Opsi A:
+
+#### Tambah Lambda Integration
+
+1. API Gateway → **finlapor-api** → **Integrations**
+2. Click **Create**
+3. Konfigurasi:
+
+```
+Integration type: AWS Lambda
+AWS Region: ap-southeast-1
+Lambda function: finlapor-ai
+Payload format version: 2.0
+```
+
+4. Click **Create**
+
+> **📝 Note:** API Gateway akan otomatis request permission untuk invoke Lambda.
+
+#### Tambah Route untuk AI
+
+1. Routes → **Create**
+2. Konfigurasi:
+
+```
+Method: ANY
+Path: /ai/{proxy+}
+```
+
+3. Attach integration: **finlapor-ai Lambda**
+
+#### Test Lambda Route
+
+```bash
+# Test health
+curl -X POST https://api.finlapor.airi.click/ai/health \
+  -H "Content-Type: application/json" \
+  -d '{"action": "health"}'
+
+# Test chat
+curl -X POST https://api.finlapor.airi.click/ai/chat \
+  -H "Content-Type: application/json" \
+  -d '{"action": "chat", "message": "Halo", "user_age": 25}'
+```
+
+---
+
+## Panduan Setup Opsi B (Backend saja)
 
 Panduan ini menggunakan **Opsi B** (API Gateway ke Backend saja).
 
