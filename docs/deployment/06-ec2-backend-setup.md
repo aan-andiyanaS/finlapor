@@ -12,7 +12,8 @@ Deploy Go backend API ke EC2 dengan Docker container.
 4. [Install Dependencies](#3-install-dependencies)
 5. [Deploy dengan Docker](#4-deploy-dengan-docker)
 6. [Setup Systemd Service](#5-setup-systemd-service)
-7. [Troubleshooting](#6-troubleshooting)
+7. [Docker Image Management](#7-docker-image-management)
+8. [Troubleshooting](#6-troubleshooting)
 
 ---
 
@@ -1489,6 +1490,82 @@ ssh -J ubuntu@[BASTION_IP] ubuntu@[BACKEND_PRIVATE_IP] -i finlapor-key.pem
 - [ ] .env configured
 - [ ] Docker Compose running
 - [ ] Health check: `curl http://localhost:8080/health`
+
+---
+
+## 7. Docker Image Management
+
+### 7.1 Melihat Daftar Images
+
+```bash
+# Lihat semua images
+docker images
+
+# Contoh output:
+# REPOSITORY          TAG       IMAGE ID       SIZE
+# finlapor-backend    latest    abc123def     50MB
+# redis               alpine    xyz789ghi     30MB
+```
+
+### 7.2 Menghapus Image
+
+```bash
+# Hapus image berdasarkan nama
+docker rmi finlapor-backend:latest
+
+# Hapus image berdasarkan IMAGE ID
+docker rmi abc123def
+
+# Force hapus (jika ada container yang menggunakan)
+docker rmi -f abc123def
+```
+
+> ⚠️ **Peringatan**: Anda tidak bisa menghapus image yang sedang digunakan oleh container aktif. Hentikan container terlebih dahulu:
+> ```bash
+> docker stop <container_name>
+> docker rm <container_name>
+> docker rmi <image_name>
+> ```
+
+### 7.3 Menghapus Image Tar File
+
+Jika menggunakan Opsi B (Private Subnet) dan sudah load image dari tar file:
+
+```bash
+# Hapus tar file untuk menghemat disk space
+rm ~/backend-image.tar
+
+# Cek sisa disk space
+df -h
+```
+
+### 7.4 Membersihkan Unused Images
+
+```bash
+# Hapus semua dangling images (untagged)
+docker image prune
+
+# Hapus SEMUA unused images (tidak sedang dipakai container)
+docker image prune -a
+
+# Hapus semua: images, containers, networks, cache
+docker system prune -a
+
+# Lihat penggunaan disk Docker
+docker system df
+```
+
+### 7.5 Quick Reference
+
+| Perintah | Fungsi |
+|----------|--------|
+| `docker images` | Lihat semua images |
+| `docker rmi <image>` | Hapus image |
+| `docker rmi -f <image>` | Force hapus image |
+| `docker image prune` | Hapus dangling images |
+| `docker image prune -a` | Hapus semua unused images |
+| `docker system prune -a` | Hapus semua unused resources |
+| `docker system df` | Cek penggunaan disk Docker |
 
 ---
 

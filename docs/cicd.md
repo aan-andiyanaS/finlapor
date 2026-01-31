@@ -426,6 +426,303 @@ git push origin v1.0.0
 
 ---
 
+## 🔐 CI/CD untuk Opsi B (Private Subnet via Bastion)
+
+Jika Anda menggunakan **Opsi B** dimana Backend EC2 berada di **Private Subnet** (tanpa Public IP), workflow CI/CD perlu dimodifikasi untuk melewati **Bastion Host**.
+
+### Arsitektur CI/CD Opsi B
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    CI/CD Flow - Opsi B                          │
+└─────────────────────────────────────────────────────────────────┘
+
+   GitHub Actions Runner
+         (Internet)
+              │
+              │ SSH (port 22)
+              ▼
+   ┌──────────────────────┐
+   │   Bastion Host       │  ◄── Public Subnet
+   │   (Public IP)        │      IP: 13.x.x.x
+   │                      │
+   │   • SSH Jump Host    │
+   │   • Transfer files   │
+   └──────────────────────┘
+              │
+              │ SSH (port 22) - Private Network
+              ▼
+   ┌──────────────────────┐
+   │   Backend EC2        │  ◄── Private Subnet
+   │   (No Public IP)     │      IP: 10.0.x.x
+   │                      │
+   │   • Receive deploy   │
+   │   • Run container    │
+   └──────────────────────┘
+```
+
+### Tambahan GitHub Secrets untuk Opsi B
+
+```
+BASTION_IP              # Public IP Bastion (13.x.x.x)
+BACKEND_PRIVATE_IP      # Private IP Backend (10.0.x.x)
+SSH_PRIVATE_KEY         # SSH Key (bisa akses Bastion & Backend)
+```
+
+### Modified deploy-production.yml untuk Opsi B
+
+Buat file baru atau modifikasi workflow untuk mendukung Private Subnet:
+
+```yaml
+# .github/workflows/deploy-production-private.yml
+
+name: Deploy to Production (Private Subnet)
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to deploy (e.g., v1.0.0)'
+        required: true
+        type: string
+
+jobs:
+  deploy-backend:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+      
+      - name: Build backend
+        working-directory: backend
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+            go build -ldflags="-s -w" -o main cmd/server/main.go
+          chmod +x main
+      
+      - name: Setup SSH with ProxyJump
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          BASTION_IP: ${{ secrets.BASTION_IP }}
+          BACKEND_PRIVATE_IP: ${{ secrets.BACKEND_PRIVATE_IP }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          
+          # Add both hosts to known_hosts
+          ssh-keyscan -H $BASTION_IP >> ~/.ssh/known_hosts
+          
+          # Create SSH config for ProxyJump
+          cat << EOF > ~/.ssh/config
+          Host bastion
+            HostName $BASTION_IP
+            User ubuntu
+            IdentityFile ~/.ssh/id_rsa
+            StrictHostKeyChecking no
+          
+          Host backend
+            HostName $BACKEND_PRIVATE_IP
+            User ubuntu
+            IdentityFile ~/.ssh/id_rsa
+            ProxyJump bastion
+            StrictHostKeyChecking no
+          EOF
+          
+          chmod 600 ~/.ssh/config
+      
+      - name: Backup current binary on Backend
+        run: |
+          ssh backend "cd /home/ubuntu && \
+            if [ -f main ]; then \
+              cp main main.backup-\$(date +%Y%m%d-%H%M%S); \
+            fi"
+      
+      - name: Stop service on Backend
+        run: |
+          ssh backend "sudo systemctl stop finlapor || true"
+      
+      - name: Transfer binary via Bastion
+        run: |
+          scp backend/main backend:/home/ubuntu/main
+      
+      - name: Start service on Backend
+        run: |
+          ssh backend "sudo systemctl start finlapor"
+          sleep 15
+      
+      - name: Health Check via Bastion
+        run: |
+          for i in {1..10}; do
+            RESULT=$(ssh backend "curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/health || echo 'failed'")
+            if [ "$RESULT" = "200" ]; then
+              echo "✅ Health check passed!"
+              exit 0
+            fi
+            echo "Attempt $i: $RESULT - retrying in 10s..."
+            sleep 10
+          done
+          echo "❌ Health check failed after 10 attempts"
+          exit 1
+      
+      - name: Monitor for 2 minutes
+        run: |
+          echo "Monitoring production for 2 minutes..."
+          sleep 120
+          RESULT=$(ssh backend "curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/health || echo 'failed'")
+          if [ "$RESULT" != "200" ]; then
+            echo "❌ Service became unhealthy, triggering rollback"
+            exit 1
+          fi
+          echo "✅ Production deployment stable"
+
+  rollback:
+    runs-on: ubuntu-latest
+    needs: [deploy-backend]
+    if: failure()
+    
+    steps:
+      - name: Setup SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          BASTION_IP: ${{ secrets.BASTION_IP }}
+          BACKEND_PRIVATE_IP: ${{ secrets.BACKEND_PRIVATE_IP }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          
+          cat << EOF > ~/.ssh/config
+          Host bastion
+            HostName $BASTION_IP
+            User ubuntu
+            IdentityFile ~/.ssh/id_rsa
+            StrictHostKeyChecking no
+          
+          Host backend
+            HostName $BACKEND_PRIVATE_IP
+            User ubuntu
+            IdentityFile ~/.ssh/id_rsa
+            ProxyJump bastion
+            StrictHostKeyChecking no
+          EOF
+          
+          chmod 600 ~/.ssh/config
+      
+      - name: Automatic rollback
+        run: |
+          echo "⚠️ Deployment failed, initiating automatic rollback..."
+          
+          # Get latest backup
+          BACKUP=$(ssh backend "ls -t /home/ubuntu/main.backup-* | head -1")
+          
+          # Stop service
+          ssh backend "sudo systemctl stop finlapor || true"
+          
+          # Restore backup
+          ssh backend "cd /home/ubuntu && cp $BACKUP main"
+          
+          # Start service
+          ssh backend "sudo systemctl start finlapor"
+          
+          echo "✅ Rollback completed"
+```
+
+### Deploy dengan Docker Image (Opsi B)
+
+Jika menggunakan Docker container (bukan binary), modifikasi deploy step:
+
+```yaml
+- name: Build and save Docker image
+  run: |
+    cd backend
+    docker build -t finlapor-backend:${{ github.ref_name }} .
+    docker save finlapor-backend:${{ github.ref_name }} | gzip > ../backend-image.tar.gz
+
+- name: Transfer Docker image via Bastion
+  run: |
+    scp backend-image.tar.gz backend:/home/ubuntu/
+
+- name: Load and run Docker on Backend
+  run: |
+    ssh backend << 'EOF'
+      cd /home/ubuntu
+      
+      # Stop existing container
+      docker compose down || true
+      
+      # Load new image
+      gunzip -c backend-image.tar.gz | docker load
+      
+      # Start with docker compose
+      docker compose up -d
+      
+      # Cleanup tar file
+      rm backend-image.tar.gz
+    EOF
+```
+
+### Troubleshooting Opsi B
+
+#### Issue: SSH Connection Timeout via Bastion
+
+**Symptom:**
+```
+ssh: connect to host 10.0.x.x timeout (via bastion)
+```
+
+**Solutions:**
+1. Pastikan Bastion Security Group allow SSH ke Backend SG
+2. Pastikan Backend Security Group allow SSH dari Bastion SG
+3. Test manual:
+   ```bash
+   # Test SSH ke Bastion dulu
+   ssh ubuntu@BASTION_IP
+   
+   # Dari Bastion, test ke Backend
+   ssh ubuntu@BACKEND_PRIVATE_IP
+   ```
+
+#### Issue: Permission Denied
+
+**Symptom:**
+```
+Permission denied (publickey)
+```
+
+**Solutions:**
+1. Pastikan SSH key sama untuk Bastion dan Backend
+2. Pastikan key sudah di-add ke kedua server:
+   ```bash
+   # Di Bastion dan Backend
+   cat ~/.ssh/authorized_keys
+   ```
+
+#### Issue: ProxyJump Not Working
+
+**Symptom:**
+```
+ProxyJump directive not recognized
+```
+
+**Solutions:**
+1. Upgrade OpenSSH client (ProxyJump membutuhkan OpenSSH 7.3+)
+2. Alternatif gunakan ProxyCommand:
+   ```
+   ProxyCommand ssh -W %h:%p ubuntu@BASTION_IP
+   ```
+
+---
+
 ## 🔍 Monitoring Deployment
 
 ### 1. GitHub Actions UI
