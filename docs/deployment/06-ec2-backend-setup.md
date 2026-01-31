@@ -1077,7 +1077,7 @@ scp -i finlapor-key.pem backend-image.tar bastion:/tmp/
 ssh bastion
 
 # Step 3: Transfer dari Bastion ke Backend
-scp -i ~/.ssh/finlapor-key.pem /tmp/backend-image.tar ubuntu@10.0.137.14:/home/ubuntu/
+scp -i ~/.ssh/finlapor-key.pem /tmp/backend-image.tar ubuntu@[BACKEND_IP]:/home/ubuntu/
 
 # Step 4: (Optional) Hapus file di Bastion untuk hemat storage
 rm /tmp/backend-image.tar
