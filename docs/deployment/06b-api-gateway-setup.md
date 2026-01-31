@@ -8,89 +8,138 @@ Panduan membuat API Gateway untuk menghubungkan **CloudFlare Pages** ke **Backen
 
 ## 📑 Daftar Isi
 
-1. [Overview & Arsitektur](#overview--arsitektur)
-2. [Kapan Butuh API Gateway?](#kapan-butuh-api-gateway)
-3. [Create HTTP API](#1-create-http-api)
-4. [Integrasi dengan EC2 Backend](#2-integrasi-dengan-ec2-backend)
-5. [VPC Link Setup](#3-vpc-link-setup)
-6. [Custom Domain](#4-custom-domain)
-7. [CORS Configuration](#5-cors-configuration)
-8. [Authentication](#6-authentication)
-9. [Monitoring & Logging](#7-monitoring--logging)
-10. [Troubleshooting](#8-troubleshooting)
+1. [Overview](#overview)
+2. [Pilih Arsitektur](#-pilih-arsitektur)
+   - [Opsi A: API Gateway → Backend + Lambda](#opsi-a-api-gateway--backend--lambda)
+   - [Opsi B: API Gateway → Backend saja](#opsi-b-api-gateway--backend-saja-recommended)
+3. [Perbandingan](#perbandingan)
+4. [Panduan Setup (Opsi B)](#panduan-setup-opsi-b)
+5. [Create HTTP API](#1-create-http-api)
+6. [Integrasi dengan EC2 Backend](#2-integrasi-dengan-ec2-backend)
+7. [VPC Link Setup](#3-vpc-link-setup)
+8. [Custom Domain](#4-custom-domain)
+9. [CORS Configuration](#5-cors-configuration)
+10. [Authentication](#6-authentication)
+11. [Monitoring & Logging](#7-monitoring--logging)
+12. [Troubleshooting](#8-troubleshooting)
 
 ---
 
-## Overview & Arsitektur
+## Overview
 
-### Arsitektur FinLapor
+Backend di **Private Subnet** BUTUH "entry point" untuk bisa diakses dari internet. Pilihannya:
+
+| Metode | Biaya | Keterangan |
+|--------|-------|------------|
+| **API Gateway + VPC Link** | ~$1-3/bulan | ✅ Recommended |
+| Application Load Balancer | ~$16/bulan | Mahal |
+| CloudFlare Tunnel | $0 | Perlu install agent |
+
+---
+
+## 🎯 Pilih Arsitektur
+
+### Opsi A: API Gateway → Backend + Lambda
+
+Frontend bisa akses Backend **dan** Lambda langsung via API Gateway.
 
 ```mermaid
 flowchart TB
     subgraph CloudFlare["☁️ CloudFlare"]
-        Frontend["📱 Frontend<br/>finlapor.pages.dev"]
+        Frontend["📱 Frontend"]
     end
 
     subgraph AWS["🔶 AWS"]
-        APIGateway["🔀 API Gateway<br/>api.finlapor.airi.click"]
+        APIGateway["🔀 API Gateway"]
         
-        subgraph VPC["🌐 VPC"]
-            VPCLink["VPC Link"]
-            
-            subgraph Private["🔒 Private Subnet"]
-                Backend["🐳 EC2 + Docker<br/>Go Fiber + Redis<br/>:8080"]
-            end
-            
-            VPCEndpoint["VPC Endpoint<br/>(Lambda)"]
+        subgraph VPC["🌐 VPC - Private Subnet"]
+            Backend["🐳 Backend<br/>Docker + Go"]
         end
         
-        Lambda["⚡ Lambda<br/>finlapor-ai"]
+        Lambda["⚡ Lambda<br/>AI Service"]
     end
 
-    Frontend -->|HTTPS| APIGateway
-    APIGateway -->|VPC Link| VPCLink
-    VPCLink --> Backend
+    Frontend -->|/api/*| APIGateway
+    Frontend -->|/ai/*| APIGateway
+    APIGateway -->|VPC Link| Backend
+    APIGateway -->|Direct| Lambda
+```
+
+| Route | Target |
+|-------|--------|
+| `/api/*` | Backend (via VPC Link) |
+| `/ai/*` | Lambda (langsung) |
+
+**Keuntungan:**
+- ✅ Frontend bisa akses Lambda tanpa melalui Backend
+- ✅ Latency lebih rendah untuk AI calls
+- ✅ Backend tidak perlu VPC Endpoint Lambda
+
+**Kekurangan:**
+- ⚠️ Setup lebih kompleks (2 integrations)
+
+---
+
+### Opsi B: API Gateway → Backend saja (Recommended)
+
+API Gateway hanya ke Backend. Lambda dipanggil dari Backend via AWS SDK.
+
+```mermaid
+flowchart TB
+    subgraph CloudFlare["☁️ CloudFlare"]
+        Frontend["📱 Frontend"]
+    end
+
+    subgraph AWS["🔶 AWS"]
+        APIGateway["🔀 API Gateway"]
+        
+        subgraph VPC["🌐 VPC - Private Subnet"]
+            Backend["🐳 Backend<br/>Docker + Go"]
+            VPCEndpoint["VPC Endpoint"]
+        end
+        
+        Lambda["⚡ Lambda<br/>AI Service"]
+    end
+
+    Frontend -->|/api/*| APIGateway
+    APIGateway -->|VPC Link| Backend
     Backend -->|AWS SDK| VPCEndpoint
     VPCEndpoint --> Lambda
 ```
 
-### Flow Request
+| Route | Target |
+|-------|--------|
+| `/api/*` | Backend (via VPC Link) |
+| AI calls | Backend → Lambda (AWS SDK) |
 
-| Step | From | To | Via |
-|------|------|-----|-----|
-| 1 | Frontend | API Gateway | HTTPS |
-| 2 | API Gateway | Backend | **VPC Link** |
-| 3 | Backend | Lambda | **AWS SDK** |
+**Keuntungan:**
+- ✅ Setup lebih simple (1 integration)
+- ✅ Auth terpusat di Backend
+- ✅ Logging terpusat
 
-> **⚠️ Penting:** Lambda dipanggil dari Backend via AWS SDK, **bukan** via API Gateway.
+**Kekurangan:**
+- ⚠️ Butuh VPC Endpoint untuk Lambda (~$7.5/bulan)
 
 ---
 
-## Kapan Butuh API Gateway?
+## Perbandingan
 
-### ✅ Butuh API Gateway (Opsi Ini)
+| Aspek | Opsi A (Backend + Lambda) | Opsi B (Backend saja) |
+|-------|--------------------------|----------------------|
+| **API Gateway routes** | 2 (Backend + Lambda) | 1 (Backend) |
+| **Lambda access** | Via API Gateway | Via AWS SDK |
+| **VPC Endpoint Lambda** | ❌ Tidak perlu | ✅ Diperlukan |
+| **Setup** | Lebih kompleks | Lebih simple |
+| **Biaya** | API GW ~$1-3 | API GW + VPC Endpoint ~$9 |
+| **Latency AI** | Lebih rendah | Sedikit lebih tinggi |
 
-Gunakan jika Backend ada di **Private Subnet**:
+> **💡 Rekomendasi:** Gunakan **Opsi B** untuk setup lebih sederhana dan auth terpusat.
 
-```
-CloudFlare → API Gateway → VPC Link → Backend (Private)
-```
+---
 
-**Keuntungan:**
-- ✅ Backend tidak terekspos ke internet
-- ✅ Unified API endpoint (`api.finlapor.airi.click`)
-- ✅ Built-in throttling & rate limiting
-- ✅ Sesuai dengan arsitektur UAS
+## Panduan Setup (Opsi B)
 
-### ❌ Tidak Butuh API Gateway
-
-Jika Backend ada di **Public Subnet** dengan Elastic IP:
-
-```
-CloudFlare Proxy → Backend (Public IP langsung)
-```
-
-**Catatan:** Kurang secure, tapi lebih simple untuk demo cepat.
+Panduan ini menggunakan **Opsi B** (API Gateway ke Backend saja).
 
 ---
 
