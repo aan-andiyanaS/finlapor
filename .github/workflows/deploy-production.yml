@@ -1,4 +1,15 @@
-name: Deploy to Production
+# =====================================================
+# Deploy to Production - Docker + Opsi B (Private Subnet via Bastion)
+# =====================================================
+# Workflow ini menggunakan:
+# - Docker untuk backend + Redis
+# - Deployment via Bastion Host (ProxyJump) ke Private Subnet
+# - Build Docker image di GitHub Actions, transfer ke EC2
+#
+# Trigger: git tag v* (contoh: git tag v1.0.0 && git push origin v1.0.0)
+# =====================================================
+
+name: Deploy to Production (Docker + Bastion)
 
 on:
   push:
@@ -11,113 +22,154 @@ on:
         required: true
         type: string
 
-jobs:
-  backup-database:
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Create database backup
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL_PROD }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: ${{ secrets.AWS_REGION }}
-        run: |
-          # Install PostgreSQL client
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client
-          
-          # Create backup
-          timestamp=$(date +%Y%m%d_%H%M%S)
-          pg_dump $DATABASE_URL | gzip > backup_${timestamp}.sql.gz
-          
-          # Upload to S3
-          aws s3 cp backup_${timestamp}.sql.gz s3://finlapor-backups/production/
-          
-          # Verify backup
-          if [ ! -s backup_${timestamp}.sql.gz ]; then
-            echo "Backup file is empty or doesn't exist!"
-            exit 1
-          fi
-          
-          echo "Backup completed: backup_${timestamp}.sql.gz"
+env:
+  DOCKER_IMAGE_NAME: finlapor-backend
+  DOCKER_TAR_FILE: all-images.tar.gz
 
-  deploy-backend:
+jobs:
+  # =====================================================
+  # Job 1: Build Docker Images
+  # =====================================================
+  build-docker:
     runs-on: ubuntu-latest
-    needs: [backup-database]
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
       
-      - name: Setup Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: '1.21'
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
       
-      - name: Build backend
-        working-directory: backend
+      - name: Build backend Docker image
         run: |
-          go build -ldflags="-s -w" -o main cmd/server/main.go
-          chmod +x main
+          echo "🔨 Building backend Docker image..."
+          docker build -t ${{ env.DOCKER_IMAGE_NAME }}:latest ./backend
+          docker build -t ${{ env.DOCKER_IMAGE_NAME }}:${{ github.ref_name }} ./backend
       
-      - name: Deploy to EC2 Production
+      - name: Pull Redis image
+        run: |
+          echo "📦 Pulling Redis Alpine image..."
+          docker pull redis:alpine
+      
+      - name: Save Docker images to tar
+        run: |
+          echo "💾 Saving Docker images to tar.gz..."
+          docker save ${{ env.DOCKER_IMAGE_NAME }}:latest redis:alpine | gzip > ${{ env.DOCKER_TAR_FILE }}
+          ls -lh ${{ env.DOCKER_TAR_FILE }}
+      
+      - name: Upload Docker images artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-images
+          path: ${{ env.DOCKER_TAR_FILE }}
+          retention-days: 1
+
+  # =====================================================
+  # Job 2: Deploy Backend via Bastion (Opsi B)
+  # =====================================================
+  deploy-backend:
+    runs-on: ubuntu-latest
+    needs: [build-docker]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Download Docker images artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-images
+      
+      - name: Setup SSH Keys
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY_PROD }}
-          EC2_HOST: ${{ secrets.EC2_HOST_PROD }}
-          EC2_USER: ec2-user
+          BASTION_HOST: ${{ secrets.BASTION_HOST }}
+          BACKEND_HOST: ${{ secrets.BACKEND_PRIVATE_IP }}
         run: |
-          # Setup SSH
+          echo "🔑 Setting up SSH keys..."
           mkdir -p ~/.ssh
           echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H $EC2_HOST >> ~/.ssh/known_hosts
           
-          # Create backup of current binary
-          ssh -i ~/.ssh/id_rsa $EC2_USER@$EC2_HOST "cd /home/ec2-user/finlapor/backend && cp main main.backup-$(date +%Y%m%d-%H%M%S)"
+          # Add hosts to known_hosts
+          ssh-keyscan -H $BASTION_HOST >> ~/.ssh/known_hosts 2>/dev/null
           
-          # Stop service
-          ssh -i ~/.ssh/id_rsa $EC2_USER@$EC2_HOST "sudo systemctl stop finlapor"
+          # Create SSH config for ProxyJump
+          cat >> ~/.ssh/config << EOF
+          Host bastion
+              HostName $BASTION_HOST
+              User ubuntu
+              IdentityFile ~/.ssh/id_rsa
+              StrictHostKeyChecking no
           
-          # Upload new binary
-          scp -i ~/.ssh/id_rsa backend/main $EC2_USER@$EC2_HOST:/home/ec2-user/finlapor/backend/
+          Host backend
+              HostName $BACKEND_HOST
+              User ubuntu
+              IdentityFile ~/.ssh/id_rsa
+              ProxyJump bastion
+              StrictHostKeyChecking no
+          EOF
           
-          # Start service
-          ssh -i ~/.ssh/id_rsa $EC2_USER@$EC2_HOST "sudo systemctl start finlapor"
+          chmod 600 ~/.ssh/config
+          echo "✅ SSH config created"
+      
+      - name: Transfer Docker images via Bastion
+        run: |
+          echo "📤 Transferring Docker images via Bastion..."
+          scp ${{ env.DOCKER_TAR_FILE }} backend:/home/ubuntu/
+          echo "✅ Transfer completed"
+      
+      - name: Deploy on Backend EC2
+        env:
+          BACKEND_HOST: ${{ secrets.BACKEND_PRIVATE_IP }}
+        run: |
+          echo "🚀 Deploying to Backend EC2..."
           
-          # Wait for startup
-          sleep 15
+          ssh backend << 'ENDSSH'
+            set -e
+            
+            echo "📦 Loading Docker images..."
+            cd /home/ubuntu
+            gunzip -c all-images.tar.gz | docker load
+            
+            echo "🔄 Stopping existing containers..."
+            cd /home/ubuntu/finlapor
+            docker compose -f docker-compose.production.yml down || true
+            
+            echo "🚀 Starting new containers..."
+            docker compose -f docker-compose.production.yml up -d
+            
+            echo "⏳ Waiting for services to start..."
+            sleep 10
+            
+            echo "🧹 Cleaning up..."
+            rm -f /home/ubuntu/all-images.tar.gz
+            docker image prune -f
+            
+            echo "✅ Backend deployment completed!"
+          ENDSSH
       
       - name: Health Check
-        env:
-          PROD_URL: ${{ secrets.PROD_API_URL }}
         run: |
+          echo "🏥 Running health check..."
+          
           for i in {1..10}; do
-            if curl -f ${PROD_URL}/health; then
-              echo "✅ Production health check passed"
+            HEALTH=$(ssh backend "curl -sf http://localhost:8080/health || echo 'failed'")
+            if [[ "$HEALTH" != "failed" ]]; then
+              echo "✅ Health check passed!"
+              echo "Response: $HEALTH"
               exit 0
             fi
-            echo "Attempt $i failed, retrying..."
+            echo "⏳ Attempt $i/10 - Waiting for backend to be healthy..."
             sleep 10
           done
-          echo "❌ Production health check failed after 10 attempts"
+          
+          echo "❌ Health check failed after 10 attempts"
           exit 1
-      
-      - name: Monitor error rate
-        env:
-          PROD_URL: ${{ secrets.PROD_API_URL }}
-        run: |
-          echo "Monitoring production for 2 minutes..."
-          sleep 120
-          
-          # Check if service is still healthy
-          if ! curl -f ${PROD_URL}/health; then
-            echo "❌ Service became unhealthy, triggering rollback"
-            exit 1
-          fi
-          
-          echo "✅ Production deployment stable"
 
+  # =====================================================
+  # Job 3: Deploy Frontend to CloudFlare Pages
+  # =====================================================
   deploy-frontend:
     runs-on: ubuntu-latest
     needs: [deploy-backend]
@@ -130,6 +182,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
       
       - name: Install dependencies
         working-directory: frontend
@@ -141,15 +195,20 @@ jobs:
           NEXT_PUBLIC_API_URL: ${{ secrets.PROD_API_URL }}
         run: npm run build
       
-      - name: Deploy to CloudFlare Pages Production
+      - name: Deploy to CloudFlare Pages
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
+          echo "☁️ Deploying to CloudFlare Pages..."
           npm install -g wrangler
           cd frontend
           npx wrangler pages deploy out --project-name finlapor --branch production
+          echo "✅ Frontend deployed to CloudFlare Pages!"
 
+  # =====================================================
+  # Job 4: Notify on Completion
+  # =====================================================
   notify:
     runs-on: ubuntu-latest
     needs: [deploy-backend, deploy-frontend]
@@ -160,49 +219,76 @@ jobs:
         env:
           WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
-          STATUS="${{ job.status }}"
           VERSION="${{ github.ref_name }}"
+          BACKEND_STATUS="${{ needs.deploy-backend.result }}"
+          FRONTEND_STATUS="${{ needs.deploy-frontend.result }}"
           
-          if [ "$STATUS" == "success" ]; then
-            MESSAGE="✅ Production deployment $VERSION completed successfully!"
+          if [[ "$BACKEND_STATUS" == "success" && "$FRONTEND_STATUS" == "success" ]]; then
+            EMOJI="✅"
+            STATUS="SUCCESS"
+            MESSAGE="Production deployment $VERSION completed successfully!"
           else
-            MESSAGE="❌ Production deployment $VERSION failed!"
+            EMOJI="❌"
+            STATUS="FAILED"
+            MESSAGE="Production deployment $VERSION failed! Backend: $BACKEND_STATUS, Frontend: $FRONTEND_STATUS"
           fi
           
-          curl -X POST $WEBHOOK_URL \
-            -H 'Content-Type: application/json' \
-            -d "{\"text\":\"$MESSAGE\"}" || echo "Notification failed, but continuing"
+          echo "$EMOJI $MESSAGE"
+          
+          # Send to Slack if webhook configured
+          if [[ -n "$WEBHOOK_URL" ]]; then
+            curl -X POST "$WEBHOOK_URL" \
+              -H 'Content-Type: application/json' \
+              -d "{\"text\":\"$EMOJI $MESSAGE\"}" || echo "Slack notification failed"
+          fi
 
+  # =====================================================
+  # Job 5: Rollback on Failure
+  # =====================================================
   rollback:
     runs-on: ubuntu-latest
-    needs: [deploy-backend, deploy-frontend]
+    needs: [deploy-backend]
     if: failure()
     
     steps:
-      - name: Automatic rollback
+      - name: Setup SSH Keys
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY_PROD }}
-          EC2_HOST: ${{ secrets.EC2_HOST_PROD }}
-          EC2_USER: ec2-user
+          BASTION_HOST: ${{ secrets.BASTION_HOST }}
+          BACKEND_HOST: ${{ secrets.BACKEND_PRIVATE_IP }}
         run: |
-          # Setup SSH
           mkdir -p ~/.ssh
           echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H $EC2_HOST >> ~/.ssh/known_hosts
           
-          echo "⚠️ Deployment failed, initiating automatic rollback..."
+          cat >> ~/.ssh/config << EOF
+          Host bastion
+              HostName $BASTION_HOST
+              User ubuntu
+              IdentityFile ~/.ssh/id_rsa
+              StrictHostKeyChecking no
           
-          # Get latest backup
-          BACKUP=$(ssh -i ~/.ssh/id_rsa $EC2_USER@$EC2_HOST "ls -t /home/ec2-user/finlapor/backend/main.backup-* | head -1")
+          Host backend
+              HostName $BACKEND_HOST
+              User ubuntu
+              IdentityFile ~/.ssh/id_rsa
+              ProxyJump bastion
+              StrictHostKeyChecking no
+          EOF
           
-          # Stop service
-          ssh -i ~/.ssh/id_rsa $EC2_USER@$EC2_HOST "sudo systemctl stop finlapor"
+          chmod 600 ~/.ssh/config
+      
+      - name: Rollback to previous version
+        run: |
+          echo "⚠️ Deployment failed, initiating rollback..."
           
-          # Restore backup
-          ssh -i ~/.ssh/id_rsa $EC2_USER@$EC2_HOST "cd /home/ec2-user/finlapor/backend && cp $BACKUP main"
-          
-          # Start service
-          ssh -i ~/.ssh/id_rsa $EC2_USER@$EC2_HOST "sudo systemctl start finlapor"
-          
-          echo "✅ Rollback completed"
+          ssh backend << 'ENDSSH'
+            echo "🔄 Rolling back to previous Docker images..."
+            cd /home/ubuntu/finlapor
+            
+            # Try to restart with previous images
+            docker compose -f docker-compose.production.yml down
+            docker compose -f docker-compose.production.yml up -d
+            
+            echo "✅ Rollback completed"
+          ENDSSH
