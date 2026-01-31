@@ -483,7 +483,99 @@ cat response.json
 # Expected: {"statusCode": 200, "body": "{\"status\":\"ok\",...}"}
 ```
 
+#### 🧪 Test Connection Lengkap (Backend → Lambda via VPC Endpoint)
+
+Sebelum menggunakan Lambda dari backend, pastikan koneksi via VPC Endpoint sudah benar.
+
+**1. Test DNS Resolution:**
+```bash
+# SSH ke Backend EC2
+ssh finlapor-backend
+
+# Cek apakah DNS Lambda endpoint bisa di-resolve
+nslookup lambda.ap-southeast-1.amazonaws.com
+
+# Expected: Menampilkan IP private (10.x.x.x) dari VPC Endpoint
+# Jika menampilkan IP public, VPC Endpoint belum aktif
+```
+
+**2. Test Port 443 (HTTPS) ke Lambda Endpoint:**
+```bash
+# Test koneksi TCP ke Lambda endpoint
+nc -zv lambda.ap-southeast-1.amazonaws.com 443
+
+# Expected: Connection to lambda.ap-southeast-1.amazonaws.com 443 port [tcp/https] succeeded!
+```
+
+**3. Test AWS CLI Lambda Access:**
+```bash
+# Set credentials
+export AWS_ACCESS_KEY_ID=AKIAXXXXXXXX
+export AWS_SECRET_ACCESS_KEY=xxxxxxxxxxxxxxxx
+export AWS_REGION=ap-southeast-1
+
+# List Lambda functions (test basic access)
+aws lambda list-functions --max-items 5
+
+# Expected: Menampilkan list Lambda functions
+```
+
+**4. Test Invoke Lambda Function:**
+```bash
+# Test health check
+aws lambda invoke \
+  --function-name finlapor-ai \
+  --payload '{"action": "health"}' \
+  --cli-binary-format raw-in-base64-out \
+  /tmp/lambda-response.json
+
+cat /tmp/lambda-response.json
+# Expected: {"statusCode": 200, "body": "{\"status\":\"ok\",\"service\":\"finlapor-ai\"...}"}
+```
+
+**5. Test dari Dalam Docker Container:**
+```bash
+# Masuk ke container backend
+docker exec -it finlapor-backend-1 sh
+
+# Test dengan curl (jika ada)
+# Atau test dengan wget
+wget -qO- --timeout=10 https://lambda.ap-southeast-1.amazonaws.com 2>&1 | head -5
+
+# Expected: Menampilkan response (bisa error auth, tapi koneksi berhasil)
+```
+
+**6. Test Full Integration (via Backend API):**
+```bash
+# Dari dalam EC2, bukan container
+
+# 1. Login untuk dapat token
+TOKEN=$(curl -s -X POST http://localhost:8080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"YOUR_EMAIL","password":"YOUR_PASSWORD"}' | jq -r '.token')
+
+# 2. Test AI Chat (akan memanggil Lambda)
+curl -X POST http://localhost:8080/api/chat \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"message":"Halo, apa itu FinLapor?"}'
+
+# Expected: {"response": "..."}
+# Jika error: {"error": "lambda invocation failed..." }
+```
+
+#### Troubleshooting VPC Endpoint:
+
+| Gejala | Penyebab | Solusi |
+|--------|----------|--------|
+| `nslookup` menampilkan IP public | VPC Endpoint tidak aktif | Pastikan "Enable Private DNS" dicentang |
+| `Connection refused` port 443 | Security Group salah | Allow HTTPS (443) dari EC2 Security Group |
+| `UnrecognizedClientException` | Credentials salah | Cek AWS_ACCESS_KEY_ID dan AWS_SECRET_ACCESS_KEY |
+| `ResourceNotFoundException` | Lambda function tidak ada | Deploy Lambda function dulu |
+| Timeout dari Docker | Container tidak bisa akses VPC | Pastikan Docker network mode correct |
+
 ---
+
 
 ### Opsi B: NAT Gateway
 

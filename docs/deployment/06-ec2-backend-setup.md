@@ -1409,7 +1409,7 @@ journalctl -u finlapor -f
 > - Health check script otomatis
 > - Full system integration test
 
-### Quick Reference
+### 📋 Quick Reference
 
 | Masalah | Quick Fix |
 |---------|-----------|
@@ -1422,6 +1422,70 @@ journalctl -u finlapor -f
 **Lihat detail lengkap di → [troubleshooting.md](../troubleshooting.md)**
 
 ---
+
+### 📜 Melihat Logs Backend (Docker)
+
+**1. Lihat logs real-time (streaming):**
+```bash
+# Follow logs secara real-time
+docker logs -f finlapor-backend
+
+# Follow dengan timestamp
+docker logs -f --timestamps finlapor-backend
+```
+
+**2. Lihat logs terakhir:**
+```bash
+# 100 baris terakhir
+docker logs --tail 100 finlapor-backend
+
+# 50 baris terakhir dengan timestamp
+docker logs --tail 50 --timestamps finlapor-backend
+```
+
+**3. Lihat logs dalam rentang waktu:**
+```bash
+# Logs sejak 1 jam terakhir
+docker logs --since 1h finlapor-backend
+
+# Logs sejak 30 menit terakhir
+docker logs --since 30m finlapor-backend
+
+# Logs dalam rentang waktu tertentu
+docker logs --since "2026-01-31T08:00:00" --until "2026-01-31T09:00:00" finlapor-backend
+```
+
+**4. Lihat logs semua containers:**
+```bash
+# Via docker compose
+cd ~/finlapor
+docker compose logs -f
+
+# Logs untuk service tertentu
+docker compose logs -f backend
+docker compose logs -f redis
+```
+
+**5. Menyimpan logs ke file:**
+```bash
+# Simpan ke file
+docker logs finlapor-backend > backend.log 2>&1
+
+# Simpan dengan rotasi
+docker logs finlapor-backend 2>&1 | tee -a /var/log/finlapor-backend.log
+```
+
+**6. Tips debugging:**
+
+| Command | Fungsi |
+|---------|--------|
+| `docker logs finlapor-backend 2>&1 \| grep "ERROR"` | Filter hanya error |
+| `docker logs finlapor-backend 2>&1 \| grep "panic"` | Cari panic/crash |
+| `docker logs finlapor-backend 2>&1 \| grep "database"` | Cari masalah database |
+| `docker logs finlapor-backend 2>&1 \| tail -n 50` | 50 baris terakhir |
+
+---
+
 
 
 ## ✅ Checklist
