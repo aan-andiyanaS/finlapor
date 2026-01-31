@@ -25,6 +25,80 @@ Code Push → CI (Test & Build) → Deploy Staging → Testing → Deploy Produc
 
 ---
 
+## 🚀 Cara Trigger CI/CD
+
+### Opsi 1: Production Deployment (via Git Tag)
+
+Untuk deploy ke **Production** (baik Backend maupun Frontend), gunakan **git tag**:
+
+```bash
+# Buat tag versi
+git tag v1.0.0
+
+# Push tag ke GitHub (ini yang trigger CI/CD!)
+git push origin v1.0.0
+```
+
+**Apa yang terjadi:**
+- ✅ Backend: Build Docker → Transfer via Bastion → Deploy ke EC2
+- ✅ Frontend: npm build → Deploy ke CloudFlare Pages Production
+
+### Opsi 2: Staging Deployment (via Git Push)
+
+Untuk deploy ke **Staging** (development/testing), cukup push ke branch `develop`:
+
+```bash
+git checkout develop
+git push origin develop
+# → Otomatis trigger deploy-staging.yml
+```
+
+### Opsi 3: Manual Trigger (via GitHub UI)
+
+Bisa trigger manual tanpa push/tag:
+1. Buka **GitHub → Actions**
+2. Pilih workflow yang ingin dijalankan
+3. Klik **"Run workflow"**
+
+> **📌 Perbedaan git push vs git tag:**
+> 
+> | Command | Trigger | Environment |
+> |---------|---------|-------------|
+> | `git push origin main` | Backend CI + Frontend CI (test only) | Tidak deploy |
+> | `git push origin develop` | Deploy Staging | Staging |
+> | `git tag v1.0.0` + `git push origin v1.0.0` | Deploy Production | Production |
+
+---
+
+## ☁️ CloudFlare Pages Deployment
+
+**Ya, CI/CD juga deploy ke CloudFlare Pages!**
+
+### Proses Otomatis:
+
+```mermaid
+flowchart LR
+    Tag["git tag v1.0.0"] --> GHA["GitHub Actions"]
+    GHA --> Backend["Deploy Backend<br/>ke EC2"]
+    GHA --> Frontend["Build Frontend<br/>+ Deploy CloudFlare"]
+```
+
+Frontend akan otomatis di-build dan deploy ke CloudFlare Pages ketika:
+- **Production**: `git push origin v*` (tag)
+- **Staging**: `git push origin develop`
+
+> 💡 **Tidak perlu setup CloudFlare Pages terpisah** - semua dihandle oleh GitHub Actions workflow.
+
+---
+
+## 🐳 Opsi B: Docker Deployment (Private Subnet)
+
+Untuk deployment ke **Private Subnet via Bastion** dengan Docker, workflow sudah disiapkan di:
+
+📄 **File:** `.github/workflows/deploy-production-private.yml` (buat baru atau modifikasi yang ada)
+
+Detail lengkap workflow Docker untuk Opsi B tersedia di [Section CI/CD Opsi B](#🔐-cicd-untuk-opsi-b-private-subnet-via-bastion---docker) di bawah.
+
 ## 🔥 Pipeline Architecture
 
 ### 1. Opsi A: Public Subnet Deployment
