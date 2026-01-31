@@ -91,13 +91,70 @@ Frontend akan otomatis di-build dan deploy ke CloudFlare Pages ketika:
 
 ---
 
-## 🐳 Opsi B: Docker Deployment (Private Subnet)
+## 🐳 Opsi B: Docker Deployment (Private Subnet) ✅ IMPLEMENTED
 
-Untuk deployment ke **Private Subnet via Bastion** dengan Docker, workflow sudah disiapkan di:
+> **✅ Workflow sudah diimplementasikan!**  
+> File: `.github/workflows/deploy-production.yml`
 
-📄 **File:** `.github/workflows/deploy-production-private.yml` (buat baru atau modifikasi yang ada)
+Workflow **Deploy to Production (Docker + Bastion)** sudah aktif dan siap digunakan!
 
-Detail lengkap workflow Docker untuk Opsi B tersedia di [Section CI/CD Opsi B](#🔐-cicd-untuk-opsi-b-private-subnet-via-bastion---docker) di bawah.
+### Fitur Workflow:
+
+| Job | Deskripsi |
+|-----|-----------|
+| `build-docker` | Build backend image + pull Redis di GitHub Actions |
+| `deploy-backend` | Transfer via Bastion (ProxyJump) → Load images → docker compose up |
+| `deploy-frontend` | Build Next.js → Deploy ke CloudFlare Pages |
+| `notify` | Kirim notifikasi ke Slack |
+| `rollback` | Otomatis rollback jika deployment gagal |
+
+### Cara Trigger:
+
+```bash
+# Buat tag versi
+git tag v1.0.0
+
+# Push ke GitHub
+git push origin main
+git push origin v1.0.0   # ← Ini yang trigger CI/CD!
+```
+
+### GitHub Secrets yang Diperlukan:
+
+| Secret | Deskripsi |
+|--------|-----------|
+| `SSH_PRIVATE_KEY_PROD` | Private key untuk SSH ke Bastion & Backend |
+| `BASTION_HOST` | IP publik Bastion Host |
+| `BACKEND_PRIVATE_IP` | IP private Backend EC2 |
+| `PROD_API_URL` | URL API production (untuk frontend build) |
+| `CLOUDFLARE_API_TOKEN` | Token CloudFlare untuk deploy Pages |
+| `CLOUDFLARE_ACCOUNT_ID` | Account ID CloudFlare |
+| `SLACK_WEBHOOK_URL` | (Opsional) Webhook Slack untuk notifikasi |
+
+### Diagram Alur:
+
+```mermaid
+flowchart LR
+    Tag["git tag v1.0.0"] --> GHA["GitHub Actions"]
+    
+    subgraph Build["Build Phase"]
+        BuildBackend["docker build backend"]
+        PullRedis["docker pull redis:alpine"]
+        SaveTar["docker save → tar.gz"]
+    end
+    
+    subgraph Deploy["Deploy via Bastion"]
+        SCP["SCP via ProxyJump"]
+        Bastion["🔐 Bastion"]
+        Load["docker load"]
+        ComposeUp["docker compose up"]
+    end
+    
+    GHA --> BuildBackend --> PullRedis --> SaveTar
+    SaveTar --> SCP --> Bastion --> Load --> ComposeUp
+    GHA --> CloudFlare["Deploy Frontend<br/>CloudFlare Pages"]
+```
+
 
 ## 🔥 Pipeline Architecture
 
