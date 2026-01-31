@@ -563,24 +563,27 @@ jobs:
             echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
           fi
       
-      - name: Build Docker image
+      - name: Build and pull all Docker images
         working-directory: backend
         run: |
-          echo "🔨 Building Docker image..."
+          echo "🔨 Building backend Docker image..."
           docker build -t $IMAGE_NAME:${{ steps.version.outputs.tag }} .
           docker tag $IMAGE_NAME:${{ steps.version.outputs.tag }} $IMAGE_NAME:latest
           
-          echo "📦 Saving Docker image to tar.gz..."
-          docker save $IMAGE_NAME:${{ steps.version.outputs.tag }} | gzip > ../backend-image.tar.gz
+          echo "� Pulling Redis image from Docker Hub..."
+          docker pull redis:alpine
           
-          echo "📊 Image size:"
-          ls -lh ../backend-image.tar.gz
+          echo "📦 Saving ALL images to tar.gz..."
+          docker save $IMAGE_NAME:${{ steps.version.outputs.tag }} redis:alpine | gzip > ../all-images.tar.gz
+          
+          echo "📊 Total images size:"
+          ls -lh ../all-images.tar.gz
       
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: docker-image
-          path: backend-image.tar.gz
+          name: docker-images
+          path: all-images.tar.gz
           retention-days: 1
 
   # ========================================
@@ -594,10 +597,10 @@ jobs:
       - name: Checkout code (for docker-compose file)
         uses: actions/checkout@v4
       
-      - name: Download Docker image artifact
+      - name: Download all Docker images artifact
         uses: actions/download-artifact@v4
         with:
-          name: docker-image
+          name: docker-images
       
       - name: Setup SSH with ProxyJump
         env:
@@ -639,10 +642,10 @@ jobs:
           echo "🔗 Testing SSH to Backend via Bastion..."
           ssh backend "echo '✅ SSH connection successful!'"
       
-      - name: Transfer Docker image to Backend
+      - name: Transfer all Docker images to Backend
         run: |
-          echo "📤 Transferring Docker image (via Bastion tunnel)..."
-          scp backend-image.tar.gz backend:/home/ubuntu/
+          echo "📤 Transferring all Docker images (via Bastion tunnel)..."
+          scp all-images.tar.gz backend:/home/ubuntu/
           echo "✅ Transfer complete"
       
       - name: Transfer docker-compose file
@@ -660,8 +663,8 @@ jobs:
           ssh backend << 'DEPLOY_SCRIPT'
             cd /home/ubuntu
             
-            echo "📦 Loading Docker image..."
-            gunzip -c backend-image.tar.gz | docker load
+            echo "📦 Loading ALL Docker images (backend + redis)..."
+            gunzip -c all-images.tar.gz | docker load
             
             echo "🛑 Stopping existing containers..."
             docker compose down || true
@@ -670,7 +673,7 @@ jobs:
             docker compose up -d
             
             echo "🧹 Cleaning up..."
-            rm -f backend-image.tar.gz
+            rm -f all-images.tar.gz
             
             echo "📊 Container status:"
             docker ps

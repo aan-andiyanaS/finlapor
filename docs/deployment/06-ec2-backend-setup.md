@@ -1507,45 +1507,67 @@ docker images
 # redis               alpine    xyz789ghi     30MB
 ```
 
-### 7.2 Menghapus Image
+### 7.2 Export Image ke Tar (docker save)
+
+Untuk Opsi B (Private Subnet tanpa internet), export images dari laptop/komputer yang punya akses internet:
 
 ```bash
-# Hapus image berdasarkan nama
-docker rmi finlapor-backend:latest
+# Di LOCAL (laptop dengan internet)
 
-# Hapus image berdasarkan IMAGE ID
-docker rmi abc123def
+# 1. Build backend image (atau pull jika sudah ada)
+cd finlapor/backend
+docker build -t finlapor-backend:latest .
 
-# Force hapus (jika ada container yang menggunakan)
-docker rmi -f abc123def
+# 2. Pull Redis dari Docker Hub
+docker pull redis:alpine
+
+# 3. Export SEMUA images ke satu file tar
+docker save finlapor-backend:latest redis:alpine | gzip > all-images.tar.gz
+
+# Cek ukuran file
+ls -lh all-images.tar.gz
+# Output: ~60-80MB
 ```
 
-> ⚠️ **Peringatan**: Anda tidak bisa menghapus image yang sedang digunakan oleh container aktif. Hentikan container terlebih dahulu:
-> ```bash
-> docker stop <container_name>
-> docker rm <container_name>
-> docker rmi <image_name>
-> ```
-
-### 7.3 Menghapus Image Tar File
-
-Jika menggunakan Opsi B (Private Subnet) dan sudah load image dari tar file:
+### 7.3 Transfer via Bastion (Opsi B)
 
 ```bash
-# Hapus tar file untuk menghemat disk space
-rm ~/backend-image.tar
+# Di LOCAL - Transfer ke Backend via Bastion tunnel
 
-# Cek sisa disk space
-df -h
+# Pastikan SSH config sudah ada ProxyJump
+scp all-images.tar.gz backend:/home/ubuntu/
+
+# Atau manual dengan ProxyJump
+scp -J ubuntu@BASTION_IP all-images.tar.gz ubuntu@BACKEND_PRIVATE_IP:/home/ubuntu/
 ```
 
-### 7.4 Membersihkan Unused Images
+### 7.4 Load Image dari Tar (docker load)
 
 ```bash
-# Hapus semua dangling images (untagged)
-docker image prune
+# Di BACKEND EC2
 
-# Hapus SEMUA unused images (tidak sedang dipakai container)
+# 1. Load semua images dari tar
+cd /home/ubuntu
+gunzip -c all-images.tar.gz | docker load
+
+# Output:
+# Loaded image: finlapor-backend:latest
+# Loaded image: redis:alpine
+
+# 2. Verifikasi images sudah ter-load
+docker images
+
+# 3. Hapus tar file untuk hemat disk
+rm all-images.tar.gz
+
+# 4. Jalankan containers
+docker compose up -d
+```
+
+### 7.5 Cleanup & Maintenance
+
+```bash
+# Hapus image yang tidak terpakai
 docker image prune -a
 
 # Hapus semua: images, containers, networks, cache
@@ -1555,16 +1577,15 @@ docker system prune -a
 docker system df
 ```
 
-### 7.5 Quick Reference
+### 7.6 Quick Reference
 
 | Perintah | Fungsi |
 |----------|--------|
+| `docker save img1 img2 \| gzip > file.tar.gz` | Export images ke tar.gz |
+| `gunzip -c file.tar.gz \| docker load` | Import images dari tar.gz |
 | `docker images` | Lihat semua images |
 | `docker rmi <image>` | Hapus image |
-| `docker rmi -f <image>` | Force hapus image |
-| `docker image prune` | Hapus dangling images |
 | `docker image prune -a` | Hapus semua unused images |
-| `docker system prune -a` | Hapus semua unused resources |
 | `docker system df` | Cek penggunaan disk Docker |
 
 ---
