@@ -8,11 +8,10 @@ Panduan lengkap membuat dan konfigurasi AWS API Gateway untuk menghubungkan fron
 
 1. [Overview](#overview)
 2. [Pilih Arsitektur AI Service](#-pilih-arsitektur-ai-service)
-   - [Opsi A: Backend → Lambda Langsung](#opsi-a-backend--lambda-langsung-recommended-untuk-uas)
-   - [Opsi B: Frontend → API Gateway → Lambda](#opsi-b-frontend--api-gateway--lambda-enterprise)
+   - [Opsi A: Frontend → API Gateway → Backend/Lambda](#opsi-a-frontend--api-gateway--backendlambda-recommended)
+   - [Opsi B: Backend → Lambda Langsung](#opsi-b-backend--lambda-langsung-simplified)
 3. [Perbandingan Opsi](#perbandingan-opsi)
-4. [Panduan Opsi A: Backend → Lambda](#panduan-opsi-a-backend--lambda)
-5. [Panduan Opsi B: API Gateway](#panduan-opsi-b-api-gateway)
+4. [Panduan Opsi A: API Gateway](#panduan-opsi-a-api-gateway-recommended)
    - [Create HTTP API](#1-create-http-api)
    - [Integrasi dengan EC2 Backend](#2-integrasi-dengan-ec2-backend)
    - [Integrasi dengan Lambda](#3-integrasi-dengan-lambda)
@@ -20,6 +19,7 @@ Panduan lengkap membuat dan konfigurasi AWS API Gateway untuk menghubungkan fron
    - [CORS Configuration](#5-cors-configuration)
    - [Authentication](#6-authentication)
    - [Monitoring & Logging](#7-monitoring--logging)
+5. [Panduan Opsi B: Backend → Lambda](#panduan-opsi-b-backend--lambda)
 6. [Troubleshooting](#8-troubleshooting)
 
 ---
@@ -32,58 +32,7 @@ FinLapor mendukung **2 opsi arsitektur** untuk koneksi AI Service. Pilih sesuai 
 
 ## 🎯 Pilih Arsitektur AI Service
 
-### Opsi A: Backend → Lambda Langsung (Recommended untuk UAS)
-
-```
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                              CLOUDFLARE                                       │
-│  ┌────────────────┐                                                          │
-│  │  finlapor.     │ (Frontend)                                               │
-│  │  pages.dev     │                                                          │
-│  └───────┬────────┘                                                          │
-└──────────┼───────────────────────────────────────────────────────────────────┘
-           │
-           ▼
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                              AWS VPC                                          │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                      Private Subnet                                   │    │
-│  │  ┌────────────────────┐                                              │    │
-│  │  │   EC2 Backend      │                                              │    │
-│  │  │   (Go API)         │──────┐                                       │    │
-│  │  │   :8080            │      │ AWS SDK                               │    │
-│  │  └────────────────────┘      │ (lambda:InvokeFunction)               │    │
-│  │                              │                                        │    │
-│  └──────────────────────────────┼────────────────────────────────────────┘    │
-│                                 │                                             │
-│  ┌──────────────────────────────▼────────────────────────────────────────┐   │
-│  │                     VPC Endpoint (Lambda)                              │   │
-│  │                     atau NAT Gateway                                   │   │
-│  └──────────────────────────────┬────────────────────────────────────────┘   │
-│                                 │                                             │
-│  ┌──────────────────────────────▼────────────────────────────────────────┐   │
-│  │   AWS Lambda (finlapor-ai)                                             │   │
-│  │   - OCR, Chat, Categorize, Insight                                     │   │
-│  └────────────────────────────────────────────────────────────────────────┘   │
-└──────────────────────────────────────────────────────────────────────────────┘
-```
-
-**Karakteristik Opsi A:**
-| Aspek | Detail |
-|-------|--------|
-| **Flow** | Frontend → Backend → Lambda (via AWS SDK) |
-| **API Gateway** | ❌ Tidak diperlukan |
-| **Koneksi Lambda** | VPC Endpoint / NAT Gateway / Public Subnet |
-| **Biaya tambahan** | VPC Endpoint ~$7.5/bulan atau $0 (public subnet) |
-| **Kompleksitas** | 🟢 Rendah |
-| **Cocok untuk** | ✅ **UAS / Demo / Budget terbatas** |
-
-> **📌 Ini adalah arsitektur yang digunakan FinLapor saat ini.** 
-> Lihat [07-lambda-ai-setup.md](./07-lambda-ai-setup.md) untuk detail koneksi Backend → Lambda.
-
----
-
-### Opsi B: Frontend → API Gateway → Lambda (Enterprise)
+### Opsi A: Frontend → API Gateway → Backend/Lambda (Recommended)
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────┐
@@ -110,66 +59,115 @@ FinLapor mendukung **2 opsi arsitektur** untuk koneksi AI Service. Pilih sesuai 
 │  └────────────┼──────────────────────────┼──────────────────────────────┘    │
 │               │                          │                                    │
 │               ▼                          ▼                                    │
-│  ┌────────────────────┐     ┌─────────────────────────┐                      │
-│  │   EC2 Backend      │     │     AWS Lambda          │                      │
-│  │   (Go API)         │     │     (AI Service)        │                      │
-│  │   :8080            │     │     finlapor-ai         │                      │
-│  └────────────────────┘     └─────────────────────────┘                      │
+│  ┌────────────────────────┐  ┌─────────────────────────┐                     │
+│  │   EC2 + Docker         │  │     AWS Lambda          │                     │
+│  │   ┌──────────────────┐ │  │     (AI Service)        │                     │
+│  │   │ Backend Go Fiber │ │  │     finlapor-ai         │                     │
+│  │   │ + Redis          │ │  └─────────────────────────┘                     │
+│  │   └──────────────────┘ │                                                  │
+│  │   :8080                │                                                  │
+│  └────────────────────────┘                                                  │
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Karakteristik Opsi B:**
+**Karakteristik Opsi A:**
 | Aspek | Detail |
 |-------|--------|
-| **Flow** | Frontend → API Gateway → Lambda (langsung) |
+| **Flow** | Frontend → API Gateway → Backend (Docker) / Lambda |
 | **API Gateway** | ✅ Diperlukan |
+| **Backend** | EC2 + Docker (Go Fiber + Redis) |
 | **Koneksi Lambda** | API Gateway native integration |
 | **Biaya tambahan** | ~$1-3/bulan (per juta requests) |
-| **Kompleksitas** | 🟡 Menengah |
-| **Cocok untuk** | Production skala besar, microservices |
+| **Kompleksitas** | � Menengah |
+| **Cocok untuk** | ✅ **Production / UAS dengan arsitektur lengkap** |
 
-**Keuntungan Opsi B:**
+**Keuntungan Opsi A:**
 - ✅ Frontend bisa langsung akses Lambda tanpa melalui Backend
 - ✅ Unified endpoint untuk semua services
 - ✅ Built-in throttling & rate limiting
 - ✅ Request/response transformation
 - ✅ Authentication (JWT, API Key)
 
+> **📌 Ini adalah arsitektur production-ready untuk FinLapor.**
+
+---
+
+### Opsi B: Backend → Lambda Langsung (Simplified)
+
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                              CLOUDFLARE                                       │
+│  ┌────────────────┐                                                          │
+│  │  finlapor.     │ (Frontend)                                               │
+│  │  pages.dev     │                                                          │
+│  └───────┬────────┘                                                          │
+└──────────┼───────────────────────────────────────────────────────────────────┘
+           │
+           ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                              AWS VPC                                          │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │                      Private/Public Subnet                            │    │
+│  │  ┌────────────────────────┐                                          │    │
+│  │  │   EC2 + Docker         │                                          │    │
+│  │  │   ┌──────────────────┐ │      AWS SDK                             │    │
+│  │  │   │ Backend Go Fiber │ │──────(lambda:InvokeFunction)             │    │
+│  │  │   │ + Redis          │ │                                          │    │
+│  │  │   └──────────────────┘ │                                          │    │
+│  │  │   :8080                │                                          │    │
+│  │  └────────────────────────┘                                          │    │
+│  │                              │                                        │    │
+│  └──────────────────────────────┼────────────────────────────────────────┘    │
+│                                 │                                             │
+│  ┌──────────────────────────────▼────────────────────────────────────────┐   │
+│  │                     VPC Endpoint (Lambda)                              │   │
+│  │                     atau NAT Gateway (jika Private Subnet)             │   │
+│  └──────────────────────────────┬────────────────────────────────────────┘   │
+│                                 │                                             │
+│  ┌──────────────────────────────▼────────────────────────────────────────┐   │
+│  │   AWS Lambda (finlapor-ai)                                             │   │
+│  │   - OCR, Chat, Categorize, Insight                                     │   │
+│  └────────────────────────────────────────────────────────────────────────┘   │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Karakteristik Opsi B:**
+| Aspek | Detail |
+|-------|--------|
+| **Flow** | Frontend → Backend (Docker) → Lambda (via AWS SDK) |
+| **API Gateway** | ❌ Tidak diperlukan |
+| **Backend** | EC2 + Docker (Go Fiber + Redis) |
+| **Koneksi Lambda** | VPC Endpoint / NAT Gateway / Public Subnet |
+| **Biaya tambahan** | VPC Endpoint ~$7.5/bulan atau $0 (public subnet) |
+| **Kompleksitas** | � Rendah |
+| **Cocok untuk** | Demo / Budget terbatas / Simplified setup |
+
+> **📖 Detail koneksi Backend → Lambda:** Lihat [07-lambda-ai-setup.md](./07-lambda-ai-setup.md)
+
 ---
 
 ## Perbandingan Opsi
 
-| Aspek | Opsi A (Backend→Lambda) | Opsi B (API Gateway) |
-|-------|------------------------|---------------------|
-| **Biaya** | VPC Endpoint ~$7.5 atau $0 | ~$1-3/bulan |
-| **Setup** | Mudah (AWS SDK) | Lebih banyak config |
-| **Latency** | Sedikit lebih tinggi | Lebih rendah untuk AI calls |
-| **Dependency** | Backend harus running | Lambda independent |
-| **Auth** | Dihandle Backend | Bisa JWT/API Key |
-| **Monitoring** | CloudWatch Lambda | CloudWatch + API Gateway metrics |
+| Aspek | Opsi A (API Gateway) | Opsi B (Backend→Lambda) |
+|-------|---------------------|------------------------|
+| **Biaya** | ~$1-3/bulan | VPC Endpoint ~$7.5 atau $0 |
+| **Setup** | Lebih banyak config | Mudah (AWS SDK) |
+| **Latency** | Lebih rendah untuk AI calls | Sedikit lebih tinggi |
+| **Dependency** | Lambda independent | Backend harus running |
+| **Auth** | Bisa JWT/API Key | Dihandle Backend |
+| **Monitoring** | CloudWatch + API Gateway | CloudWatch Lambda |
+| **Docker** | ✅ Backend in Docker | ✅ Backend in Docker |
 
 > **💡 Rekomendasi:**
-> - **UAS/Demo**: Gunakan **Opsi A** (sudah diimplementasi)
-> - **Production/Scale**: Pertimbangkan **Opsi B** untuk memisahkan concerns
+> - **Production/UAS**: Gunakan **Opsi A** (API Gateway) untuk arsitektur lengkap
+> - **Demo/Budget**: Pertimbangkan **Opsi B** untuk setup lebih sederhana
 
 ---
 
-## Panduan Opsi A: Backend → Lambda
+## Panduan Opsi A: API Gateway (Recommended)
 
-> **📖 Sudah Didokumentasikan!**
-> 
-> Lihat **[07-lambda-ai-setup.md](./07-lambda-ai-setup.md)** untuk:
-> - Section 5: Connect ke Backend
-> - Section 6: Koneksi Lambda dari Private Subnet (VPC Endpoint / NAT Gateway / Public Subnet)
-
-Tidak perlu setup API Gateway untuk opsi ini.
-
----
-
-## Panduan Opsi B: API Gateway
-
-Jika Anda ingin menggunakan API Gateway, ikuti panduan di bawah ini.
+Ikuti panduan di bawah ini untuk setup API Gateway.
 
 ### Jenis API Gateway
 
@@ -595,6 +593,37 @@ Metric: 5XXError
 Threshold: > 10 in 5 minutes
 Action: SNS notification
 ```
+
+---
+
+## Panduan Opsi B: Backend → Lambda
+
+Jika Anda memilih arsitektur yang lebih sederhana tanpa API Gateway:
+
+> **📖 Lihat dokumentasi lengkap:**
+> 
+> **[07-lambda-ai-setup.md](./07-lambda-ai-setup.md)** berisi:
+> - Section 5: Connect Lambda ke Backend (Docker)
+> - Section 6: Koneksi Lambda dari Private Subnet
+>   - Opsi 1: VPC Endpoint (~$7.5/bulan)
+>   - Opsi 2: NAT Gateway (~$32/bulan)
+>   - Opsi 3: Public Subnet ($0)
+
+### Arsitektur Opsi B
+
+```
+Frontend (CloudFlare) → Backend (EC2 + Docker) → Lambda (AWS SDK)
+```
+
+**Kapan gunakan Opsi B:**
+- ✅ Demo/prototype dengan budget terbatas
+- ✅ Setup yang lebih sederhana
+- ✅ Tidak membutuhkan direct AI calls dari frontend
+
+**Yang perlu dikonfigurasi:**
+1. Backend environment: `AWS_LAMBDA_FUNCTION_NAME=finlapor-ai`
+2. IAM credentials dengan `lambda:InvokeFunction` permission
+3. VPC Endpoint atau NAT Gateway (jika backend di private subnet)
 
 ---
 
