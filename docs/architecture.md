@@ -8,6 +8,10 @@ Dokumentasi lengkap arsitektur sistem FinLapor.
 
 ```mermaid
 flowchart TB
+    subgraph CICD["🔄 CI/CD"]
+        GitHub["🐙 GitHub Actions<br/>Build + Deploy"]
+    end
+
     subgraph User["👤 USER"]
         Browser["Browser/App"]
     end
@@ -37,11 +41,18 @@ flowchart TB
         HuggingFace["🤗 HuggingFace API<br/>OCR + LLM Models<br/>FREE 30k req/mo"]
     end
 
+    %% User Flow
     Browser --> CFPages
     Browser --> CFProxy
     CFProxy --> APIGateway
     APIGateway --> Backend
-    Bastion -.->|SSH| Backend
+    
+    %% CI/CD Flow
+    GitHub -.->|Deploy Frontend| CFPages
+    GitHub -.->|SSH ProxyJump| Bastion
+    Bastion -.->|Deploy Backend| Backend
+    
+    %% Internal connections
     Backend <--> RDS
     Backend --> Lambda
     Backend -->|VPC Endpoint FREE| S3
