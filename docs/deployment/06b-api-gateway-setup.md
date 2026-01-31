@@ -7,21 +7,83 @@ Panduan lengkap membuat dan konfigurasi AWS API Gateway untuk menghubungkan fron
 ## 📑 Daftar Isi
 
 1. [Overview](#overview)
-2. [Kapan Butuh API Gateway?](#kapan-butuh-api-gateway)
-3. [Create HTTP API](#1-create-http-api)
-4. [Integrasi dengan EC2 Backend](#2-integrasi-dengan-ec2-backend)
-5. [Integrasi dengan Lambda](#3-integrasi-dengan-lambda)
-6. [Custom Domain](#4-custom-domain)
-7. [CORS Configuration](#5-cors-configuration)
-8. [Authentication](#6-authentication)
-9. [Monitoring & Logging](#7-monitoring--logging)
-10. [Troubleshooting](#8-troubleshooting)
+2. [Pilih Arsitektur AI Service](#-pilih-arsitektur-ai-service)
+   - [Opsi A: Backend → Lambda Langsung](#opsi-a-backend--lambda-langsung-recommended-untuk-uas)
+   - [Opsi B: Frontend → API Gateway → Lambda](#opsi-b-frontend--api-gateway--lambda-enterprise)
+3. [Perbandingan Opsi](#perbandingan-opsi)
+4. [Panduan Opsi A: Backend → Lambda](#panduan-opsi-a-backend--lambda)
+5. [Panduan Opsi B: API Gateway](#panduan-opsi-b-api-gateway)
+   - [Create HTTP API](#1-create-http-api)
+   - [Integrasi dengan EC2 Backend](#2-integrasi-dengan-ec2-backend)
+   - [Integrasi dengan Lambda](#3-integrasi-dengan-lambda)
+   - [Custom Domain](#4-custom-domain)
+   - [CORS Configuration](#5-cors-configuration)
+   - [Authentication](#6-authentication)
+   - [Monitoring & Logging](#7-monitoring--logging)
+6. [Troubleshooting](#8-troubleshooting)
 
 ---
 
 ## Overview
 
-### Arsitektur dengan API Gateway
+FinLapor mendukung **2 opsi arsitektur** untuk koneksi AI Service. Pilih sesuai kebutuhan Anda.
+
+---
+
+## 🎯 Pilih Arsitektur AI Service
+
+### Opsi A: Backend → Lambda Langsung (Recommended untuk UAS)
+
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                              CLOUDFLARE                                       │
+│  ┌────────────────┐                                                          │
+│  │  finlapor.     │ (Frontend)                                               │
+│  │  pages.dev     │                                                          │
+│  └───────┬────────┘                                                          │
+└──────────┼───────────────────────────────────────────────────────────────────┘
+           │
+           ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                              AWS VPC                                          │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │                      Private Subnet                                   │    │
+│  │  ┌────────────────────┐                                              │    │
+│  │  │   EC2 Backend      │                                              │    │
+│  │  │   (Go API)         │──────┐                                       │    │
+│  │  │   :8080            │      │ AWS SDK                               │    │
+│  │  └────────────────────┘      │ (lambda:InvokeFunction)               │    │
+│  │                              │                                        │    │
+│  └──────────────────────────────┼────────────────────────────────────────┘    │
+│                                 │                                             │
+│  ┌──────────────────────────────▼────────────────────────────────────────┐   │
+│  │                     VPC Endpoint (Lambda)                              │   │
+│  │                     atau NAT Gateway                                   │   │
+│  └──────────────────────────────┬────────────────────────────────────────┘   │
+│                                 │                                             │
+│  ┌──────────────────────────────▼────────────────────────────────────────┐   │
+│  │   AWS Lambda (finlapor-ai)                                             │   │
+│  │   - OCR, Chat, Categorize, Insight                                     │   │
+│  └────────────────────────────────────────────────────────────────────────┘   │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Karakteristik Opsi A:**
+| Aspek | Detail |
+|-------|--------|
+| **Flow** | Frontend → Backend → Lambda (via AWS SDK) |
+| **API Gateway** | ❌ Tidak diperlukan |
+| **Koneksi Lambda** | VPC Endpoint / NAT Gateway / Public Subnet |
+| **Biaya tambahan** | VPC Endpoint ~$7.5/bulan atau $0 (public subnet) |
+| **Kompleksitas** | 🟢 Rendah |
+| **Cocok untuk** | ✅ **UAS / Demo / Budget terbatas** |
+
+> **📌 Ini adalah arsitektur yang digunakan FinLapor saat ini.** 
+> Lihat [07-lambda-ai-setup.md](./07-lambda-ai-setup.md) untuk detail koneksi Backend → Lambda.
+
+---
+
+### Opsi B: Frontend → API Gateway → Lambda (Enterprise)
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────┐
@@ -57,52 +119,67 @@ Panduan lengkap membuat dan konfigurasi AWS API Gateway untuk menghubungkan fron
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
+**Karakteristik Opsi B:**
+| Aspek | Detail |
+|-------|--------|
+| **Flow** | Frontend → API Gateway → Lambda (langsung) |
+| **API Gateway** | ✅ Diperlukan |
+| **Koneksi Lambda** | API Gateway native integration |
+| **Biaya tambahan** | ~$1-3/bulan (per juta requests) |
+| **Kompleksitas** | 🟡 Menengah |
+| **Cocok untuk** | Production skala besar, microservices |
+
+**Keuntungan Opsi B:**
+- ✅ Frontend bisa langsung akses Lambda tanpa melalui Backend
+- ✅ Unified endpoint untuk semua services
+- ✅ Built-in throttling & rate limiting
+- ✅ Request/response transformation
+- ✅ Authentication (JWT, API Key)
+
+---
+
+## Perbandingan Opsi
+
+| Aspek | Opsi A (Backend→Lambda) | Opsi B (API Gateway) |
+|-------|------------------------|---------------------|
+| **Biaya** | VPC Endpoint ~$7.5 atau $0 | ~$1-3/bulan |
+| **Setup** | Mudah (AWS SDK) | Lebih banyak config |
+| **Latency** | Sedikit lebih tinggi | Lebih rendah untuk AI calls |
+| **Dependency** | Backend harus running | Lambda independent |
+| **Auth** | Dihandle Backend | Bisa JWT/API Key |
+| **Monitoring** | CloudWatch Lambda | CloudWatch + API Gateway metrics |
+
+> **💡 Rekomendasi:**
+> - **UAS/Demo**: Gunakan **Opsi A** (sudah diimplementasi)
+> - **Production/Scale**: Pertimbangkan **Opsi B** untuk memisahkan concerns
+
+---
+
+## Panduan Opsi A: Backend → Lambda
+
+> **📖 Sudah Didokumentasikan!**
+> 
+> Lihat **[07-lambda-ai-setup.md](./07-lambda-ai-setup.md)** untuk:
+> - Section 5: Connect ke Backend
+> - Section 6: Koneksi Lambda dari Private Subnet (VPC Endpoint / NAT Gateway / Public Subnet)
+
+Tidak perlu setup API Gateway untuk opsi ini.
+
+---
+
+## Panduan Opsi B: API Gateway
+
+Jika Anda ingin menggunakan API Gateway, ikuti panduan di bawah ini.
+
 ### Jenis API Gateway
 
 | Tipe | Keterangan | Biaya | Use Case |
 |------|-----------|-------|----------|
-| **HTTP API** | Simple, low-latency | $1/juta requests | ✅ **Recommended** untuk FinLapor |
-| **REST API** | Feature-rich | $3.5/juta requests | Enterprise dengan fitur advanced |
+| **HTTP API** | Simple, low-latency | $1/juta requests | ✅ **Recommended** |
+| **REST API** | Feature-rich | $3.5/juta requests | Enterprise advanced |
 | **WebSocket API** | Real-time | $1/juta messages | Chat, gaming |
 
-> **💡 Rekomendasi:** Gunakan **HTTP API** karena lebih murah dan cukup untuk kebutuhan FinLapor.
-
----
-
-## Kapan Butuh API Gateway?
-
-### Opsi A: Tanpa API Gateway (CloudFlare Proxy)
-
-```
-CloudFlare → EC2 langsung
-```
-
-**Kelebihan:**
-- Simple setup
-- Gratis (CloudFlare free tier)
-- Sudah termasuk DDoS protection
-
-**Kekurangan:**
-- Tidak bisa routing ke multiple backends
-- Throttling harus dihandle sendiri
-
-### Opsi B: Dengan API Gateway
-
-```
-CloudFlare → API Gateway → EC2 / Lambda
-```
-
-**Kelebihan:**
-- ✅ Unified endpoint untuk semua services
-- ✅ Built-in throttling & rate limiting
-- ✅ Mudah routing ke Lambda atau EC2
-- ✅ Request/response transformation
-- ✅ Authentication (JWT, API Key)
-
-**Kekurangan:**
-- Biaya tambahan (minimal ~$1/bulan untuk traffic rendah)
-
-> **📌 Untuk UAS:** Opsi A sudah cukup. API Gateway untuk production skala besar.
+> **💡 Rekomendasi:** Gunakan **HTTP API** karena lebih murah.
 
 ---
 
