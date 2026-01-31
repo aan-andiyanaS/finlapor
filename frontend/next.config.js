@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: 'export', // Required for Cloudflare Pages static deployment
   trailingSlash: true,
   images: {
     unoptimized: true,
