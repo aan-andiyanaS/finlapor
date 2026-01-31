@@ -25,7 +25,45 @@ Code Push → CI (Test & Build) → Deploy Staging → Testing → Deploy Produc
 
 ---
 
-## 🔥 Pipeline Flow Diagram
+## 🔥 Pipeline Architecture
+
+### 1. Opsi A: Public Subnet Deployment
+Cocok untuk deployment sederhana dimana EC2 Backend memiliki Public IP.
+
+```mermaid
+graph LR
+    A[GitHub Actions] -->|SSH port 22| B[EC2 Backend]
+    subgraph AWS VPC Public Subnet
+        B
+        D[Docker Containers]
+        B --> D
+    end
+    C[CloudFlare Pages] -->|Deploy Static| E[Frontend App]
+```
+
+### 2. Opsi B: Private Subnet Deployment (via Bastion)
+Cocok untuk production yang lebih aman dimana Backend terisolasi.
+
+```mermaid
+graph LR
+    A[GitHub Actions] -->|SSH port 22| B[Bastion Host]
+    subgraph AWS VPC
+        subgraph Public Subnet
+            B
+        end
+        subgraph Private Subnet
+            C[EC2 Backend]
+            E[Docker Containers]
+        end
+    end
+    B -->|SSH ProxyJump| C
+    C --> E
+    F[CloudFlare Pages] -->|Deploy Static| G[Frontend App]
+```
+
+---
+
+## 🔄 Development Pipeline Flow
 
 ### 1. Development Flow
 

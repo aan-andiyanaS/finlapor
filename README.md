@@ -308,6 +308,7 @@ Code Push → Tests → Build → Deploy Staging → Tests → Deploy Production
 - ✅ Health checks after deployment
 - ✅ Automatic rollback on failure
 - ✅ Slack notifications
+- ✅ **Support untuk Opsi B (Private Subnet)** via Bastion ProxyJump 🔐
 
 [CI/CD Guide →](./docs/cicd.md)
 
