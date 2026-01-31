@@ -99,7 +99,7 @@ export default function Home() {
             </nav>
 
             {/* Hero Section */}
-            <section className="pt-32 pb-28 px-4 relative">
+            <section className="pt-32 pb-32 px-4 relative">
                 {/* Floating Decorative Elements */}
                 <motion.div
                     className="absolute top-20 left-10 text-6xl opacity-20"

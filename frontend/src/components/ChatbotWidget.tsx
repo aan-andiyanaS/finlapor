@@ -41,100 +41,80 @@ const FINLAPOR_KNOWLEDGE = {
 • Siapa saja yang ingin financial awareness lebih baik`,
 }
 
-// Simple keyword matching for responses
+// Simple keyword matching for responses - Finny personality
 function getResponse(question: string): string {
     const q = question.toLowerCase()
 
     // Check for off-topic questions
     const offTopicKeywords = ['cuaca', 'weather', 'politik', 'berita', 'game', 'film', 'movie', 'musik', 'resep', 'masak', 'covid', 'corona', 'olahraga', 'sport', 'crypto', 'bitcoin', 'saham', 'stock']
     if (offTopicKeywords.some(k => q.includes(k))) {
-        return `Maaf, saya hanya bisa menjawab pertanyaan seputar FinLapor dan fitur-fiturnya. Silakan tanyakan tentang:
-• Apa itu FinLapor
-• Fitur-fitur FinLapor
-• Cara mendaftar
-• Harga/biaya
-• Keamanan data`
+        return `Hmm, topik itu di luar bidang saya nih! 😅 Saya Finny, asisten khusus FinLapor.
+
+Saya bisa bantu kamu tentang:
+✨ Apa itu FinLapor
+📱 Fitur-fitur keren kami
+📝 Cara mendaftar
+💰 Harga (spoiler: GRATIS!)
+🔒 Keamanan data
+
+Ayo tanya yang lain! 💬`
     }
 
     // FinLapor related responses
     if (q.includes('apa itu') || q.includes('finlapor') && (q.includes('apa') || q.includes('tentang'))) {
-        return FINLAPOR_KNOWLEDGE.about
+        return `Hai! Senang kamu bertanya! 🎉\n\n${FINLAPOR_KNOWLEDGE.about}\n\nPenasaran? Langsung coba aja, GRATIS lho! 😊`
     }
 
     if (q.includes('fitur') || q.includes('bisa apa') || q.includes('fungsi') || q.includes('kegunaan')) {
-        return FINLAPOR_KNOWLEDGE.features
+        return `Wah, kamu mau tau fitur-fitur keren FinLapor? Ini dia! 🚀\n\n${FINLAPOR_KNOWLEDGE.features}\n\nKeren kan? Yuk daftar sekarang! 💪`
     }
 
     if (q.includes('harga') || q.includes('biaya') || q.includes('gratis') || q.includes('bayar') || q.includes('pricing')) {
-        return FINLAPOR_KNOWLEDGE.pricing
+        return `Pertanyaan bagus! 💰\n\n${FINLAPOR_KNOWLEDGE.pricing}\n\nYup, beneran gratis! Gak ada biaya tersembunyi 😉`
     }
 
     if (q.includes('daftar') || q.includes('mulai') || q.includes('cara') || q.includes('register') || q.includes('sign up')) {
-        return FINLAPOR_KNOWLEDGE.howToStart
+        return `Siap bantu! Ini caranya super gampang 👇\n\n${FINLAPOR_KNOWLEDGE.howToStart}\n\nGampang banget kan? Cuma butuh 1 menit! ⏱️`
     }
 
     if (q.includes('aman') || q.includes('keamanan') || q.includes('security') || q.includes('data') || q.includes('privasi')) {
-        return FINLAPOR_KNOWLEDGE.security
+        return `Keamanan itu prioritas utama kami! 🛡️\n\n${FINLAPOR_KNOWLEDGE.security}\n\nData kamu aman bersama FinLapor! 💪`
     }
 
     if (q.includes('bantuan') || q.includes('support') || q.includes('hubungi') || q.includes('kontak')) {
-        return FINLAPOR_KNOWLEDGE.support
+        return `Butuh bantuan? Tenang, aku siap membantu! 🤝\n\n${FINLAPOR_KNOWLEDGE.support}\n\nJangan ragu untuk bertanya ya! 😊`
     }
 
     if (q.includes('siapa') || q.includes('untuk') || q.includes('cocok') || q.includes('target')) {
-        return FINLAPOR_KNOWLEDGE.target
+        return `FinLapor dibuat untuk siapa aja! 🌟\n\n${FINLAPOR_KNOWLEDGE.target}\n\nKamu termasuk yang mana? 😄`
     }
 
     if (q.includes('scan') || q.includes('struk') || q.includes('ocr') || q.includes('foto')) {
-        return `Fitur Smart OCR Scanner memungkinkan Anda untuk:
-• Foto struk belanja dengan kamera
-• AI akan membaca dan mengekstrak data otomatis
-• Data transaksi langsung tersimpan
-• Tidak perlu input manual!
-
-⚠️ Fitur OCR saat ini dalam tahap pengembangan.`
+        return `Fitur Smart OCR Scanner itu keren banget! 📷✨\n\n• Foto struk belanja dengan kamera\n• AI akan membaca dan mengekstrak data otomatis\n• Data transaksi langsung tersimpan\n• Tidak perlu input manual!\n\n⚠️ Fitur OCR saat ini dalam tahap pengembangan - coming soon ya!`
     }
 
     if (q.includes('ai') || q.includes('asisten') || q.includes('chat')) {
-        return `Asisten AI Personal FinLapor dapat:
-• Menganalisis pola pengeluaran Anda
-• Memberikan saran penghematan
-• Menjawab pertanyaan tentang keuangan Anda
-• Membantu membuat budget
-
-Akses Asisten AI setelah login ke dashboard!`
+        return `Asisten AI seperti aku bisa banyak hal lho! 🤖✨\n\n• Menganalisis pola pengeluaran kamu\n• Memberikan saran penghematan\n• Menjawab pertanyaan tentang keuangan\n• Membantu membuat budget\n\nDaftar dulu biar bisa akses AI yang lebih canggih di dashboard! 🎯`
     }
 
     if (q.includes('laporan') || q.includes('report') || q.includes('pdf') || q.includes('excel')) {
-        return `Fitur Laporan Profesional:
-• Export laporan dalam format PDF atau Excel
-• Laporan mutasi seperti statement bank
-• Grafik dan visualisasi data
-• Cocok untuk keperluan pribadi maupun bisnis`
+        return `Fitur Laporan Profesional kami kece abis! 📊\n\n• Export laporan dalam format PDF atau Excel\n• Laporan mutasi seperti statement bank\n• Grafik dan visualisasi data\n• Cocok untuk keperluan pribadi maupun bisnis\n\nLangsung coba setelah daftar ya! 📈`
     }
 
     if (q.includes('halo') || q.includes('hai') || q.includes('hi') || q.includes('hello')) {
-        return `Halo! 👋 Selamat datang di FinLapor!
+        return `Halo! 👋 Senang bertemu kamu!\n\nAku Finny, asisten virtual FinLapor yang siap membantu! Mau tanya apa nih?\n\n✨ Fitur-fitur FinLapor\n📝 Cara mendaftar\n💰 Harga dan biaya\n🔒 Keamanan data\n\nTanya aja, aku siap bantu! 😊`
+    }
 
-Saya adalah asisten virtual yang siap membantu menjawab pertanyaan seputar FinLapor. Silakan tanyakan tentang:
-• Fitur-fitur FinLapor
-• Cara mendaftar
-• Harga dan biaya
-• Keamanan data
-• Dan lainnya terkait FinLapor`
+    if (q.includes('finny') || q.includes('nama') || q.includes('siapa kamu')) {
+        return `Hai! Aku Finny! 🙋\n\nAku adalah asisten virtual FinLapor yang selalu siap membantu kamu 24/7! Aku bisa jawab pertanyaan seputar platform FinLapor.\n\nAda yang bisa aku bantu? 😊`
+    }
+
+    if (q.includes('terima kasih') || q.includes('thanks') || q.includes('makasih')) {
+        return `Sama-sama! 🥰 Senang bisa membantu!\n\nKalau ada pertanyaan lagi, jangan sungkan ya. Aku selalu ada di sini! 💙\n\nSelamat mencoba FinLapor! 🚀`
     }
 
     // Default response
-    return `Terima kasih atas pertanyaannya! Saya adalah asisten FinLapor yang hanya bisa menjawab pertanyaan seputar platform ini.
-
-Beberapa topik yang bisa saya bantu:
-• Apa itu FinLapor
-• Fitur-fitur yang tersedia
-• Cara mendaftar dan memulai
-• Harga dan biaya
-• Keamanan data
-
-Silakan tanyakan salah satu topik di atas atau klik "Daftar Gratis" untuk langsung mencoba!`
+    return `Hmm, aku coba pahami pertanyaanmu ya! 🤔\n\nSebagai Finny, aku fokus membantu seputar FinLapor:\n\n✨ Apa itu FinLapor\n📱 Fitur-fitur yang tersedia\n📝 Cara mendaftar dan memulai\n💰 Harga dan biaya\n🔒 Keamanan data\n\nCoba tanyakan salah satu topik di atas, atau langsung klik "Daftar Gratis" untuk mencoba! 🎯`
 }
 
 interface Message {
@@ -147,7 +127,7 @@ export default function ChatbotWidget() {
     const [messages, setMessages] = useState<Message[]>([
         {
             role: 'assistant',
-            content: 'Halo! 👋 Saya asisten FinLapor. Ada yang bisa saya bantu tentang platform kami?'
+            content: 'Halo! 👋 Aku Finny, asisten virtual FinLapor!\n\nAku siap bantu kamu mengenal FinLapor lebih dekat. Mau tanya apa nih? 😊'
         }
     ])
     const [input, setInput] = useState('')
@@ -237,14 +217,20 @@ export default function ChatbotWidget() {
                         transition={{ duration: 0.2 }}
                     >
                         {/* Header */}
-                        <div className="bg-gradient-to-r from-blue-500 to-blue-600 p-4">
+                        <div className="bg-gradient-to-r from-blue-500 to-emerald-500 p-4">
                             <div className="flex items-center gap-3">
                                 <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
-                                    <span className="text-xl">🤖</span>
+                                    <span className="text-xl">🦊</span>
                                 </div>
                                 <div>
-                                    <h3 className="font-semibold text-white">Asisten FinLapor</h3>
-                                    <p className="text-blue-100 text-xs">Tanya seputar FinLapor</p>
+                                    <h3 className="font-semibold text-white">Finny</h3>
+                                    <p className="text-blue-100 text-xs">Asisten Virtual FinLapor • 24/7</p>
+                                </div>
+                                <div className="ml-auto">
+                                    <span className="inline-flex items-center gap-1 text-xs text-green-200">
+                                        <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+                                        Online
+                                    </span>
                                 </div>
                             </div>
                         </div>
@@ -260,8 +246,8 @@ export default function ChatbotWidget() {
                                 >
                                     <div
                                         className={`max-w-[85%] p-3 rounded-2xl text-sm whitespace-pre-wrap ${msg.role === 'user'
-                                                ? 'bg-blue-500 text-white rounded-br-sm'
-                                                : 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-bl-sm shadow-sm'
+                                            ? 'bg-blue-500 text-white rounded-br-sm'
+                                            : 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-bl-sm shadow-sm'
                                             }`}
                                     >
                                         {msg.content}
