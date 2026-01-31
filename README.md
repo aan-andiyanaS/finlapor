@@ -53,6 +53,7 @@ flowchart TB
     subgraph AWS["🔶 AWS VPC"]
         Bastion["🔐 Bastion"]
         Backend["🖥️ Backend<br/>Go Fiber + Redis"]
+        RDS["🗄️ RDS PostgreSQL"]
         Lambda["⚡ Lambda AI"]
         S3["📦 S3 Storage"]
     end
@@ -67,6 +68,7 @@ flowchart TB
     GitHub -.->|Deploy| CFPages
     GitHub -.->|SSH via Bastion| Bastion -.-> Backend
     
+    Backend <--> RDS
     Backend --> Lambda --> HuggingFace
     Backend --> S3
 ```
