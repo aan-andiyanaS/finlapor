@@ -390,20 +390,35 @@ export default function ReportsPage() {
             pdf.setFillColor(30, 41, 59)
             pdf.rect(0, 0, pageWidth, 40, 'F')
 
-            pdf.setFontSize(22)
-            pdf.setTextColor(59, 130, 246)
-            pdf.text('F', margin, 18)
-            pdf.setFontSize(18)
-            pdf.setTextColor(255, 255, 255)
-            pdf.text('inLapor', margin + 10, 18)
+            // Load and add logo image
+            try {
+                const logoResponse = await fetch('/logo.png')
+                const logoBlob = await logoResponse.blob()
+                const logoBase64 = await new Promise<string>((resolve) => {
+                    const reader = new FileReader()
+                    reader.onloadend = () => resolve(reader.result as string)
+                    reader.readAsDataURL(logoBlob)
+                })
+                // Add logo to PDF (x, y, width, height)
+                pdf.addImage(logoBase64, 'PNG', margin, 6, 28, 28)
+            } catch (logoError) {
+                // Fallback to text if logo fails to load
+                console.log('Logo failed to load, using text fallback')
+                pdf.setFontSize(22)
+                pdf.setTextColor(59, 130, 246)
+                pdf.text('F', margin, 18)
+                pdf.setFontSize(18)
+                pdf.setTextColor(255, 255, 255)
+                pdf.text('inLapor', margin + 10, 18)
+            }
 
             pdf.setFontSize(9)
             pdf.setTextColor(148, 163, 184)
-            pdf.text('LAPORAN MUTASI KEUANGAN', margin, 28)
+            pdf.text('LAPORAN MUTASI KEUANGAN', margin + 32, 18)
 
             // Filter info
             const filterText = filters.type === 'all' ? 'Semua Transaksi' : filters.type === 'income' ? 'Pemasukan' : 'Pengeluaran'
-            pdf.text(`Filter: ${filterText}`, margin, 35)
+            pdf.text(`Filter: ${filterText}`, margin + 32, 28)
 
             // Date range on right
             pdf.setFontSize(8)
@@ -489,7 +504,7 @@ export default function ReportsPage() {
             // ===== PIE CHARTS SECTION =====
             const pieData = pieChartData()
             const chartRadius = 22
-            const chartSectionHeight = 75
+            const chartSectionHeight = 95 // Increased to accommodate pie chart + legend
 
             if (filters.type === 'all' && (pieData.incomeData.length > 0 || pieData.expenseData.length > 0)) {
                 // Show both charts side by side
@@ -520,6 +535,9 @@ export default function ReportsPage() {
                 drawPieChart(pageWidth / 2, yPosition + chartRadius + 10, chartRadius + 5, pieData.expenseData, '')
                 yPosition += chartSectionHeight
             }
+
+            // Add extra spacing before table section
+            yPosition += 8
 
             // ===== TRANSACTION TABLE =====
             pdf.setFontSize(10)
