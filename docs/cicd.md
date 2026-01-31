@@ -464,7 +464,7 @@ git push origin v1.0.0
 
 ---
 
-## 🔐 CI/CD untuk Opsi B (Private Subnet via Bastion)
+## 🔐 CI/CD untuk Opsi B (Private Subnet via Bastion) - Docker
 
 Jika Anda menggunakan **Opsi B** dimana Backend EC2 berada di **Private Subnet** (tanpa Public IP), workflow CI/CD perlu dimodifikasi untuk melewati **Bastion Host**.
 
@@ -472,48 +472,58 @@ Jika Anda menggunakan **Opsi B** dimana Backend EC2 berada di **Private Subnet**
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    CI/CD Flow - Opsi B                          │
+│               CI/CD Flow - Opsi B (Docker)                      │
 └─────────────────────────────────────────────────────────────────┘
 
-   GitHub Actions Runner
-         (Internet)
+   ┌──────────────────────┐
+   │   GitHub Actions     │
+   │   (Cloud Runner)     │
+   │                      │
+   │  1️⃣ Checkout code    │
+   │  2️⃣ Build Docker     │
+   │  3️⃣ Save to .tar.gz  │
+   └──────────┬───────────┘
               │
               │ SSH (port 22)
               ▼
    ┌──────────────────────┐
-   │   Bastion Host       │  ◄── Public Subnet
-   │   (Public IP)        │      IP: 13.x.x.x
+   │   Bastion Host       │  ◄── Public Subnet (13.x.x.x)
+   │   (Jump Server)      │
    │                      │
-   │   • SSH Jump Host    │
-   │   • Transfer files   │
-   └──────────────────────┘
+   │   ⚡ Tunnel Only     │  ← File TIDAK disimpan di sini!
+   │      (ProxyJump)     │
+   └──────────┬───────────┘
               │
-              │ SSH (port 22) - Private Network
+              │ SSH Tunnel (port 22)
               ▼
    ┌──────────────────────┐
-   │   Backend EC2        │  ◄── Private Subnet
-   │   (No Public IP)     │      IP: 10.0.x.x
+   │   Backend EC2        │  ◄── Private Subnet (10.0.x.x)
    │                      │
-   │   • Receive deploy   │
-   │   • Run container    │
+   │  4️⃣ Receive .tar.gz  │
+   │  5️⃣ docker load      │
+   │  6️⃣ docker compose   │
+   │  7️⃣ Health check     │
    └──────────────────────┘
 ```
 
 ### Tambahan GitHub Secrets untuk Opsi B
 
-```
-BASTION_IP              # Public IP Bastion (13.x.x.x)
-BACKEND_PRIVATE_IP      # Private IP Backend (10.0.x.x)
-SSH_PRIVATE_KEY         # SSH Key (bisa akses Bastion & Backend)
-```
+| Secret Name | Contoh Value | Keterangan |
+|-------------|--------------|------------|
+| `BASTION_IP` | `13.212.xxx.xxx` | Public IP Bastion |
+| `BACKEND_PRIVATE_IP` | `10.0.137.14` | Private IP Backend |
+| `SSH_PRIVATE_KEY` | `-----BEGIN RSA...` | SSH Key (sama untuk keduanya) |
 
-### Modified deploy-production.yml untuk Opsi B (Docker Version)
+---
 
-Gunakan workflow ini jika Anda deploy **Docker Container** ke Private Subnet via Bastion.
+### deploy-production-private.yml (Docker - Lengkap)
 
-File: `.github/workflows/deploy-production-private-docker.yml`
+Buat file `.github/workflows/deploy-production-private.yml`:
 
 ```yaml
+# .github/workflows/deploy-production-private.yml
+# CI/CD untuk Opsi B: Private Subnet via Bastion dengan Docker
+
 name: Deploy to Production (Private Subnet - Docker)
 
 on:
@@ -527,44 +537,90 @@ on:
         required: true
         type: string
 
+env:
+  IMAGE_NAME: finlapor-backend
+  DOCKER_COMPOSE_FILE: docker-compose.production.yml
+
 jobs:
-  deploy-backend:
+  # ========================================
+  # JOB 1: Build Docker Image di GitHub
+  # ========================================
+  build:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.tag }}
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
       
-      - name: Build Docker Image
+      - name: Get version tag
+        id: version
         run: |
-          # Build image dengan tag version
-          docker build -t finlapor-backend:${{ github.ref_name }} ./backend
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "tag=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Build Docker image
+        working-directory: backend
+        run: |
+          echo "🔨 Building Docker image..."
+          docker build -t $IMAGE_NAME:${{ steps.version.outputs.tag }} .
+          docker tag $IMAGE_NAME:${{ steps.version.outputs.tag }} $IMAGE_NAME:latest
           
-          # Save image ke tar file untuk transfer
-          docker save finlapor-backend:${{ github.ref_name }} | gzip > backend-image.tar.gz
+          echo "📦 Saving Docker image to tar.gz..."
+          docker save $IMAGE_NAME:${{ steps.version.outputs.tag }} | gzip > ../backend-image.tar.gz
           
-          echo "✅ Image built and saved: backend-image.tar.gz"
+          echo "📊 Image size:"
+          ls -lh ../backend-image.tar.gz
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-image
+          path: backend-image.tar.gz
+          retention-days: 1
 
+  # ========================================
+  # JOB 2: Deploy ke Backend via Bastion
+  # ========================================
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    
+    steps:
+      - name: Checkout code (for docker-compose file)
+        uses: actions/checkout@v4
+      
+      - name: Download Docker image artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-image
+      
       - name: Setup SSH with ProxyJump
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           BASTION_IP: ${{ secrets.BASTION_IP }}
           BACKEND_PRIVATE_IP: ${{ secrets.BACKEND_PRIVATE_IP }}
         run: |
+          echo "🔑 Setting up SSH..."
           mkdir -p ~/.ssh
           echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           
-          # Add hosts to known_hosts
-          ssh-keyscan -H $BASTION_IP >> ~/.ssh/known_hosts
+          # Add bastion to known_hosts
+          ssh-keyscan -H $BASTION_IP >> ~/.ssh/known_hosts 2>/dev/null
           
-          # Create SSH config
+          # Create SSH config for ProxyJump
           cat << EOF > ~/.ssh/config
           Host bastion
             HostName $BASTION_IP
             User ubuntu
             IdentityFile ~/.ssh/id_rsa
             StrictHostKeyChecking no
+            UserKnownHostsFile /dev/null
           
           Host backend
             HostName $BACKEND_PRIVATE_IP
@@ -572,69 +628,94 @@ jobs:
             IdentityFile ~/.ssh/id_rsa
             ProxyJump bastion
             StrictHostKeyChecking no
+            UserKnownHostsFile /dev/null
           EOF
-          chmod 600 ~/.ssh/config
-
-      - name: Stop Containers on Backend
-        run: |
-          ssh backend "cd /home/ubuntu && docker compose down || true"
-
-      - name: Transfer Files via Bastion
-        run: |
-          # Transfer Image
-          scp backend-image.tar.gz backend:/home/ubuntu/
           
-          # Transfer Docker Compose file
-          scp docker-compose.production.yml backend:/home/ubuntu/docker-compose.yml
-
-      - name: Load Image & Start Containers
-        env:
-          VERSION: ${{ github.ref_name }}
+          chmod 600 ~/.ssh/config
+          echo "✅ SSH configured"
+      
+      - name: Test SSH connection
         run: |
-          ssh backend << EOF
+          echo "🔗 Testing SSH to Backend via Bastion..."
+          ssh backend "echo '✅ SSH connection successful!'"
+      
+      - name: Transfer Docker image to Backend
+        run: |
+          echo "📤 Transferring Docker image (via Bastion tunnel)..."
+          scp backend-image.tar.gz backend:/home/ubuntu/
+          echo "✅ Transfer complete"
+      
+      - name: Transfer docker-compose file
+        run: |
+          echo "📤 Transferring docker-compose.production.yml..."
+          scp $DOCKER_COMPOSE_FILE backend:/home/ubuntu/docker-compose.yml
+          echo "✅ Transfer complete"
+      
+      - name: Deploy on Backend Server
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          echo "🚀 Deploying version $VERSION on Backend..."
+          
+          ssh backend << 'DEPLOY_SCRIPT'
             cd /home/ubuntu
             
-            # 1. Load Image baru
-            echo "📦 Loading image..."
+            echo "📦 Loading Docker image..."
             gunzip -c backend-image.tar.gz | docker load
             
-            # 2. Update .env atau export variable version
-            export BACKEND_TAG=$VERSION
+            echo "🛑 Stopping existing containers..."
+            docker compose down || true
             
-            # 3. Start containers
-            echo "🚀 Starting services..."
+            echo "🚀 Starting new containers..."
             docker compose up -d
             
-            # 4. Cleanup space
-            rm backend-image.tar.gz
-            docker image prune -a -f # Hapus unused images
-          EOF
-
-      - name: Health Check via Bastion
+            echo "🧹 Cleaning up..."
+            rm -f backend-image.tar.gz
+            
+            echo "📊 Container status:"
+            docker ps
+            
+            echo "✅ Deployment script completed"
+          DEPLOY_SCRIPT
+      
+      - name: Health Check
         run: |
-          echo "Waiting for services to be ready..."
-          sleep 15
-          
+          echo "🏥 Running health checks..."
           for i in {1..10}; do
-            RESULT=$(ssh backend "curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/health || echo 'failed'")
+            RESULT=$(ssh backend "curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/health 2>/dev/null || echo 'failed'")
             if [ "$RESULT" = "200" ]; then
-              echo "✅ Health check passed!"
+              echo "✅ Health check passed! (attempt $i)"
               exit 0
             fi
-            echo "Attempt $i: $RESULT - retrying in 10s..."
+            echo "⏳ Attempt $i: $RESULT - waiting 10s..."
             sleep 10
           done
           echo "❌ Health check failed after 10 attempts"
           exit 1
+      
+      - name: Monitor for stability (2 minutes)
+        run: |
+          echo "👀 Monitoring for 2 minutes..."
+          sleep 120
+          
+          RESULT=$(ssh backend "curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/health 2>/dev/null || echo 'failed'")
+          if [ "$RESULT" != "200" ]; then
+            echo "❌ Service became unhealthy!"
+            exit 1
+          fi
+          
+          echo "✅ Deployment stable after monitoring period"
 
+  # ========================================
+  # JOB 3: Rollback jika Deploy Gagal
+  # ========================================
   rollback:
     runs-on: ubuntu-latest
-    needs: [deploy-backend]
+    needs: deploy
     if: failure()
     
     steps:
       - name: Setup SSH
-        # (Sama seperti Setup SSH diatas)
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           BASTION_IP: ${{ secrets.BASTION_IP }}
@@ -658,21 +739,89 @@ jobs:
             ProxyJump bastion
             StrictHostKeyChecking no
           EOF
+          
           chmod 600 ~/.ssh/config
       
-      - name: Automatic Rollback (Docker)
+      - name: Rollback to previous image
         run: |
-          echo "⚠️ Deployment failed, initiating rollback..."
+          echo "⚠️ Deployment failed! Rolling back..."
           
-          ssh backend << 'EOF'
-             cd /home/ubuntu
-             # Restart container dengan image sebelumnya (jika latest masih yang lama)
-             # Atau sekedar restart biar naik lagi
-             docker compose down
-             docker compose up -d
-          EOF
-          echo "✅ Services restarted"
+          ssh backend << 'ROLLBACK_SCRIPT'
+            cd /home/ubuntu
+            
+            # Get previous image
+            PREVIOUS=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep finlapor-backend | sed -n '2p')
+            
+            if [ -n "$PREVIOUS" ]; then
+              echo "🔄 Rolling back to: $PREVIOUS"
+              docker compose down || true
+              docker tag $PREVIOUS finlapor-backend:latest
+              docker compose up -d
+              echo "✅ Rollback completed"
+            else
+              echo "⚠️ No previous image found, restarting current..."
+              docker compose restart
+            fi
+          ROLLBACK_SCRIPT
+
+  # ========================================
+  # JOB 4: Notification
+  # ========================================
+  notify:
+    runs-on: ubuntu-latest
+    needs: [build, deploy]
+    if: always()
+    
+    steps:
+      - name: Send notification
+        env:
+          WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          STATUS="${{ needs.deploy.result }}"
+          VERSION="${{ needs.build.outputs.version }}"
+          
+          if [ "$STATUS" == "success" ]; then
+            MESSAGE="✅ Production deployment $VERSION completed successfully!"
+          else
+            MESSAGE="❌ Production deployment $VERSION failed!"
+          fi
+          
+          if [ -n "$WEBHOOK_URL" ]; then
+            curl -X POST $WEBHOOK_URL \
+              -H 'Content-Type: application/json' \
+              -d "{\"text\":\"$MESSAGE\"}" || echo "Webhook failed"
+          else
+            echo "$MESSAGE"
+          fi
 ```
+
+---
+
+### Cara Menggunakan
+
+#### 1. Trigger via Git Tag (Otomatis)
+
+```bash
+# Pastikan code sudah siap
+git add .
+git commit -m "feat: ready for v1.0.0"
+
+# Buat tag & push
+git tag v1.0.0
+git push origin v1.0.0
+
+# ✅ Workflow otomatis berjalan!
+```
+
+#### 2. Trigger Manual (workflow_dispatch)
+
+1. Buka GitHub → Repository → **Actions**
+2. Pilih workflow "Deploy to Production (Private Subnet - Docker)"
+3. Klik **Run workflow**
+4. Masukkan version (contoh: `v1.0.1`)
+5. Klik **Run workflow**
+
+---
 
 ### Troubleshooting Opsi B
 
@@ -710,18 +859,18 @@ Permission denied (publickey)
    cat ~/.ssh/authorized_keys
    ```
 
-#### Issue: ProxyJump Not Working
+#### Issue: Docker Load Failed
 
 **Symptom:**
 ```
-ProxyJump directive not recognized
+Error processing tar file: invalid tar header
 ```
 
 **Solutions:**
-1. Upgrade OpenSSH client (ProxyJump membutuhkan OpenSSH 7.3+)
-2. Alternatif gunakan ProxyCommand:
-   ```
-   ProxyCommand ssh -W %h:%p ubuntu@BASTION_IP
+1. File mungkin corrupt saat transfer. Coba lagi.
+2. Pastikan disk space di Backend cukup:
+   ```bash
+   ssh backend "df -h"
    ```
 
 ---
