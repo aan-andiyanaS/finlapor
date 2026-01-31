@@ -29,8 +29,8 @@ flowchart TB
         end
         
         subgraph PrivateSubnet["Private Subnet"]
-            Backend["🖥️ Backend Go Fiber<br/>EC2 t3.micro ~$8.50/mo"]
-            RDS["🗄️ AWS RDS<br/>PostgreSQL + Redis"]
+            Backend["🖥️ Backend Go Fiber + Redis<br/>EC2 t3.micro ~$8.50/mo"]
+            RDS["🗄️ AWS RDS PostgreSQL"]
         end
         
         Lambda["⚡ AWS Lambda<br/>AI Service Python 3.11"]

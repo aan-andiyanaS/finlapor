@@ -51,9 +51,15 @@ flowchart TB
     end
 
     subgraph AWS["🔶 AWS VPC"]
-        Bastion["🔐 Bastion"]
-        Backend["🖥️ Backend<br/>Go Fiber + Redis"]
-        RDS["🗄️ RDS PostgreSQL"]
+        subgraph PublicSubnet["Public Subnet"]
+            Bastion["🔐 Bastion"]
+        end
+        
+        subgraph PrivateSubnet["Private Subnet"]
+            Backend["🖥️ Backend<br/>Go Fiber + Redis"]
+            RDS["🗄️ RDS PostgreSQL"]
+        end
+        
         Lambda["⚡ Lambda AI"]
         S3["📦 S3 Storage"]
     end
