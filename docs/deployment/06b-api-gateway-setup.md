@@ -1,183 +1,96 @@
 # 🔀 Setup AWS API Gateway
 
-Panduan lengkap membuat dan konfigurasi AWS API Gateway untuk menghubungkan frontend ke backend dan AI service.
+Panduan membuat API Gateway untuk menghubungkan **CloudFlare Pages** ke **Backend di Private Subnet**.
+
+> **📌 Penting:** API Gateway ini **hanya** untuk akses ke Backend. Lambda dipanggil langsung dari Backend via AWS SDK.
 
 ---
 
 ## 📑 Daftar Isi
 
-1. [Overview](#overview)
-2. [Pilih Arsitektur AI Service](#-pilih-arsitektur-ai-service)
-   - [Opsi A: Frontend → API Gateway → Backend/Lambda](#opsi-a-frontend--api-gateway--backendlambda-recommended)
-   - [Opsi B: Backend → Lambda Langsung](#opsi-b-backend--lambda-langsung-simplified)
-3. [Perbandingan Opsi](#perbandingan-opsi)
-4. [Panduan Opsi A: API Gateway](#panduan-opsi-a-api-gateway-recommended)
-   - [Create HTTP API](#1-create-http-api)
-   - [Integrasi dengan EC2 Backend](#2-integrasi-dengan-ec2-backend)
-   - [Integrasi dengan Lambda](#3-integrasi-dengan-lambda)
-   - [Custom Domain](#4-custom-domain)
-   - [CORS Configuration](#5-cors-configuration)
-   - [Authentication](#6-authentication)
-   - [Monitoring & Logging](#7-monitoring--logging)
-5. [Panduan Opsi B: Backend → Lambda](#panduan-opsi-b-backend--lambda)
-6. [Troubleshooting](#8-troubleshooting)
+1. [Overview & Arsitektur](#overview--arsitektur)
+2. [Kapan Butuh API Gateway?](#kapan-butuh-api-gateway)
+3. [Create HTTP API](#1-create-http-api)
+4. [Integrasi dengan EC2 Backend](#2-integrasi-dengan-ec2-backend)
+5. [VPC Link Setup](#3-vpc-link-setup)
+6. [Custom Domain](#4-custom-domain)
+7. [CORS Configuration](#5-cors-configuration)
+8. [Authentication](#6-authentication)
+9. [Monitoring & Logging](#7-monitoring--logging)
+10. [Troubleshooting](#8-troubleshooting)
 
 ---
 
-## Overview
+## Overview & Arsitektur
 
-FinLapor mendukung **2 opsi arsitektur** untuk koneksi AI Service. Pilih sesuai kebutuhan Anda.
+### Arsitektur FinLapor
+
+```mermaid
+flowchart TB
+    subgraph CloudFlare["☁️ CloudFlare"]
+        Frontend["📱 Frontend<br/>finlapor.pages.dev"]
+    end
+
+    subgraph AWS["🔶 AWS"]
+        APIGateway["🔀 API Gateway<br/>api.finlapor.airi.click"]
+        
+        subgraph VPC["🌐 VPC"]
+            VPCLink["VPC Link"]
+            
+            subgraph Private["🔒 Private Subnet"]
+                Backend["🐳 EC2 + Docker<br/>Go Fiber + Redis<br/>:8080"]
+            end
+            
+            VPCEndpoint["VPC Endpoint<br/>(Lambda)"]
+        end
+        
+        Lambda["⚡ Lambda<br/>finlapor-ai"]
+    end
+
+    Frontend -->|HTTPS| APIGateway
+    APIGateway -->|VPC Link| VPCLink
+    VPCLink --> Backend
+    Backend -->|AWS SDK| VPCEndpoint
+    VPCEndpoint --> Lambda
+```
+
+### Flow Request
+
+| Step | From | To | Via |
+|------|------|-----|-----|
+| 1 | Frontend | API Gateway | HTTPS |
+| 2 | API Gateway | Backend | **VPC Link** |
+| 3 | Backend | Lambda | **AWS SDK** |
+
+> **⚠️ Penting:** Lambda dipanggil dari Backend via AWS SDK, **bukan** via API Gateway.
 
 ---
 
-## 🎯 Pilih Arsitektur AI Service
+## Kapan Butuh API Gateway?
 
-### Opsi A: Frontend → API Gateway → Backend/Lambda (Recommended)
+### ✅ Butuh API Gateway (Opsi Ini)
+
+Gunakan jika Backend ada di **Private Subnet**:
 
 ```
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                              CLOUDFLARE                                       │
-│  ┌────────────────┐                                                          │
-│  │  finlapor.     │ (Frontend)                                               │
-│  │  pages.dev     │                                                          │
-│  └───────┬────────┘                                                          │
-└──────────┼───────────────────────────────────────────────────────────────────┘
-           │
-           ▼
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                              AWS                                              │
-│                                                                              │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                        API Gateway                                    │    │
-│  │                                                                       │    │
-│  │  📍 api.finlapor.airi.click                                          │    │
-│  │                                                                       │    │
-│  │  ┌─────────────────────┐    ┌─────────────────────┐                  │    │
-│  │  │   /api/*            │    │   /ai/*             │                  │    │
-│  │  │   (Backend routes)  │    │   (AI routes)       │                  │    │
-│  │  └─────────┬───────────┘    └─────────┬───────────┘                  │    │
-│  └────────────┼──────────────────────────┼──────────────────────────────┘    │
-│               │                          │                                    │
-│               ▼                          ▼                                    │
-│  ┌────────────────────────┐  ┌─────────────────────────┐                     │
-│  │   EC2 + Docker         │  │     AWS Lambda          │                     │
-│  │   ┌──────────────────┐ │  │     (AI Service)        │                     │
-│  │   │ Backend Go Fiber │ │  │     finlapor-ai         │                     │
-│  │   │ + Redis          │ │  └─────────────────────────┘                     │
-│  │   └──────────────────┘ │                                                  │
-│  │   :8080                │                                                  │
-│  └────────────────────────┘                                                  │
-│                                                                              │
-└──────────────────────────────────────────────────────────────────────────────┘
+CloudFlare → API Gateway → VPC Link → Backend (Private)
 ```
 
-**Karakteristik Opsi A:**
-| Aspek | Detail |
-|-------|--------|
-| **Flow** | Frontend → API Gateway → Backend (Docker) / Lambda |
-| **API Gateway** | ✅ Diperlukan |
-| **Backend** | EC2 + Docker (Go Fiber + Redis) |
-| **Koneksi Lambda** | API Gateway native integration |
-| **Biaya tambahan** | ~$1-3/bulan (per juta requests) |
-| **Kompleksitas** | � Menengah |
-| **Cocok untuk** | ✅ **Production / UAS dengan arsitektur lengkap** |
-
-**Keuntungan Opsi A:**
-- ✅ Frontend bisa langsung akses Lambda tanpa melalui Backend
-- ✅ Unified endpoint untuk semua services
+**Keuntungan:**
+- ✅ Backend tidak terekspos ke internet
+- ✅ Unified API endpoint (`api.finlapor.airi.click`)
 - ✅ Built-in throttling & rate limiting
-- ✅ Request/response transformation
-- ✅ Authentication (JWT, API Key)
+- ✅ Sesuai dengan arsitektur UAS
 
-> **📌 Ini adalah arsitektur production-ready untuk FinLapor.**
+### ❌ Tidak Butuh API Gateway
 
----
-
-### Opsi B: Backend → Lambda Langsung (Simplified)
+Jika Backend ada di **Public Subnet** dengan Elastic IP:
 
 ```
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                              CLOUDFLARE                                       │
-│  ┌────────────────┐                                                          │
-│  │  finlapor.     │ (Frontend)                                               │
-│  │  pages.dev     │                                                          │
-│  └───────┬────────┘                                                          │
-└──────────┼───────────────────────────────────────────────────────────────────┘
-           │
-           ▼
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                              AWS VPC                                          │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                      Private/Public Subnet                            │    │
-│  │  ┌────────────────────────┐                                          │    │
-│  │  │   EC2 + Docker         │                                          │    │
-│  │  │   ┌──────────────────┐ │      AWS SDK                             │    │
-│  │  │   │ Backend Go Fiber │ │──────(lambda:InvokeFunction)             │    │
-│  │  │   │ + Redis          │ │                                          │    │
-│  │  │   └──────────────────┘ │                                          │    │
-│  │  │   :8080                │                                          │    │
-│  │  └────────────────────────┘                                          │    │
-│  │                              │                                        │    │
-│  └──────────────────────────────┼────────────────────────────────────────┘    │
-│                                 │                                             │
-│  ┌──────────────────────────────▼────────────────────────────────────────┐   │
-│  │                     VPC Endpoint (Lambda)                              │   │
-│  │                     atau NAT Gateway (jika Private Subnet)             │   │
-│  └──────────────────────────────┬────────────────────────────────────────┘   │
-│                                 │                                             │
-│  ┌──────────────────────────────▼────────────────────────────────────────┐   │
-│  │   AWS Lambda (finlapor-ai)                                             │   │
-│  │   - OCR, Chat, Categorize, Insight                                     │   │
-│  └────────────────────────────────────────────────────────────────────────┘   │
-└──────────────────────────────────────────────────────────────────────────────┘
+CloudFlare Proxy → Backend (Public IP langsung)
 ```
 
-**Karakteristik Opsi B:**
-| Aspek | Detail |
-|-------|--------|
-| **Flow** | Frontend → Backend (Docker) → Lambda (via AWS SDK) |
-| **API Gateway** | ❌ Tidak diperlukan |
-| **Backend** | EC2 + Docker (Go Fiber + Redis) |
-| **Koneksi Lambda** | VPC Endpoint / NAT Gateway / Public Subnet |
-| **Biaya tambahan** | VPC Endpoint ~$7.5/bulan atau $0 (public subnet) |
-| **Kompleksitas** | � Rendah |
-| **Cocok untuk** | Demo / Budget terbatas / Simplified setup |
-
-> **📖 Detail koneksi Backend → Lambda:** Lihat [07-lambda-ai-setup.md](./07-lambda-ai-setup.md)
-
----
-
-## Perbandingan Opsi
-
-| Aspek | Opsi A (API Gateway) | Opsi B (Backend→Lambda) |
-|-------|---------------------|------------------------|
-| **Biaya** | ~$1-3/bulan | VPC Endpoint ~$7.5 atau $0 |
-| **Setup** | Lebih banyak config | Mudah (AWS SDK) |
-| **Latency** | Lebih rendah untuk AI calls | Sedikit lebih tinggi |
-| **Dependency** | Lambda independent | Backend harus running |
-| **Auth** | Bisa JWT/API Key | Dihandle Backend |
-| **Monitoring** | CloudWatch + API Gateway | CloudWatch Lambda |
-| **Docker** | ✅ Backend in Docker | ✅ Backend in Docker |
-
-> **💡 Rekomendasi:**
-> - **Production/UAS**: Gunakan **Opsi A** (API Gateway) untuk arsitektur lengkap
-> - **Demo/Budget**: Pertimbangkan **Opsi B** untuk setup lebih sederhana
-
----
-
-## Panduan Opsi A: API Gateway (Recommended)
-
-Ikuti panduan di bawah ini untuk setup API Gateway.
-
-### Jenis API Gateway
-
-| Tipe | Keterangan | Biaya | Use Case |
-|------|-----------|-------|----------|
-| **HTTP API** | Simple, low-latency | $1/juta requests | ✅ **Recommended** |
-| **REST API** | Feature-rich | $3.5/juta requests | Enterprise advanced |
-| **WebSocket API** | Real-time | $1/juta messages | Chat, gaming |
-
-> **💡 Rekomendasi:** Gunakan **HTTP API** karena lebih murah.
+**Catatan:** Kurang secure, tapi lebih simple untuk demo cepat.
 
 ---
 
@@ -196,7 +109,7 @@ Ikuti panduan di bawah ini untuk setup API Gateway.
 
 ```
 API name: finlapor-api
-Description: FinLapor Backend & AI API Gateway
+Description: FinLapor Backend API Gateway
 ```
 
 4. Click **Next**
@@ -213,7 +126,6 @@ Auto-deploy: ✅ Enable
 ```
 
 > **📝 Note:** Stage `$default` berarti tidak ada prefix di URL.
-> Format URL: `https://xxxxxx.execute-api.ap-southeast-1.amazonaws.com/`
 
 5. Click **Next** → **Create**
 
@@ -237,17 +149,15 @@ https://abc123xyz.execute-api.ap-southeast-1.amazonaws.com
 Konfigurasi:
 
 ```
-Integration type: HTTP URI
-Method: ANY
+Integration type: Private resource
+Integration details:
+  - Select arn or id of existing resource
+  - Target service: VPC Link
+  
 URL: http://[EC2_PRIVATE_IP]:8080/{proxy}
-     atau
-     http://[EC2_PUBLIC_IP]:8080/{proxy}
-
-Connection type: Internet (jika EC2 punya public IP)
-                 VPC Link (jika EC2 di private subnet)
 ```
 
-> **⚠️ Important:** Jika EC2 di **Private Subnet**, Anda perlu buat VPC Link (lihat langkah 2.4)
+> **⚠️ Important:** Karena EC2 di **Private Subnet**, HARUS menggunakan VPC Link!
 
 4. Click **Create**
 
@@ -262,7 +172,7 @@ Method: ANY
 Path: /api/{proxy+}
 ```
 
-> **📝 `{proxy+}` adalah greedy parameter yang menangkap semua sub-path:**
+> **📝 `{proxy+}` adalah greedy parameter:**
 > - `/api/auth/login` → `{proxy}` = `auth/login`
 > - `/api/transactions` → `{proxy}` = `transactions`
 
@@ -274,36 +184,64 @@ Path: /api/{proxy+}
 2. **Attach integration** → Pilih integration yang dibuat
 3. Click **Attach integration**
 
-### Step 2.4: Setup VPC Link (Jika EC2 di Private Subnet)
+---
 
-Jika EC2 backend ada di **Private Subnet**, butuh VPC Link:
+## 3. VPC Link Setup
+
+VPC Link **WAJIB** untuk mengakses EC2 di Private Subnet.
+
+### Step 3.1: Create VPC Link
 
 1. API Gateway → **VPC links** (sidebar bawah)
 2. Click **Create**
-3. Konfigurasi:
+3. Pilih **VPC link for HTTP APIs**
+4. Konfigurasi:
 
 ```
 Name: finlapor-vpc-link
-VPC: finlapor-vpc
-Subnets: Pilih private subnets
-Security groups: finlapor-backend-sg (atau yang mengizinkan traffic dari API Gateway)
+VPC: finlapor-vpc (vpc-xxxxxx)
+Subnets: 
+  - Private Subnet AZ-a (subnet-xxxxxx)
+  - Private Subnet AZ-b (subnet-yyyyyy)
+Security groups: finlapor-backend-sg
 ```
 
-4. Click **Create** → Tunggu status "Available" (~5 menit)
+5. Click **Create**
 
-5. Update integration untuk menggunakan VPC Link:
-   - Integrations → Edit
-   - Connection type: **VPC Link**
-   - VPC Link: **finlapor-vpc-link**
-   - URL: `http://[EC2_PRIVATE_IP]:8080/{proxy}`
+### Step 3.2: Tunggu VPC Link Ready
 
-### Step 2.5: Test Route Backend
+Status harus **Available** (biasanya 3-5 menit)
+
+### Step 3.3: Update Integration
+
+1. Kembali ke **Integrations**
+2. Edit integration yang dibuat
+3. Update:
+
+```
+Connection type: VPC Link
+VPC Link: finlapor-vpc-link
+URL: http://[EC2_PRIVATE_IP]:8080/{proxy}
+```
+
+### Step 3.4: Security Group untuk VPC Link
+
+Pastikan Security Group `finlapor-backend-sg` mengizinkan traffic dari VPC Link:
+
+```
+Inbound Rules:
+- Type: Custom TCP
+- Port: 8080
+- Source: VPC CIDR (10.0.0.0/16)
+```
+
+### Step 3.5: Test Koneksi
 
 ```bash
-# Test health endpoint
+# Test via API Gateway
 curl https://abc123xyz.execute-api.ap-southeast-1.amazonaws.com/api/health
 
-# Expected:
+# Expected response:
 {
   "status": "ok",
   "service": "finlapor-backend",
@@ -313,80 +251,12 @@ curl https://abc123xyz.execute-api.ap-southeast-1.amazonaws.com/api/health
 
 ---
 
-## 3. Integrasi dengan Lambda
-
-### Step 3.1: Create Lambda Integration
-
-1. API Gateway → **finlapor-api** → **Integrations**
-2. Click **Create**
-3. Konfigurasi:
-
-```
-Integration type: AWS Lambda
-AWS Region: ap-southeast-1
-Lambda function: finlapor-ai
-Payload format version: 2.0
-```
-
-4. Click **Create**
-
-> **📝 Note:** API Gateway akan otomatis request permission untuk invoke Lambda.
-
-### Step 3.2: Create Routes untuk AI
-
-Buat route untuk setiap AI endpoint:
-
-| Route | Method | Purpose |
-|-------|--------|---------|
-| `/ai/health` | GET, POST | Status check |
-| `/ai/chat` | POST | AI Chat assistant |
-| `/ai/ocr` | POST | Receipt OCR |
-| `/ai/categorize` | POST | Transaction categorization |
-| `/ai/insight` | POST | Spending insights |
-
-**Cara buat (ulangi untuk setiap route):**
-
-1. Routes → **Create**
-2. Method: **POST** (atau ANY)
-3. Path: `/ai/chat`
-4. Attach integration: **finlapor-ai Lambda**
-
-**Atau buat catch-all route:**
-
-```
-Method: ANY
-Path: /ai/{proxy+}
-Integration: finlapor-ai Lambda
-```
-
-### Step 3.3: Test Lambda Route
-
-```bash
-# Test health
-curl -X POST https://abc123xyz.execute-api.ap-southeast-1.amazonaws.com/ai/health \
-  -H "Content-Type: application/json" \
-  -d '{"action": "health"}'
-
-# Expected:
-{
-  "statusCode": 200,
-  "body": "{\"status\":\"ok\",\"service\":\"finlapor-ai\"...}"
-}
-
-# Test chat
-curl -X POST https://abc123xyz.execute-api.ap-southeast-1.amazonaws.com/ai/chat \
-  -H "Content-Type: application/json" \
-  -d '{"action": "chat", "message": "Halo", "user_age": 25}'
-```
-
----
-
 ## 4. Custom Domain
 
 ### Step 4.1: Request Certificate di ACM
 
 1. AWS Console → **Certificate Manager** (ACM)
-2. Region: **us-east-1** (untuk API Gateway Edge) atau **ap-southeast-1** (untuk Regional)
+2. Region: **ap-southeast-1**
 3. Click **Request certificate** → **Request a public certificate**
 4. Domain: `api.finlapor.airi.click`
 5. Validation method: **DNS validation**
@@ -394,9 +264,8 @@ curl -X POST https://abc123xyz.execute-api.ap-southeast-1.amazonaws.com/ai/chat 
 
 ### Step 4.2: DNS Validation
 
-1. Setelah certificate dibuat, lihat **Domains** section
-2. Click **Create records in Route 53** (otomatis) atau
-3. Copy CNAME record ke DNS provider (CloudFlare):
+1. Lihat **Domains** section pada certificate
+2. Copy CNAME record ke CloudFlare DNS:
 
 ```
 Name: _abc123.api.finlapor
@@ -404,7 +273,7 @@ Type: CNAME
 Value: _xyz789.acm-validations.aws.
 ```
 
-4. Tunggu status certificate: **Issued** (~5-30 menit)
+3. Tunggu status certificate: **Issued** (~5-30 menit)
 
 ### Step 4.3: Setup Custom Domain di API Gateway
 
@@ -414,18 +283,18 @@ Value: _xyz789.acm-validations.aws.
 
 ```
 Domain name: api.finlapor.airi.click
+Endpoint type: Regional
+Certificate: Pilih certificate dari ACM
+
 API mapping:
   - API: finlapor-api
   - Stage: $default
   - Path: (kosong)
-
-Endpoint type: Regional
-Certificate: Pilih certificate dari ACM
 ```
 
 4. Click **Create**
 
-### Step 4.4: Update DNS
+### Step 4.4: Update DNS di CloudFlare
 
 Setelah domain dibuat, catat **API Gateway domain name**:
 ```
@@ -438,16 +307,15 @@ Di CloudFlare DNS, buat CNAME record:
 Type: CNAME
 Name: api
 Target: d-abc123xyz.execute-api.ap-southeast-1.amazonaws.com
-Proxy status: Proxied (orange) atau DNS Only (gray)
+Proxy status: DNS Only (gray cloud) ← PENTING!
 ```
 
-> **💡 Tip:** Jika menggunakan CloudFlare Proxy (orange), SSL mode harus **Full** atau **Full (Strict)**.
+> **⚠️ Penting:** Gunakan **DNS Only** (gray cloud), bukan Proxied, karena AWS ACM sudah handle SSL.
 
 ### Step 4.5: Test Custom Domain
 
 ```bash
 curl https://api.finlapor.airi.click/api/health
-curl https://api.finlapor.airi.click/ai/health
 ```
 
 ---
@@ -488,7 +356,6 @@ Access-Control-Allow-Credentials: true
 ### Step 5.2: Verify CORS
 
 ```bash
-# Test preflight request
 curl -X OPTIONS https://api.finlapor.airi.click/api/auth/login \
   -H "Origin: https://finlapor.airi.click" \
   -H "Access-Control-Request-Method: POST" \
@@ -496,55 +363,29 @@ curl -X OPTIONS https://api.finlapor.airi.click/api/auth/login \
 
 # Lihat response headers:
 # Access-Control-Allow-Origin: https://finlapor.airi.click
-# Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS
 ```
 
 ---
 
 ## 6. Authentication
 
-### Opsi A: JWT Authorizer (Recommended)
+### Opsi: Pass-through ke Backend
 
-Gunakan JWT token dari backend untuk autentikasi.
+Untuk FinLapor, autentikasi dihandle oleh **Backend** (JWT):
 
-1. API Gateway → **finlapor-api** → **Authorization** (sidebar)
-2. Click **Create authorizer**
-3. Konfigurasi:
+1. Frontend kirim `Authorization: Bearer <token>` header
+2. API Gateway forward header ke Backend
+3. Backend validate JWT
 
-```
-Authorizer type: JWT
-Name: finlapor-jwt-auth
-Identity source: $request.header.Authorization
-Issuer: https://api.finlapor.airi.click (atau URL backend Anda)
-Audience: finlapor-app
-```
+**Tidak perlu setup authorizer di API Gateway** - cukup pastikan header di-forward.
 
-4. Click **Create**
+### Verifikasi Header Forward
 
-**Attach ke routes yang perlu auth:**
-1. Routes → Pilih route (misal `/api/transactions`)
-2. Authorization → Attach authorizer → **finlapor-jwt-auth**
-
-### Opsi B: API Key
-
-Untuk testing atau rate limiting per client:
-
-1. API Gateway → **finlapor-api** → **API keys**
-2. Create API key → Copy key
-3. Routes → Pilih route → Settings → **API key required: true**
-
-**Usage:**
 ```bash
-curl https://api.finlapor.airi.click/api/health \
-  -H "x-api-key: YOUR_API_KEY"
+# Test dengan token
+curl https://api.finlapor.airi.click/api/transactions \
+  -H "Authorization: Bearer eyJhbGc..."
 ```
-
-### Opsi C: IAM Authorization
-
-Untuk service-to-service communication:
-
-1. Routes → Authorization → **IAM**
-2. Caller harus sign request dengan AWS SigV4
 
 ---
 
@@ -571,101 +412,44 @@ Log group: /aws/apigateway/finlapor-api
   "httpMethod": "$context.httpMethod",
   "path": "$context.path",
   "status": "$context.status",
-  "responseLatency": "$context.responseLatency",
-  "integrationLatency": "$context.integrationLatency"
+  "responseLatency": "$context.responseLatency"
 }
 ```
 
 ### Step 7.2: View Metrics
 
-1. CloudWatch → Metrics → **ApiGateway**
-2. Metrics yang berguna:
-   - **Count** - Total requests
-   - **Latency** - Response time
-   - **4XXError** - Client errors
-   - **5XXError** - Server errors
-
-### Step 7.3: Create Alarms
-
-```
-Alarm: High Error Rate
-Metric: 5XXError
-Threshold: > 10 in 5 minutes
-Action: SNS notification
-```
-
----
-
-## Panduan Opsi B: Backend → Lambda
-
-Jika Anda memilih arsitektur yang lebih sederhana tanpa API Gateway:
-
-> **📖 Lihat dokumentasi lengkap:**
-> 
-> **[07-lambda-ai-setup.md](./07-lambda-ai-setup.md)** berisi:
-> - Section 5: Connect Lambda ke Backend (Docker)
-> - Section 6: Koneksi Lambda dari Private Subnet
->   - Opsi 1: VPC Endpoint (~$7.5/bulan)
->   - Opsi 2: NAT Gateway (~$32/bulan)
->   - Opsi 3: Public Subnet ($0)
-
-### Arsitektur Opsi B
-
-```
-Frontend (CloudFlare) → Backend (EC2 + Docker) → Lambda (AWS SDK)
-```
-
-**Kapan gunakan Opsi B:**
-- ✅ Demo/prototype dengan budget terbatas
-- ✅ Setup yang lebih sederhana
-- ✅ Tidak membutuhkan direct AI calls dari frontend
-
-**Yang perlu dikonfigurasi:**
-1. Backend environment: `AWS_LAMBDA_FUNCTION_NAME=finlapor-ai`
-2. IAM credentials dengan `lambda:InvokeFunction` permission
-3. VPC Endpoint atau NAT Gateway (jika backend di private subnet)
+CloudWatch → Metrics → **ApiGateway**:
+- **Count** - Total requests
+- **Latency** - Response time
+- **4XXError** - Client errors
+- **5XXError** - Server errors
 
 ---
 
 ## 8. Troubleshooting
 
-### Error: 403 Forbidden
-
-**Penyebab:**
-- API key missing
-- JWT invalid
-- CORS blocking
-
-**Solusi:**
-```bash
-# Cek apakah perlu API key
-curl -H "x-api-key: YOUR_KEY" https://api.finlapor.airi.click/...
-
-# Cek CORS headers di response
-```
-
 ### Error: 502 Bad Gateway
 
 **Penyebab:**
-- Backend tidak merespon
-- Lambda timeout
-- VPC Link tidak configured
+- VPC Link tidak configured dengan benar
+- Backend tidak running
+- Security Group blocking traffic
 
 **Solusi:**
-1. Cek backend running: `docker ps`
-2. Cek Lambda logs di CloudWatch
-3. Verify VPC Link status: "Available"
+1. Cek VPC Link status: Harus **Available**
+2. SSH ke EC2 via Bastion, cek: `docker ps`
+3. Verify Security Group inbound rules
 
 ### Error: 504 Gateway Timeout
 
 **Penyebab:**
 - Backend terlalu lambat merespon
-- Lambda timeout
+- Network connectivity issue
 
 **Solusi:**
 1. API Gateway default timeout: 29 detik
-2. Optimize backend/Lambda performance
-3. Increase Lambda timeout (max 15 menit)
+2. Check Backend logs: `docker logs finlapor-backend`
+3. Verify VPC Link subnets match EC2 subnet
 
 ### CORS Error di Browser
 
@@ -675,16 +459,17 @@ curl -H "x-api-key: YOUR_KEY" https://api.finlapor.airi.click/...
 
 **Solusi:**
 1. Tambah origin ke CORS config
-2. Pastikan OPTIONS method di-handle
+2. Verify dengan `curl -X OPTIONS`
 
-### Request Body Kosong di Backend
+### Error: 403 Forbidden
 
 **Penyebab:**
-- Payload format version mismatch
+- Route tidak match
+- Integration tidak attached
 
 **Solusi:**
-- Untuk Lambda: Gunakan Payload format version 2.0
-- Untuk HTTP integration: Pastikan Content-Type header forward
+1. Check Routes → pastikan `/api/{proxy+}` ada
+2. Verify integration attached ke route
 
 ---
 
@@ -694,25 +479,38 @@ curl -H "x-api-key: YOUR_KEY" https://api.finlapor.airi.click/...
 |----------|-------|
 | API Type | HTTP API |
 | Endpoint | `https://api.finlapor.airi.click` |
-| Backend Route | `ANY /api/{proxy+}` → EC2:8080 |
-| AI Route | `ANY /ai/{proxy+}` → Lambda finlapor-ai |
+| Route | `ANY /api/{proxy+}` → Backend:8080 |
+| VPC Link | Required (Private Subnet) |
 | CORS | Enabled untuk frontend origins |
-| Auth | JWT (recommended) atau API Key |
+| Auth | Pass-through ke Backend (JWT) |
+
+---
+
+## Koneksi Backend → Lambda
+
+> **📖 Untuk setup koneksi Backend ke Lambda**, lihat:
+> 
+> **[07-lambda-ai-setup.md](./07-lambda-ai-setup.md)** - Section 5 & 6:
+> - Setup VPC Endpoint untuk Lambda
+> - Backend environment variables
+> - AWS SDK configuration
+
+Lambda **TIDAK** menggunakan API Gateway. Backend memanggil Lambda langsung via AWS SDK.
 
 ---
 
 ## Next Steps
 
-Setelah API Gateway selesai dikonfigurasi:
+Setelah API Gateway selesai:
 
-- → [CloudFlare Setup](./08-cloudflare-setup.md) - Update frontend API URL
+- → [CloudFlare Setup](./08-cloudflare-setup.md) - Update `NEXT_PUBLIC_API_URL`
 - → [Domain & SSL Setup](./09-domain-ssl-setup.md) - Custom domain
 - → [Monitoring](./10-monitoring.md) - Setup alerts
 
 ---
 
 > **📌 Tips:**
-> - Gunakan **HTTP API** untuk menghemat biaya
+> - Gunakan **HTTP API** untuk menghemat biaya (~$1/juta requests)
+> - VPC Link **WAJIB** untuk Private Subnet
 > - Enable **access logging** untuk debugging
-> - Set **throttling** untuk mencegah abuse
-> - Test CORS dengan browser DevTools sebelum production
+> - Lambda dipanggil dari Backend, bukan dari API Gateway
