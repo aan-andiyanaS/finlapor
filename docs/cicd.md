@@ -507,14 +507,14 @@ BACKEND_PRIVATE_IP      # Private IP Backend (10.0.x.x)
 SSH_PRIVATE_KEY         # SSH Key (bisa akses Bastion & Backend)
 ```
 
-### Modified deploy-production.yml untuk Opsi B
+### Modified deploy-production.yml untuk Opsi B (Docker Version)
 
-Buat file baru atau modifikasi workflow untuk mendukung Private Subnet:
+Gunakan workflow ini jika Anda deploy **Docker Container** ke Private Subnet via Bastion.
+
+File: `.github/workflows/deploy-production-private-docker.yml`
 
 ```yaml
-# .github/workflows/deploy-production-private.yml
-
-name: Deploy to Production (Private Subnet)
+name: Deploy to Production (Private Subnet - Docker)
 
 on:
   push:
@@ -535,18 +535,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       
-      - name: Setup Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: '1.21'
-      
-      - name: Build backend
-        working-directory: backend
+      - name: Build Docker Image
         run: |
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-            go build -ldflags="-s -w" -o main cmd/server/main.go
-          chmod +x main
-      
+          # Build image dengan tag version
+          docker build -t finlapor-backend:${{ github.ref_name }} ./backend
+          
+          # Save image ke tar file untuk transfer
+          docker save finlapor-backend:${{ github.ref_name }} | gzip > backend-image.tar.gz
+          
+          echo "✅ Image built and saved: backend-image.tar.gz"
+
       - name: Setup SSH with ProxyJump
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -557,10 +555,10 @@ jobs:
           echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           
-          # Add both hosts to known_hosts
+          # Add hosts to known_hosts
           ssh-keyscan -H $BASTION_IP >> ~/.ssh/known_hosts
           
-          # Create SSH config for ProxyJump
+          # Create SSH config
           cat << EOF > ~/.ssh/config
           Host bastion
             HostName $BASTION_IP
@@ -575,31 +573,48 @@ jobs:
             ProxyJump bastion
             StrictHostKeyChecking no
           EOF
-          
           chmod 600 ~/.ssh/config
-      
-      - name: Backup current binary on Backend
+
+      - name: Stop Containers on Backend
         run: |
-          ssh backend "cd /home/ubuntu && \
-            if [ -f main ]; then \
-              cp main main.backup-\$(date +%Y%m%d-%H%M%S); \
-            fi"
-      
-      - name: Stop service on Backend
+          ssh backend "cd /home/ubuntu && docker compose down || true"
+
+      - name: Transfer Files via Bastion
         run: |
-          ssh backend "sudo systemctl stop finlapor || true"
-      
-      - name: Transfer binary via Bastion
+          # Transfer Image
+          scp backend-image.tar.gz backend:/home/ubuntu/
+          
+          # Transfer Docker Compose file
+          scp docker-compose.production.yml backend:/home/ubuntu/docker-compose.yml
+
+      - name: Load Image & Start Containers
+        env:
+          VERSION: ${{ github.ref_name }}
         run: |
-          scp backend/main backend:/home/ubuntu/main
-      
-      - name: Start service on Backend
-        run: |
-          ssh backend "sudo systemctl start finlapor"
-          sleep 15
-      
+          ssh backend << EOF
+            cd /home/ubuntu
+            
+            # 1. Load Image baru
+            echo "📦 Loading image..."
+            gunzip -c backend-image.tar.gz | docker load
+            
+            # 2. Update .env atau export variable version
+            export BACKEND_TAG=$VERSION
+            
+            # 3. Start containers
+            echo "🚀 Starting services..."
+            docker compose up -d
+            
+            # 4. Cleanup space
+            rm backend-image.tar.gz
+            docker image prune -a -f # Hapus unused images
+          EOF
+
       - name: Health Check via Bastion
         run: |
+          echo "Waiting for services to be ready..."
+          sleep 15
+          
           for i in {1..10}; do
             RESULT=$(ssh backend "curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/health || echo 'failed'")
             if [ "$RESULT" = "200" ]; then
@@ -611,17 +626,6 @@ jobs:
           done
           echo "❌ Health check failed after 10 attempts"
           exit 1
-      
-      - name: Monitor for 2 minutes
-        run: |
-          echo "Monitoring production for 2 minutes..."
-          sleep 120
-          RESULT=$(ssh backend "curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/health || echo 'failed'")
-          if [ "$RESULT" != "200" ]; then
-            echo "❌ Service became unhealthy, triggering rollback"
-            exit 1
-          fi
-          echo "✅ Production deployment stable"
 
   rollback:
     runs-on: ubuntu-latest
@@ -630,6 +634,7 @@ jobs:
     
     steps:
       - name: Setup SSH
+        # (Sama seperti Setup SSH diatas)
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           BASTION_IP: ${{ secrets.BASTION_IP }}
@@ -653,60 +658,20 @@ jobs:
             ProxyJump bastion
             StrictHostKeyChecking no
           EOF
-          
           chmod 600 ~/.ssh/config
       
-      - name: Automatic rollback
+      - name: Automatic Rollback (Docker)
         run: |
-          echo "⚠️ Deployment failed, initiating automatic rollback..."
+          echo "⚠️ Deployment failed, initiating rollback..."
           
-          # Get latest backup
-          BACKUP=$(ssh backend "ls -t /home/ubuntu/main.backup-* | head -1")
-          
-          # Stop service
-          ssh backend "sudo systemctl stop finlapor || true"
-          
-          # Restore backup
-          ssh backend "cd /home/ubuntu && cp $BACKUP main"
-          
-          # Start service
-          ssh backend "sudo systemctl start finlapor"
-          
-          echo "✅ Rollback completed"
-```
-
-### Deploy dengan Docker Image (Opsi B)
-
-Jika menggunakan Docker container (bukan binary), modifikasi deploy step:
-
-```yaml
-- name: Build and save Docker image
-  run: |
-    cd backend
-    docker build -t finlapor-backend:${{ github.ref_name }} .
-    docker save finlapor-backend:${{ github.ref_name }} | gzip > ../backend-image.tar.gz
-
-- name: Transfer Docker image via Bastion
-  run: |
-    scp backend-image.tar.gz backend:/home/ubuntu/
-
-- name: Load and run Docker on Backend
-  run: |
-    ssh backend << 'EOF'
-      cd /home/ubuntu
-      
-      # Stop existing container
-      docker compose down || true
-      
-      # Load new image
-      gunzip -c backend-image.tar.gz | docker load
-      
-      # Start with docker compose
-      docker compose up -d
-      
-      # Cleanup tar file
-      rm backend-image.tar.gz
-    EOF
+          ssh backend << 'EOF'
+             cd /home/ubuntu
+             # Restart container dengan image sebelumnya (jika latest masih yang lama)
+             # Atau sekedar restart biar naik lagi
+             docker compose down
+             docker compose up -d
+          EOF
+          echo "✅ Services restarted"
 ```
 
 ### Troubleshooting Opsi B
