@@ -95,6 +95,7 @@ Ikuti panduan sesuai urutan. Setiap tahap memiliki file terpisah dengan penjelas
 | 4 | [🗄️ RDS Setup](./deployment/04-rds-setup.md) | Sama | Sama | PostgreSQL database |
 | 5 | [📁 S3 Setup](./deployment/05-s3-setup.md) | Sama | Sama | Object storage |
 | 6 | [🖥️ EC2 Backend](./deployment/06-ec2-backend-setup.md) | Public subnet | Private subnet | Go API server |
+| 6b | [🔀 API Gateway](./deployment/06b-api-gateway-setup.md) | Opsional | Recommended | Unified API endpoint |
 | 7 | [🤖 Lambda AI](./deployment/07-lambda-ai-setup.md) | Sama | Sama | Python AI service |
 
 ### Fase 3: Frontend & Domain
@@ -172,6 +173,7 @@ Ikuti panduan sesuai urutan. Setiap tahap memiliki file terpisah dengan penjelas
 - [04. RDS Setup](./deployment/04-rds-setup.md)
 - [05. S3 Setup](./deployment/05-s3-setup.md)
 - [06. EC2 Backend Setup](./deployment/06-ec2-backend-setup.md)
+- [06b. API Gateway Setup](./deployment/06b-api-gateway-setup.md) 🆕 **NEW**
 - [07. Lambda AI Setup](./deployment/07-lambda-ai-setup.md)
 - [08. CloudFlare Setup](./deployment/08-cloudflare-setup.md) ⭐ **Detailed**
 - [09. Domain & SSL Setup](./deployment/09-domain-ssl-setup.md)
