@@ -322,25 +322,7 @@ sequenceDiagram
     F-->>U: Display AI reply with suggestions
 ```
 
-### CI/CD Deployment Architecture
 
-#### Opsi A (Public Subnet) vs Opsi B (Private Subnet)
-
-```mermaid
-graph TD
-    subgraph Use_Case_A["Opsi A: Simple"]
-        A[GitHub Actions] -->|SSH| B[EC2 Backend Public]
-    end
-    
-    subgraph Use_Case_B["Opsi B: Secure (Recommended)"]
-        C[GitHub Actions] -->|SSH ProxyJump| D[Bastion Host]
-        D -->|Forward| E[EC2 Backend Private]
-    end
-```
-
-> **Note:** FinLapor mendukung kedua skema deployment ini. Detail implementasi CI/CD untuk Opsi B (menggunakan ProxyJump via Bastion) dapat dilihat di [CI/CD Guide](./cicd.md#🔐-cicd-untuk-opsi-b-private-subnet-via-bastion).
-
----
 
 ## 📁 Project Structure
 
@@ -399,8 +381,7 @@ finlapor/
 │   └── serverless.yml
 │
 ├── 📂 database/
-│   ├── migrations/                 # SQL migrations
-│   └── migrations/                 # SQL migrations (production-ready)
+│   └── migrations/                 # SQL migrations
 │
 ├── 📂 docker/
 │   ├── Dockerfile.frontend
