@@ -35,52 +35,42 @@ FinLapor adalah aplikasi pengelolaan keuangan berbasis AI yang mendukung **SDG 8
 
 ### High-Level Architecture
 
+```mermaid
+flowchart TB
+    subgraph CICD["🔄 CI/CD"]
+        GitHub["🐙 GitHub Actions"]
+    end
+
+    subgraph User["👤 USER"]
+        Browser["Browser"]
+    end
+
+    subgraph CloudFlare["☁️ CloudFlare"]
+        CFPages["Frontend<br/>CloudFlare Pages"]
+        CFProxy["API Proxy<br/>DDoS + SSL"]
+    end
+
+    subgraph AWS["🔶 AWS VPC"]
+        Bastion["🔐 Bastion"]
+        Backend["🖥️ Backend<br/>Go Fiber + Redis"]
+        Lambda["⚡ Lambda AI"]
+        S3["📦 S3 Storage"]
+    end
+
+    subgraph External["🌐 External"]
+        HuggingFace["🤗 HuggingFace<br/>OCR + LLM"]
+    end
+
+    Browser --> CFPages
+    Browser --> CFProxy --> Backend
+    
+    GitHub -.->|Deploy| CFPages
+    GitHub -.->|SSH via Bastion| Bastion -.-> Backend
+    
+    Backend --> Lambda --> HuggingFace
+    Backend --> S3
 ```
-┌─────────────┐
-│   USER      │
-│ (Browser)   │
-└──────┬──────┘
-       │
-   ┌───┴────┐
-   │        │
-   ▼        ▼
-┌──────┐ ┌──────┐
-│  CF  │ │  CF  │  CloudFlare Pages (Frontend)
-│Pages │ │Proxy │  CloudFlare DDoS Protection
-└──────┘ └───┬──┘
-             │
-    ┌────────┴─────────┐
-    │    AWS VPC       │
-    │  ┌────────────┐  │
-    │  │ Public     │  │  ┌─ Bastion Host (SSH Jump)
-    │  │ Subnet     │  │  │
-    │  └────────────┘  │  │
-    │  ┌────────────┐  │  │
-    │  │ Private    │◄─┴──┘
-    │  │ Subnet     │  │
-    │  │            │  │
-    │  │ ┌────────┐ │  │  ┌─ Backend (Go Fiber)
-    │  │ │Backend │ │  │  │  + PostgreSQL + Redis
-    │  │ │EC2     │◄┼──┼──┤
-    │  │ └────┬───┘ │  │  │
-    │  │      │     │  │  │
-    │  │      │VPC  │  │  └─ VPC Endpoint (S3)
-    │  │      │Endpt│  │     FREE! Saves $32/mo
-    │  └──────┼─────┘  │
-    │         │        │
-    │    ┌────┴────┐   │
-    │    │ Lambda  │   │  ┌─ AI Service (Python)
-    │    │   +     │◄──┼──┤  OCR + Chat
-    │    │   S3    │   │  └─ File Storage
-    │    └─────────┘   │
-    └───────────────────┘
-           │
-           ▼
-    ┌─────────────┐
-    │ HuggingFace │  ┌─ OCR: Donut Model
-    │     API     │  └─ LLM: Mistral 7B
-    └─────────────┘     FREE (30k req/mo)
-```
+
 ![Diagram Arsitektur AWS FinLapor](docs/assets/architecture-finlapor.png)
 *Arsitektur AWS FinLapor (Opsi B: Private Subnet)*
 
@@ -89,6 +79,7 @@ FinLapor adalah aplikasi pengelolaan keuangan berbasis AI yang mendukung **SDG 8
 - 💰 **Cost-Optimized**: VPC Endpoint S3 (FREE) replaces NAT Gateway (saves $32/month)
 - 🚀 **Scalable**: CloudFlare CDN + AWS Auto Scaling ready
 - 🤖 **AI-Powered**: HuggingFace models with fallback for offline mode
+- 🔄 **CI/CD**: GitHub Actions dengan deploy otomatis via Bastion
 
 ---
 
