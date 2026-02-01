@@ -29,13 +29,54 @@ Panduan membuat API Gateway untuk menghubungkan **CloudFlare Pages** ke **Backen
 
 ## Overview
 
-Backend di **Private Subnet** BUTUH "entry point" untuk bisa diakses dari internet. Pilihannya:
+Backend di **Private Subnet** BUTUH "entry point" untuk bisa diakses dari internet.
 
-| Metode | Biaya | Keterangan |
-|--------|-------|------------|
-| **API Gateway + VPC Link** | ~$1-3/bulan | ✅ Recommended |
-| Application Load Balancer | ~$16/bulan | Mahal |
-| CloudFlare Tunnel | $0 | Perlu install agent |
+### Semua Opsi Koneksi CloudFlare → Backend Private Subnet
+
+```mermaid
+flowchart TB
+    subgraph Options["Pilih Salah Satu"]
+        A["🥇 API Gateway + Cloud Map<br/>~$1-3/bulan"]
+        B["🥈 API Gateway + NLB<br/>~$7-9/bulan"]
+        C["🥉 CloudFlare Tunnel<br/>$0"]
+        D["❌ Public Subnet<br/>$0 tapi tidak aman"]
+    end
+    
+    CF["☁️ CloudFlare Pages"] --> Options
+    Options --> EC2["🐳 Backend<br/>Private Subnet"]
+```
+
+### Perbandingan Detail
+
+| Opsi | Biaya/bulan | Keamanan | Setup | API Gateway |
+|------|-------------|----------|-------|-------------|
+| **🥇 API Gateway + Cloud Map** | **~$1-3** | ✅ Tinggi | 🟡 Menengah | ✅ Ya |
+| 🥈 API Gateway + NLB | ~$7-9 | ✅ Tinggi | 🟡 Menengah | ✅ Ya |
+| 🥉 CloudFlare Tunnel | $0 | ✅ Tinggi | 🟡 Menengah | ❌ Tidak |
+| ❌ Public Subnet + EIP | $0 | ⚠️ Rendah | 🟢 Mudah | ❌ Tidak perlu |
+
+> **💡 Rekomendasi:** Gunakan **API Gateway + Cloud Map** - biaya minimal dengan fitur API Gateway lengkap!
+
+---
+
+## 🎯 Arsitektur Utama: API Gateway + Cloud Map
+
+```mermaid
+flowchart LR
+    CF["☁️ CloudFlare<br/>Frontend"] --> APIGW["🔀 API Gateway<br/>~$1-3/bulan"]
+    APIGW --> VPCLink["VPC Link<br/>FREE"]
+    VPCLink --> CloudMap["☁️ Cloud Map<br/>FREE"]
+    CloudMap --> EC2["🐳 EC2 Docker<br/>Private Subnet"]
+    EC2 --> Lambda["⚡ Lambda<br/>via AWS SDK"]
+```
+
+**Biaya breakdown:**
+| Komponen | Biaya |
+|----------|-------|
+| API Gateway HTTP API | ~$1-3/bulan (per juta requests) |
+| VPC Link | **FREE** |
+| Cloud Map | **FREE** (1M queries gratis) |
+| **Total** | **~$1-3/bulan** |
 
 ---
 
@@ -248,67 +289,59 @@ https://abc123xyz.execute-api.ap-southeast-1.amazonaws.com
 
 ---
 
-## 2. Setup NLB (Network Load Balancer)
+## 2. Setup Cloud Map (Recommended - Gratis!)
 
-> **⚠️ Penting:** HTTP API VPC Link membutuhkan **ALB/NLB** atau **Cloud Map**. Tidak bisa langsung ke EC2!
+> **💡 Cloud Map gratis untuk 1 juta query/bulan** - lebih hemat dari NLB (~$6/bulan)!
 
-Kita akan buat **NLB** (lebih murah dari ALB, ~$6/bulan).
+### Step 2.1: Create Namespace
 
-### Step 2.1: Create Target Group
-
-1. EC2 Console → **Target Groups** (sidebar bawah)
-2. Click **Create target group**
+1. AWS Console → Search **Cloud Map** → Click
+2. Click **Create namespace**
 3. Konfigurasi:
 
 ```
-Target type: Instances
-Target group name: finlapor-backend-tg
-Protocol: TCP
-Port: 8080
+Namespace name: finlapor-ns
+Namespace description: FinLapor Backend Services
+Instance discovery: API calls and DNS queries in VPCs
 VPC: finlapor-vpc
-Health check protocol: HTTP
-Health check path: /api/health
 ```
 
-4. Click **Next**
-5. Register targets:
-   - Pilih EC2 backend instance
-   - Port: 8080
-   - Click **Include as pending below**
-6. Click **Create target group**
+4. Click **Create namespace**
 
-### Step 2.2: Create NLB
+### Step 2.2: Create Service
 
-1. EC2 Console → **Load Balancers** → **Create Load Balancer**
-2. Pilih **Network Load Balancer** → **Create**
+1. Click namespace **finlapor-ns**
+2. Click **Create service**
 3. Konfigurasi:
 
 ```
-Load balancer name: finlapor-nlb
-Scheme: Internal  ← PENTING! Karena di Private Subnet
-IP address type: IPv4
+Service name: backend
+Description: FinLapor Backend Service
+Routing policy: Weighted routing
 
-Network mapping:
-  VPC: finlapor-vpc
-  Availability Zones: 
-    - ap-southeast-1a → Private Subnet
-    - ap-southeast-1b → Private Subnet
+Health check:
+  - Enable health check: ❌ (optional)
 ```
 
-4. **Listeners and routing**:
+4. Click **Create service**
+
+### Step 2.3: Register EC2 Instance
+
+1. Click service **backend**
+2. Click **Register service instance**
+3. Konfigurasi:
 
 ```
-Protocol: TCP
-Port: 80
-Default action: Forward to → finlapor-backend-tg
+Instance type: IP address
+Service instance ID: finlapor-backend-1
+IPv4 address: [EC2_PRIVATE_IP]  ← Contoh: 10.0.1.100
+Port: 8080
 ```
 
-5. Click **Create load balancer**
-6. Tunggu status: **Active** (~2-3 menit)
-7. **Catat DNS name NLB**:
-```
-finlapor-nlb-xxxx.elb.ap-southeast-1.amazonaws.com
-```
+4. Click **Register service instance**
+
+> **📝 Untuk mendapat Private IP EC2:**
+> EC2 Console → Instances → Pilih backend → Lihat **Private IPv4 address**
 
 ---
 
@@ -351,9 +384,9 @@ Integration type: Private resource
 **Integration details:**
 ```
 Selection method: Select manually
-Target service: ALB/NLB  ← Pilih ini!
-Load balancer: finlapor-nlb
-Listener: 80 (TCP)
+Target service: Cloud Map  ← Pilih ini!
+Namespace: finlapor-ns
+Service: backend
 ```
 
 **VPC link:**
@@ -655,6 +688,85 @@ Setelah API Gateway selesai:
 
 > **📌 Tips:**
 > - Gunakan **HTTP API** untuk menghemat biaya (~$1/juta requests)
-> - VPC Link **WAJIB** untuk Private Subnet
+> - **Cloud Map gratis** - lebih hemat dari NLB (~$6/bulan)
 > - Enable **access logging** untuk debugging
 > - Lambda dipanggil dari Backend, bukan dari API Gateway
+
+---
+
+## Alternatif Koneksi (Opsional)
+
+### Alternatif 1: API Gateway + NLB (~$7-9/bulan)
+
+Jika Cloud Map tidak bekerja atau butuh health check:
+
+**Step 1:** Create Target Group
+```
+EC2 Console → Target Groups → Create
+Type: Instances
+Port: 8080
+Health check: /api/health
+```
+
+**Step 2:** Create NLB
+```
+EC2 Console → Load Balancers → Create
+Type: Network Load Balancer
+Scheme: Internal
+Listener: TCP:80 → Target Group
+```
+
+**Step 3:** Integration di API Gateway
+```
+Target service: ALB/NLB
+Load balancer: finlapor-nlb
+```
+
+---
+
+### Alternatif 2: CloudFlare Tunnel ($0 - Tanpa API Gateway)
+
+Jika tidak ingin biaya sama sekali:
+
+```mermaid
+flowchart LR
+    CF["CloudFlare Pages"] --> Tunnel["CloudFlare Tunnel"]
+    Tunnel --> EC2["EC2 Private"]
+```
+
+**Step 1:** Install cloudflared di EC2
+```bash
+# SSH ke EC2 via Bastion
+curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
+chmod +x cloudflared
+sudo mv cloudflared /usr/local/bin/
+
+# Login
+cloudflared tunnel login
+```
+
+**Step 2:** Create Tunnel
+```bash
+cloudflared tunnel create finlapor-backend
+cloudflared tunnel route dns finlapor-backend api.finlapor.airi.click
+```
+
+**Step 3:** Config file
+```yaml
+# ~/.cloudflared/config.yml
+tunnel: finlapor-backend
+credentials-file: /root/.cloudflared/xxx.json
+
+ingress:
+  - hostname: api.finlapor.airi.click
+    service: http://localhost:8080
+  - service: http_status:404
+```
+
+**Step 4:** Run as service
+```bash
+sudo cloudflared service install
+sudo systemctl start cloudflared
+```
+
+> **⚠️ Catatan:** CloudFlare Tunnel tidak menggunakan API Gateway - kehilangan fitur throttling dan monitoring AWS.
