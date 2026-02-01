@@ -314,10 +314,52 @@ curl https://api.finlapor.airi.click/api/health
 | Name | `finlapor-vpc-link` |
 | VPC | finlapor-vpc |
 | Subnets | Private Subnet AZ-a, Private Subnet AZ-b |
-| Security groups | default atau buat baru |
+| Security groups | `finlapor-vpc-link-sg` (buat baru) |
 
 5. Click **Create**
 6. Tunggu status: **Available** (~3-5 menit)
+
+### Step 2.5: Konfigurasi Security Group (Best Practice)
+
+> **📌 Penting:** VPC Link hanya membuat koneksi **outbound** ke backend. Inbound rules **tidak diperlukan**.
+
+#### Traffic Flow:
+```
+API Gateway → VPC Link (outbound ke :8080) → Backend
+             ←───────────────────────────────
+                    (return traffic, otomatis diizinkan)
+```
+
+#### Security Group untuk VPC Link (`finlapor-vpc-link-sg`):
+
+**Inbound Rules:**
+| Type | Port | Source |
+|------|------|--------|
+| - | - | ❌ **Kosong** (tidak perlu inbound) |
+
+**Outbound Rules:**
+| Type | Port | Destination |
+|------|------|-------------|
+| Custom TCP | 8080 | `10.0.0.0/16` (VPC CIDR) |
+
+> **💡 Kenapa inbound kosong?** VPC Link hanya membuat koneksi keluar. Return traffic otomatis diizinkan karena Security Group bersifat **stateful**.
+
+#### Security Group untuk Backend (`finlapor-backend-private-sg`):
+
+**Inbound Rules:**
+| Type | Port | Source |
+|------|------|--------|
+| Custom TCP | 8080 | `finlapor-vpc-link-sg` atau `10.0.0.0/16` |
+| SSH | 22 | `finlapor-bastion-sg` |
+
+**Outbound Rules:**
+| Type | Port | Destination |
+|------|------|-------------|
+| HTTPS | 443 | VPC Endpoint SG (untuk AWS services) |
+| PostgreSQL | 5432 | RDS SG |
+| Custom | 6379 | ElastiCache SG |
+
+> **⚠️ Hindari:** Jangan gunakan `0.0.0.0/0` untuk inbound. Meskipun backend di private subnet, best practice adalah restrict ke VPC CIDR atau specific SG.
 
 ### Step 3: Create Integration
 
