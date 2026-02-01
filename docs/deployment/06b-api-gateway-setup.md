@@ -14,11 +14,10 @@ Panduan lengkap untuk menghubungkan **CloudFlare Pages (Frontend)** ke **Backend
    - [Opsi 3: CloudFlare Tunnel (Gratis, Tanpa API Gateway)](#opsi-3-cloudflare-tunnel-gratis-tanpa-api-gateway)
 4. [Setup API Gateway](#setup-api-gateway)
 5. [Custom Domain & CORS](#custom-domain--cors)
-6. [ACM Certificate Troubleshooting](#-acm-certificate-troubleshooting) ← **BARU**
+6. [ACM Certificate Troubleshooting](#-acm-certificate-troubleshooting)
    - [Solusi 1: CloudFlare Proxy](#solusi-1-cloudflare-proxy-recommended)
    - [Solusi 2: URL Default](#solusi-2-gunakan-url-default-paling-cepat)
    - [Solusi 3: Fix CAA Records](#solusi-3-fix-caa-records)
-   - [Solusi 4: CloudFlare Tunnel](#solusi-4-cloudflare-tunnel-bypass-api-gateway)
 7. [Monitoring & Troubleshooting](#monitoring--troubleshooting)
 8. [Alternatif: API Gateway → Backend + Lambda](#-alternatif-api-gateway--backend--lambda)
 
@@ -629,7 +628,8 @@ curl https://api.finlapor.airi.click/health
 | **1. CloudFlare Proxy** | 🟢 Mudah | Gratis | ✅ Ya | CloudFlare |
 | **2. URL Default** | 🟢 Sangat Mudah | Gratis | ❌ Tidak | AWS |
 | **3. Fix CAA Records** | 🟡 Menengah | Gratis | ✅ Ya | AWS ACM |
-| **4. CloudFlare Tunnel** | 🟡 Menengah | Gratis | ✅ Ya | CloudFlare |
+
+> **💡 Opsi Tambahan:** Jika tidak butuh API Gateway sama sekali, lihat [Opsi 3: CloudFlare Tunnel](#opsi-3-cloudflare-tunnel-gratis-tanpa-api-gateway) di bagian atas.
 
 ---
 
@@ -820,117 +820,6 @@ Setelah certificate Issued:
 
 ---
 
-### Solusi 4: CloudFlare Tunnel (Bypass API Gateway)
-
-Tidak menggunakan API Gateway sama sekali. CloudFlare Tunnel langsung ke backend.
-
-```mermaid
-flowchart LR
-    Browser -->|HTTPS| CF["CloudFlare<br/>Edge"]
-    CF -->|Tunnel| EC2["EC2 Backend<br/>Private Subnet"]
-```
-
-**Kelebihan:**
-- ✅ Tidak butuh API Gateway
-- ✅ Tidak butuh ACM
-- ✅ Backend bisa di private subnet tanpa VPC Link
-- ✅ Gratis
-
-**Kekurangan:**
-- ❌ Kehilangan fitur API Gateway (throttling, monitoring AWS)
-- ⚠️ Perlu install cloudflared di EC2
-- ⚠️ Perlu manage tunnel
-
-#### Langkah-langkah:
-
-**Step 1: Install cloudflared di EC2**
-
-SSH ke EC2 backend:
-
-```bash
-# Download cloudflared
-curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
-chmod +x cloudflared
-sudo mv cloudflared /usr/local/bin/
-
-# Verify
-cloudflared --version
-```
-
-**Step 2: Login ke CloudFlare**
-
-```bash
-cloudflared tunnel login
-```
-
-Browser akan terbuka untuk authorize. Pilih domain `airi.click`.
-
-**Step 3: Create Tunnel**
-
-```bash
-# Create tunnel
-cloudflared tunnel create finlapor-api
-
-# Output akan menampilkan Tunnel ID
-# Contoh: a1b2c3d4-5678-90ab-cdef-ghijklmnopqr
-```
-
-**Step 4: Route DNS**
-
-```bash
-cloudflared tunnel route dns finlapor-api api.finlapor.airi.click
-```
-
-**Step 5: Create Config File**
-
-```bash
-mkdir -p ~/.cloudflared
-nano ~/.cloudflared/config.yml
-```
-
-Isi:
-
-```yaml
-tunnel: finlapor-api
-credentials-file: /home/ubuntu/.cloudflared/[TUNNEL_ID].json
-
-ingress:
-  - hostname: api.finlapor.airi.click
-    service: http://localhost:8080
-  - service: http_status:404
-```
-
-> Ganti `[TUNNEL_ID]` dengan ID tunnel Anda.
-
-**Step 6: Run as Service**
-
-```bash
-# Install service
-sudo cloudflared service install
-
-# Enable dan start
-sudo systemctl enable cloudflared
-sudo systemctl start cloudflared
-
-# Cek status
-sudo systemctl status cloudflared
-```
-
-**Step 7: Test**
-
-```bash
-curl https://api.finlapor.airi.click/health
-# Expected: {"status":"ok",...}
-```
-
-**Step 8: Update Frontend**
-
-```
-NEXT_PUBLIC_API_URL=https://api.finlapor.airi.click
-```
-
----
-
 ### Rangkuman Solusi
 
 | Situasi | Solusi Terbaik |
@@ -938,7 +827,7 @@ NEXT_PUBLIC_API_URL=https://api.finlapor.airi.click
 | Butuh cepat, custom domain tidak penting | **Solusi 2** (URL Default) |
 | Butuh custom domain, tidak mau ribet | **Solusi 1** (CloudFlare Proxy) |
 | Ingin setup yang "benar" dengan ACM | **Solusi 3** (Fix CAA) |
-| Tidak butuh fitur API Gateway | **Solusi 4** (CloudFlare Tunnel) |
+| Tidak butuh fitur API Gateway | [Opsi 3: CloudFlare Tunnel](#opsi-3-cloudflare-tunnel-gratis-tanpa-api-gateway) |
 
 ---
 
