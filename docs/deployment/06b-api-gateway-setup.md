@@ -74,6 +74,25 @@ flowchart LR
 
 API Gateway mengarahkan request ke Backend. Backend yang memanggil Lambda via AWS SDK.
 
+### ❓ Kenapa Butuh Cloud Map / NLB?
+
+> **⚠️ Penting:** AWS API Gateway HTTP API dengan VPC Link **TIDAK BISA** langsung terhubung ke EC2 Private IP!
+
+**Alasan teknis:**
+- VPC Link adalah "jembatan" antara API Gateway (public) dan Private Subnet
+- Tapi VPC Link butuh **service discovery** untuk menemukan target
+- AWS menyediakan 2 cara service discovery:
+  1. **Cloud Map** - Mendaftarkan IP EC2 secara manual (gratis)
+  2. **ALB/NLB** - Load balancer yang otomatis track EC2 (berbayar)
+
+```
+❌ API Gateway → VPC Link → EC2 Private IP (TIDAK BISA!)
+✅ API Gateway → VPC Link → Cloud Map → EC2 Private IP
+✅ API Gateway → VPC Link → NLB → EC2 Private IP
+```
+
+**Kesimpulan:** Pilih **Cloud Map** untuk biaya minimal, atau **NLB** jika butuh auto health check.
+
 ---
 
 ### Opsi 1: Cloud Map (Gratis)
