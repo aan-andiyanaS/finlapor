@@ -512,8 +512,8 @@ Setelah certificate dibuat, status akan **Pending validation**:
 
 **Contoh:**
 ```
-CNAME name:  _eccce75a256b81b142f167b672d738c5.api.finlapor.airi.click
-CNAME value: _a1b2c3d4e5f6.acm-validations.aws.
+CNAME name:  _xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.api.finlapor.airi.click
+CNAME value: _yyyyyyyyyyyy.acm-validations.aws.
 ```
 
 4. Login **CloudFlare** → Domain `airi.click` → **DNS**
@@ -521,7 +521,7 @@ CNAME value: _a1b2c3d4e5f6.acm-validations.aws.
 
 | Type | Name | Target | Proxy |
 |------|------|--------|-------|
-| CNAME | `_eccce75a256b81b142f167b672d738c5.api.finlapor` | `_a1b2c3d4e5f6.acm-validations.aws.` | **DNS Only** ⚪ |
+| CNAME | `_xxxxxxxx...api.finlapor` | `_yyyyyyyy.acm-validations.aws.` | **DNS Only** ⚪ |
 
 > **⚠️ Penting:** 
 > - Name: Hanya bagian sebelum `.airi.click`
