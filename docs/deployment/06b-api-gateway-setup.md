@@ -357,7 +357,6 @@ API Gateway → VPC Link (outbound ke :8080) → Backend
 |------|------|-------------|
 | HTTPS | 443 | VPC Endpoint SG (untuk AWS services) |
 | PostgreSQL | 5432 | RDS SG |
-| Custom | 6379 | ElastiCache SG |
 
 > **⚠️ Hindari:** Jangan gunakan `0.0.0.0/0` untuk inbound. Meskipun backend di private subnet, best practice adalah restrict ke VPC CIDR atau specific SG.
 
