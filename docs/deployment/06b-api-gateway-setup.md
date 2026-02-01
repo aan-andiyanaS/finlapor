@@ -1,495 +1,261 @@
 # 🔀 Setup AWS API Gateway
 
-Panduan membuat API Gateway untuk menghubungkan **CloudFlare Pages** ke **Backend di Private Subnet**.
-
-> **📌 Penting:** API Gateway ini **hanya** untuk akses ke Backend. Lambda dipanggil langsung dari Backend via AWS SDK.
+Panduan lengkap untuk menghubungkan **CloudFlare Pages (Frontend)** ke **Backend di Private Subnet** menggunakan AWS API Gateway.
 
 ---
 
 ## 📑 Daftar Isi
 
 1. [Overview](#overview)
-2. [Pilih Arsitektur](#-pilih-arsitektur)
-   - [Opsi A: API Gateway → Backend + Lambda](#opsi-a-api-gateway--backend--lambda)
-   - [Opsi B: API Gateway → Backend saja](#opsi-b-api-gateway--backend-saja-recommended)
-3. [Perbandingan](#perbandingan)
-4. [Panduan Setup Opsi A](#panduan-setup-opsi-a-backend--lambda)
-5. [Panduan Setup Opsi B](#panduan-setup-opsi-b-backend-saja)
-6. [Create HTTP API](#1-create-http-api)
-7. [Setup NLB](#2-setup-nlb-network-load-balancer)
-8. [VPC Link Setup](#3-vpc-link-setup)
-9. [Integrasi dengan Backend](#4-integrasi-dengan-backend)
-10. [Custom Domain](#5-custom-domain)
-11. [CORS Configuration](#6-cors-configuration)
-12. [Authentication](#7-authentication)
-13. [Monitoring & Logging](#8-monitoring--logging)
-14. [Troubleshooting](#9-troubleshooting)
+2. [Perbandingan Metode Koneksi](#perbandingan-metode-koneksi)
+3. [Rute Utama: API Gateway → Backend Only](#-rute-utama-api-gateway--backend-only)
+   - [Opsi 1: Cloud Map (Gratis)](#opsi-1-cloud-map-gratis)
+   - [Opsi 2: NLB (~$6/bulan)](#opsi-2-nlb-6bulan)
+   - [Opsi 3: CloudFlare Tunnel (Gratis, Tanpa API Gateway)](#opsi-3-cloudflare-tunnel-gratis-tanpa-api-gateway)
+4. [Setup API Gateway](#setup-api-gateway)
+5. [Custom Domain & CORS](#custom-domain--cors)
+6. [Monitoring & Troubleshooting](#monitoring--troubleshooting)
+7. [Alternatif: API Gateway → Backend + Lambda](#-alternatif-api-gateway--backend--lambda)
 
 ---
 
 ## Overview
 
-Backend di **Private Subnet** BUTUH "entry point" untuk bisa diakses dari internet.
+Backend di **Private Subnet** tidak memiliki public IP, sehingga butuh "entry point" untuk diakses dari internet.
 
-### Semua Opsi Koneksi CloudFlare → Backend Private Subnet
-
-```mermaid
-flowchart TB
-    subgraph Options["Pilih Salah Satu"]
-        A["🥇 API Gateway + Cloud Map<br/>~$1-3/bulan"]
-        B["🥈 API Gateway + NLB<br/>~$7-9/bulan"]
-        C["🥉 CloudFlare Tunnel<br/>$0"]
-        D["❌ Public Subnet<br/>$0 tapi tidak aman"]
-    end
-    
-    CF["☁️ CloudFlare Pages"] --> Options
-    Options --> EC2["🐳 Backend<br/>Private Subnet"]
-```
-
-### Perbandingan Detail
-
-| Opsi | Biaya/bulan | Keamanan | Setup | API Gateway |
-|------|-------------|----------|-------|-------------|
-| **🥇 API Gateway + Cloud Map** | **~$1-3** | ✅ Tinggi | 🟡 Menengah | ✅ Ya |
-| 🥈 API Gateway + NLB | ~$7-9 | ✅ Tinggi | 🟡 Menengah | ✅ Ya |
-| 🥉 CloudFlare Tunnel | $0 | ✅ Tinggi | 🟡 Menengah | ❌ Tidak |
-| ❌ Public Subnet + EIP | $0 | ⚠️ Rendah | 🟢 Mudah | ❌ Tidak perlu |
-
-> **💡 Rekomendasi:** Gunakan **API Gateway + Cloud Map** - biaya minimal dengan fitur API Gateway lengkap!
-
----
-
-## 🎯 Arsitektur Utama: API Gateway + Cloud Map
+### Arsitektur yang Digunakan
 
 ```mermaid
 flowchart LR
-    CF["☁️ CloudFlare<br/>Frontend"] --> APIGW["🔀 API Gateway<br/>~$1-3/bulan"]
-    APIGW --> VPCLink["VPC Link<br/>FREE"]
-    VPCLink --> CloudMap["☁️ Cloud Map<br/>FREE"]
-    CloudMap --> EC2["🐳 EC2 Docker<br/>Private Subnet"]
-    EC2 --> Lambda["⚡ Lambda<br/>via AWS SDK"]
-```
-
-**Biaya breakdown:**
-| Komponen | Biaya |
-|----------|-------|
-| API Gateway HTTP API | ~$1-3/bulan (per juta requests) |
-| VPC Link | **FREE** |
-| Cloud Map | **FREE** (1M queries gratis) |
-| **Total** | **~$1-3/bulan** |
-
----
-
-## 🎯 Pilih Arsitektur
-
-### Opsi A: API Gateway → Backend + Lambda
-
-Frontend bisa akses Backend **dan** Lambda langsung via API Gateway.
-
-```mermaid
-flowchart TB
-    subgraph CloudFlare["☁️ CloudFlare"]
-        Frontend["📱 Frontend"]
+    subgraph Internet
+        CF["☁️ CloudFlare Pages<br/>Frontend"]
     end
-
-    subgraph AWS["🔶 AWS"]
-        APIGateway["🔀 API Gateway"]
+    
+    subgraph AWS
+        APIGW["🔀 API Gateway"]
         
-        subgraph VPC["🌐 VPC - Private Subnet"]
-            Backend["🐳 Backend<br/>Docker + Go"]
+        subgraph VPC["🔒 Private Subnet"]
+            Backend["🐳 EC2 Docker<br/>Go Fiber + Redis"]
         end
         
-        Lambda["⚡ Lambda<br/>AI Service"]
+        Lambda["⚡ Lambda AI"]
     end
-
-    Frontend -->|/api/*| APIGateway
-    Frontend -->|/ai/*| APIGateway
-    APIGateway -->|VPC Link| Backend
-    APIGateway -->|Direct| Lambda
+    
+    CF -->|HTTPS| APIGW
+    APIGW -->|VPC Link| Backend
+    Backend -->|AWS SDK| Lambda
 ```
 
-| Route | Target |
-|-------|--------|
-| `/api/*` | Backend (via VPC Link) |
-| `/ai/*` | Lambda (langsung) |
-
-**Keuntungan:**
-- ✅ Frontend bisa akses Lambda tanpa melalui Backend
-- ✅ Latency lebih rendah untuk AI calls
-- ✅ Backend tidak perlu VPC Endpoint Lambda
-
-**Kekurangan:**
-- ⚠️ Setup lebih kompleks (2 integrations)
+> **📌 Rute Utama:** API Gateway hanya untuk Backend. Lambda dipanggil dari Backend via AWS SDK.
 
 ---
 
-### Opsi B: API Gateway → Backend saja (Recommended)
+## Perbandingan Metode Koneksi
 
-API Gateway hanya ke Backend. Lambda dipanggil dari Backend via AWS SDK.
+### Untuk Koneksi API Gateway → Backend
+
+| Metode | Biaya/bulan | Kompleksitas | Health Check | Rekomendasi |
+|--------|-------------|--------------|--------------|-------------|
+| **Cloud Map** | **~$1-3** | 🟡 Menengah | ❌ Manual | ✅ **Paling Hemat** |
+| **NLB** | ~$7-9 | 🟡 Menengah | ✅ Auto | Jika butuh auto health check |
+| **CloudFlare Tunnel** | **$0** | 🟢 Mudah | ❌ | Jika tidak butuh API Gateway |
+
+### Biaya Total Estimasi
+
+| Setup | API Gateway | Koneksi | Total |
+|-------|-------------|---------|-------|
+| API Gateway + Cloud Map | ~$1-3 | $0 | **~$1-3/bulan** |
+| API Gateway + NLB | ~$1-3 | ~$6 | ~$7-9/bulan |
+| CloudFlare Tunnel (No API GW) | $0 | $0 | **$0** |
+
+---
+
+## 🎯 Rute Utama: API Gateway → Backend Only
+
+API Gateway mengarahkan request ke Backend. Backend yang memanggil Lambda via AWS SDK.
+
+---
+
+### Opsi 1: Cloud Map (Gratis)
+
+Cloud Map adalah service discovery gratis (1 juta query/bulan gratis).
 
 ```mermaid
-flowchart TB
-    subgraph CloudFlare["☁️ CloudFlare"]
-        Frontend["📱 Frontend"]
-    end
-
-    subgraph AWS["🔶 AWS"]
-        APIGateway["🔀 API Gateway"]
-        
-        subgraph VPC["🌐 VPC - Private Subnet"]
-            Backend["🐳 Backend<br/>Docker + Go"]
-            VPCEndpoint["VPC Endpoint"]
-        end
-        
-        Lambda["⚡ Lambda<br/>AI Service"]
-    end
-
-    Frontend -->|/api/*| APIGateway
-    APIGateway -->|VPC Link| Backend
-    Backend -->|AWS SDK| VPCEndpoint
-    VPCEndpoint --> Lambda
+flowchart LR
+    APIGW["API Gateway"] --> VPCLink["VPC Link"]
+    VPCLink --> CloudMap["Cloud Map<br/>FREE"]
+    CloudMap --> EC2["EC2 Backend"]
 ```
 
-| Route | Target |
-|-------|--------|
-| `/api/*` | Backend (via VPC Link) |
-| AI calls | Backend → Lambda (AWS SDK) |
+#### Step 1: Create Namespace
 
-**Keuntungan:**
-- ✅ Setup lebih simple (1 integration)
-- ✅ Auth terpusat di Backend
-- ✅ Logging terpusat
-
-**Kekurangan:**
-- ⚠️ Butuh VPC Endpoint untuk Lambda (~$7.5/bulan)
-
----
-
-## Perbandingan
-
-| Aspek | Opsi A (Backend + Lambda) | Opsi B (Backend saja) |
-|-------|--------------------------|----------------------|
-| **API Gateway routes** | 2 (Backend + Lambda) | 1 (Backend) |
-| **Lambda access** | Via API Gateway | Via AWS SDK |
-| **VPC Endpoint Lambda** | ❌ Tidak perlu | ✅ Diperlukan |
-| **Setup** | Lebih kompleks | Lebih simple |
-| **Biaya** | API GW ~$1-3 | API GW + VPC Endpoint ~$9 |
-| **Latency AI** | Lebih rendah | Sedikit lebih tinggi |
-
-> **💡 Rekomendasi:** Gunakan **Opsi B** untuk setup lebih sederhana dan auth terpusat.
-
----
-
-## Panduan Setup Opsi A (Backend + Lambda)
-
-Setup Opsi A **sama dengan Opsi B**, tapi dengan langkah tambahan untuk Lambda integration.
-
-### Langkah yang Sama:
-1. Create HTTP API ✅
-2. Setup VPC Link ✅
-3. Create Backend integration ✅
-4. Create route `/api/{proxy+}` ✅
-5. Custom domain ✅
-6. CORS ✅
-
-### Langkah Tambahan untuk Opsi A:
-
-#### Tambah Lambda Integration
-
-1. API Gateway → **finlapor-api** → **Integrations**
-2. Click **Create**
-3. Konfigurasi:
-
-```
-Integration type: AWS Lambda
-AWS Region: ap-southeast-1
-Lambda function: finlapor-ai
-Payload format version: 2.0
-```
-
-4. Click **Create**
-
-> **📝 Note:** API Gateway akan otomatis request permission untuk invoke Lambda.
-
-#### Tambah Route untuk AI
-
-1. Routes → **Create**
-2. Konfigurasi:
-
-```
-Method: ANY
-Path: /ai/{proxy+}
-```
-
-3. Attach integration: **finlapor-ai Lambda**
-
-#### Test Lambda Route
-
-```bash
-# Test health
-curl -X POST https://api.finlapor.airi.click/ai/health \
-  -H "Content-Type: application/json" \
-  -d '{"action": "health"}'
-
-# Test chat
-curl -X POST https://api.finlapor.airi.click/ai/chat \
-  -H "Content-Type: application/json" \
-  -d '{"action": "chat", "message": "Halo", "user_age": 25}'
-```
-
----
-
-## Panduan Setup Opsi B (Backend saja)
-
-Panduan ini menggunakan **Opsi B** (API Gateway ke Backend saja).
-
----
-
-## 1. Create HTTP API
-
-### Step 1.1: Buka API Gateway Console
-
-1. AWS Console → Search **API Gateway** → Click
-2. Pilih region: `ap-southeast-1` (Singapore)
-
-### Step 1.2: Create API
-
-1. Click **Create API**
-2. Pilih **HTTP API** → **Build**
-3. Konfigurasi:
-
-```
-API name: finlapor-api
-Description: FinLapor Backend API Gateway
-```
-
-4. Click **Next**
-
-### Step 1.3: Skip Routes (untuk sekarang)
-
-Click **Next** (kita akan add routes nanti)
-
-### Step 1.4: Configure Stages
-
-```
-Stage name: $default
-Auto-deploy: ✅ Enable
-```
-
-> **📝 Note:** Stage `$default` berarti tidak ada prefix di URL.
-
-5. Click **Next** → **Create**
-
-### Step 1.5: Catat API Endpoint
-
-Setelah dibuat, catat URL:
-```
-https://abc123xyz.execute-api.ap-southeast-1.amazonaws.com
-```
-
----
-
-## 2. Setup Cloud Map (Recommended - Gratis!)
-
-> **💡 Cloud Map gratis untuk 1 juta query/bulan** - lebih hemat dari NLB (~$6/bulan)!
-
-### Step 2.1: Create Namespace
-
-1. AWS Console → Search **Cloud Map** → Click
+1. Buka **AWS Console** → Search "**Cloud Map**"
 2. Click **Create namespace**
-3. Konfigurasi:
+3. Isi form:
 
-```
-Namespace name: finlapor-ns
-Namespace description: FinLapor Backend Services
-Instance discovery: API calls and DNS queries in VPCs
-VPC: finlapor-vpc
-```
+| Field | Value |
+|-------|-------|
+| Namespace name | `finlapor-ns` |
+| Namespace description | FinLapor Backend Services |
+| Instance discovery | **API calls and DNS queries in VPCs** |
 
-4. Click **Create namespace**
+4. Pilih **VPC**: `finlapor-vpc`
+5. Click **Create namespace**
 
-### Step 2.2: Create Service
+#### Step 2: Create Service
 
 1. Click namespace **finlapor-ns**
 2. Click **Create service**
-3. Konfigurasi:
+3. Isi form:
 
-```
-Service name: backend
-Description: FinLapor Backend Service
-Routing policy: Weighted routing
-
-Health check:
-  - Enable health check: ❌ (optional)
-```
+| Field | Value |
+|-------|-------|
+| Service name | `backend` |
+| Description | FinLapor Backend Service |
+| Routing policy | Weighted routing |
 
 4. Click **Create service**
 
-### Step 2.3: Register EC2 Instance
+#### Step 3: Register EC2 Instance
 
 1. Click service **backend**
 2. Click **Register service instance**
-3. Konfigurasi:
+3. Isi form:
 
-```
-Instance type: IP address
-Service instance ID: finlapor-backend-1
-IPv4 address: [EC2_PRIVATE_IP]  ← Contoh: 10.0.1.100
-Port: 8080
-```
+| Field | Value |
+|-------|-------|
+| Instance type | **IP address** |
+| Service instance ID | `finlapor-backend-1` |
+| IPv4 address | `[EC2_PRIVATE_IP]` (contoh: 10.0.1.50) |
+| Port | `8080` |
+
+> **📝 Cara dapat Private IP:**
+> EC2 Console → Instances → Pilih instance → **Private IPv4 address**
 
 4. Click **Register service instance**
 
-> **📝 Untuk mendapat Private IP EC2:**
-> EC2 Console → Instances → Pilih backend → Lihat **Private IPv4 address**
+---
+
+### Opsi 2: NLB (~$6/bulan)
+
+Network Load Balancer dengan auto health check.
+
+```mermaid
+flowchart LR
+    APIGW["API Gateway"] --> VPCLink["VPC Link"]
+    VPCLink --> NLB["NLB<br/>~$6/bulan"]
+    NLB --> EC2["EC2 Backend"]
+```
+
+#### Step 1: Create Target Group
+
+1. **EC2 Console** → **Target Groups** (dibawah Load Balancing)
+2. Click **Create target group**
+3. Isi form:
+
+| Field | Value |
+|-------|-------|
+| Target type | **Instances** |
+| Target group name | `finlapor-backend-tg` |
+| Protocol | TCP |
+| Port | 8080 |
+| VPC | finlapor-vpc |
+| Health check protocol | HTTP |
+| Health check path | `/api/health` |
+
+4. Click **Next**
+5. **Register targets**: Pilih EC2 backend, port 8080
+6. Click **Create target group**
+
+#### Step 2: Create NLB
+
+1. **EC2 Console** → **Load Balancers** → **Create Load Balancer**
+2. Pilih **Network Load Balancer**
+3. Isi form:
+
+| Field | Value |
+|-------|-------|
+| Load balancer name | `finlapor-nlb` |
+| Scheme | **Internal** ← PENTING! |
+| IP address type | IPv4 |
+| VPC | finlapor-vpc |
+| Mappings | Pilih Private Subnets |
+
+4. **Listeners**:
+
+| Protocol | Port | Default action |
+|----------|------|----------------|
+| TCP | 80 | Forward to `finlapor-backend-tg` |
+
+5. Click **Create load balancer**
+6. Tunggu status: **Active**
 
 ---
 
-## 3. VPC Link Setup
+### Opsi 3: CloudFlare Tunnel (Gratis, Tanpa API Gateway)
 
-### Step 3.1: Create VPC Link
+Tidak menggunakan API Gateway sama sekali. **Biaya: $0**
 
-1. API Gateway Console → **VPC links** (sidebar)
-2. Click **Create**
-3. Pilih **VPC link for HTTP APIs**
-4. Konfigurasi:
-
-```
-Name: finlapor-vpc-link
-VPC: finlapor-vpc
-Subnets: 
-  - Private Subnet AZ-a
-  - Private Subnet AZ-b
-Security groups: default atau buat baru
+```mermaid
+flowchart LR
+    CF["CloudFlare Pages"] --> Tunnel["CloudFlare Tunnel<br/>FREE"]
+    Tunnel --> EC2["EC2 Backend<br/>Private Subnet"]
 ```
 
-5. Click **Create**
-6. Tunggu status: **Available** (~3-5 menit)
+> **⚠️ Catatan:** Kehilangan fitur API Gateway (throttling, monitoring AWS, dll).
 
----
-
-## 4. Integrasi dengan Backend
-
-### Step 4.1: Create Integration
-
-1. API Gateway → **finlapor-api** → **Integrations**
-2. Click **Create**
-3. Konfigurasi:
-
-**Integration target:**
-```
-Integration type: Private resource
-```
-
-**Integration details:**
-```
-Selection method: Select manually
-Target service: Cloud Map  ← Pilih ini!
-Namespace: finlapor-ns
-Service: backend
-```
-
-**VPC link:**
-```
-VPC link: finlapor-vpc-link
-```
-
-4. Click **Create**
-
-### Step 4.2: Create Route
-
-1. Sidebar: **Routes** → **Create**
-2. Konfigurasi:
-
-```
-Method: ANY
-Path: /api/{proxy+}
-```
-
-3. Click **Create**
-
-### Step 4.3: Attach Integration ke Route
-
-1. Click route `/api/{proxy+}`
-2. **Attach integration** → Pilih integration NLB
-3. Click **Attach integration**
-
-### Step 4.4: Test
+#### Step 1: Install cloudflared di EC2
 
 ```bash
-curl https://[API_GATEWAY_URL]/api/health
+# SSH ke EC2 via Bastion Host
+ssh -J ec2-user@[BASTION_IP] ec2-user@[EC2_PRIVATE_IP]
 
-# Expected:
-{
-  "status": "ok",
-  "service": "finlapor-backend"
-}
+# Download dan install cloudflared
+curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
+chmod +x cloudflared
+sudo mv cloudflared /usr/local/bin/
+
+# Login ke CloudFlare
+cloudflared tunnel login
 ```
 
----
+#### Step 2: Create Tunnel
 
-## 5. Custom Domain
+```bash
+# Create tunnel
+cloudflared tunnel create finlapor-backend
 
-### Step 4.1: Request Certificate di ACM
-
-1. AWS Console → **Certificate Manager** (ACM)
-2. Region: **ap-southeast-1**
-3. Click **Request certificate** → **Request a public certificate**
-4. Domain: `api.finlapor.airi.click`
-5. Validation method: **DNS validation**
-6. Click **Request**
-
-### Step 4.2: DNS Validation
-
-1. Lihat **Domains** section pada certificate
-2. Copy CNAME record ke CloudFlare DNS:
-
-```
-Name: _abc123.api.finlapor
-Type: CNAME
-Value: _xyz789.acm-validations.aws.
+# Route DNS
+cloudflared tunnel route dns finlapor-backend api.finlapor.airi.click
 ```
 
-3. Tunggu status certificate: **Issued** (~5-30 menit)
+#### Step 3: Create Config
 
-### Step 4.3: Setup Custom Domain di API Gateway
+```bash
+# Buat config file
+cat > ~/.cloudflared/config.yml << EOF
+tunnel: finlapor-backend
+credentials-file: /home/ec2-user/.cloudflared/[TUNNEL_ID].json
 
-1. API Gateway → **Custom domain names** (sidebar)
-2. Click **Create**
-3. Konfigurasi:
-
-```
-Domain name: api.finlapor.airi.click
-Endpoint type: Regional
-Certificate: Pilih certificate dari ACM
-
-API mapping:
-  - API: finlapor-api
-  - Stage: $default
-  - Path: (kosong)
+ingress:
+  - hostname: api.finlapor.airi.click
+    service: http://localhost:8080
+  - service: http_status:404
+EOF
 ```
 
-4. Click **Create**
+#### Step 4: Run as Service
 
-### Step 4.4: Update DNS di CloudFlare
+```bash
+sudo cloudflared service install
+sudo systemctl enable cloudflared
+sudo systemctl start cloudflared
 
-Setelah domain dibuat, catat **API Gateway domain name**:
-```
-d-abc123xyz.execute-api.ap-southeast-1.amazonaws.com
-```
-
-Di CloudFlare DNS, buat CNAME record:
-
-```
-Type: CNAME
-Name: api
-Target: d-abc123xyz.execute-api.ap-southeast-1.amazonaws.com
-Proxy status: DNS Only (gray cloud) ← PENTING!
+# Verify
+sudo systemctl status cloudflared
 ```
 
-> **⚠️ Penting:** Gunakan **DNS Only** (gray cloud), bukan Proxied, karena AWS ACM sudah handle SSL.
-
-### Step 4.5: Test Custom Domain
+#### Step 5: Test
 
 ```bash
 curl https://api.finlapor.airi.click/api/health
@@ -497,276 +263,259 @@ curl https://api.finlapor.airi.click/api/health
 
 ---
 
-## 5. CORS Configuration
+## Setup API Gateway
 
-### Step 5.1: Enable CORS
+> **📌 Skip section ini jika menggunakan CloudFlare Tunnel (Opsi 3)**
 
-1. API Gateway → **finlapor-api** → **CORS** (sidebar)
+### Step 1: Create HTTP API
+
+1. **AWS Console** → Search "**API Gateway**"
+2. Click **Create API**
+3. Pilih **HTTP API** → **Build**
+4. Isi form:
+
+| Field | Value |
+|-------|-------|
+| API name | `finlapor-api` |
+| Description | FinLapor Backend API |
+
+5. Click **Next** → Skip integrations → **Next**
+6. **Stages**: `$default` dengan Auto-deploy enabled
+7. Click **Create**
+
+### Step 2: Create VPC Link
+
+1. Sidebar: **VPC links** (dibawah)
+2. Click **Create**
+3. Pilih **VPC link for HTTP APIs**
+4. Isi form:
+
+| Field | Value |
+|-------|-------|
+| Name | `finlapor-vpc-link` |
+| VPC | finlapor-vpc |
+| Subnets | Private Subnet AZ-a, Private Subnet AZ-b |
+| Security groups | default atau buat baru |
+
+5. Click **Create**
+6. Tunggu status: **Available** (~3-5 menit)
+
+### Step 3: Create Integration
+
+1. Sidebar: **Integrations** → **Create**
+2. Pilih **Attach this integration to a route**: Skip dulu
+3. Isi form:
+
+**Integration target:**
+
+| Field | Value |
+|-------|-------|
+| Integration type | **Private resource** |
+
+**Integration details:**
+
+**Jika menggunakan Cloud Map:**
+
+| Field | Value |
+|-------|-------|
+| Selection method | Select manually |
+| Target service | **Cloud Map** |
+| Namespace | finlapor-ns |
+| Service | backend |
+
+**Jika menggunakan NLB:**
+
+| Field | Value |
+|-------|-------|
+| Selection method | Select manually |
+| Target service | **ALB/NLB** |
+| Load balancer | finlapor-nlb |
+| Listener | 80 |
+
+**VPC link:**
+
+| Field | Value |
+|-------|-------|
+| VPC link | finlapor-vpc-link |
+
+4. Click **Create**
+
+### Step 4: Create Route
+
+1. Sidebar: **Routes** → **Create**
+2. Isi form:
+
+| Field | Value |
+|-------|-------|
+| Method | **ANY** |
+| Path | `/api/{proxy+}` |
+
+3. Click **Create**
+4. Click route yang dibuat → **Attach integration**
+5. Pilih integration → Click **Attach**
+
+### Step 5: Test
+
+```bash
+# Catat API Gateway URL dari console
+curl https://[API_ID].execute-api.ap-southeast-1.amazonaws.com/api/health
+
+# Expected:
+{"status":"ok","service":"finlapor-backend"}
+```
+
+---
+
+## Custom Domain & CORS
+
+### Custom Domain
+
+#### Step 1: Request ACM Certificate
+
+1. **AWS Console** → **Certificate Manager** (ACM)
+2. **Request certificate** → Public certificate
+3. Domain: `api.finlapor.airi.click`
+4. Validation: **DNS validation**
+5. Tambahkan CNAME record ke CloudFlare DNS
+6. Tunggu status: **Issued**
+
+#### Step 2: Create Custom Domain
+
+1. **API Gateway** → **Custom domain names**
+2. Click **Create**
+3. Isi form:
+
+| Field | Value |
+|-------|-------|
+| Domain name | `api.finlapor.airi.click` |
+| Endpoint type | Regional |
+| ACM certificate | Pilih yang sudah issued |
+| API mapping | finlapor-api, $default stage |
+
+4. Click **Create**
+5. Catat **API Gateway domain name**
+6. Tambahkan CNAME di CloudFlare:
+
+| Type | Name | Target | Proxy |
+|------|------|--------|-------|
+| CNAME | api | d-xxx.execute-api... | **DNS Only** (gray) |
+
+### CORS Configuration
+
+1. **API Gateway** → finlapor-api → **CORS**
 2. Click **Configure**
-3. Konfigurasi:
+3. Isi:
 
-```
-Access-Control-Allow-Origin:
-  - https://finlapor.pages.dev
-  - https://finlapor.airi.click
-  - http://localhost:3000
-
-Access-Control-Allow-Headers:
-  - content-type
-  - authorization
-  - x-requested-with
-
-Access-Control-Allow-Methods:
-  - GET
-  - POST
-  - PUT
-  - DELETE
-  - OPTIONS
-
-Access-Control-Max-Age: 300
-
-Access-Control-Allow-Credentials: true
-```
+| Field | Value |
+|-------|-------|
+| Access-Control-Allow-Origin | `https://finlapor.pages.dev`, `https://finlapor.airi.click`, `http://localhost:3000` |
+| Access-Control-Allow-Headers | `content-type, authorization` |
+| Access-Control-Allow-Methods | `GET, POST, PUT, DELETE, OPTIONS` |
+| Access-Control-Max-Age | 300 |
 
 4. Click **Save**
 
-### Step 5.2: Verify CORS
+---
+
+## Monitoring & Troubleshooting
+
+### Enable Access Logging
+
+1. **API Gateway** → finlapor-api → **Stages** → $default
+2. **Logs and tracing** → Edit
+3. Enable **Access logging**
+4. Log destination: CloudWatch Log Group `/aws/apigateway/finlapor`
+
+### Common Errors
+
+| Error | Penyebab | Solusi |
+|-------|----------|--------|
+| **502 Bad Gateway** | Backend tidak running atau VPC Link salah | Cek: `docker ps`, VPC Link status |
+| **504 Timeout** | Backend terlalu lambat | Optimize backend, cek network |
+| **403 Forbidden** | Route tidak match | Cek route path, integration attached |
+| **CORS Error** | Origin tidak di-allow | Tambah origin ke CORS config |
+
+---
+
+## 🔄 Alternatif: API Gateway → Backend + Lambda
+
+> **Gunakan ini jika:** Frontend perlu akses Lambda langsung (tanpa melalui Backend).
+
+### Arsitektur Alternatif
+
+```mermaid
+flowchart LR
+    CF["CloudFlare Pages"] --> APIGW["API Gateway"]
+    APIGW -->|/api/*| Backend["Backend"]
+    APIGW -->|/ai/*| Lambda["Lambda AI"]
+```
+
+| Route | Target |
+|-------|--------|
+| `/api/{proxy+}` | Backend (VPC Link) |
+| `/ai/{proxy+}` | Lambda (Direct) |
+
+### Langkah Tambahan
+
+Setelah setup API Gateway untuk Backend, tambahkan:
+
+#### Step 1: Create Lambda Integration
+
+1. **Integrations** → **Create**
+2. Isi form:
+
+| Field | Value |
+|-------|-------|
+| Integration type | **AWS Lambda** |
+| AWS Region | ap-southeast-1 |
+| Lambda function | finlapor-ai |
+| Payload format version | 2.0 |
+
+3. Click **Create**
+
+#### Step 2: Create AI Route
+
+1. **Routes** → **Create**
+
+| Field | Value |
+|-------|-------|
+| Method | ANY |
+| Path | `/ai/{proxy+}` |
+
+2. Attach ke Lambda integration
+
+#### Step 3: Test Lambda via API Gateway
 
 ```bash
-curl -X OPTIONS https://api.finlapor.airi.click/api/auth/login \
-  -H "Origin: https://finlapor.airi.click" \
-  -H "Access-Control-Request-Method: POST" \
-  -v
-
-# Lihat response headers:
-# Access-Control-Allow-Origin: https://finlapor.airi.click
+curl -X POST https://api.finlapor.airi.click/ai/health \
+  -H "Content-Type: application/json" \
+  -d '{"action": "health"}'
 ```
-
----
-
-## 6. Authentication
-
-### Opsi: Pass-through ke Backend
-
-Untuk FinLapor, autentikasi dihandle oleh **Backend** (JWT):
-
-1. Frontend kirim `Authorization: Bearer <token>` header
-2. API Gateway forward header ke Backend
-3. Backend validate JWT
-
-**Tidak perlu setup authorizer di API Gateway** - cukup pastikan header di-forward.
-
-### Verifikasi Header Forward
-
-```bash
-# Test dengan token
-curl https://api.finlapor.airi.click/api/transactions \
-  -H "Authorization: Bearer eyJhbGc..."
-```
-
----
-
-## 7. Monitoring & Logging
-
-### Step 7.1: Enable Access Logging
-
-1. API Gateway → **finlapor-api** → **Stages**
-2. Click **$default**
-3. **Logs and tracing** → Edit
-4. Enable **Access logging**
-5. Destination ARN: Buat CloudWatch log group
-
-```
-Log group: /aws/apigateway/finlapor-api
-```
-
-6. Log format (JSON):
-```json
-{
-  "requestId": "$context.requestId",
-  "ip": "$context.identity.sourceIp",
-  "requestTime": "$context.requestTime",
-  "httpMethod": "$context.httpMethod",
-  "path": "$context.path",
-  "status": "$context.status",
-  "responseLatency": "$context.responseLatency"
-}
-```
-
-### Step 7.2: View Metrics
-
-CloudWatch → Metrics → **ApiGateway**:
-- **Count** - Total requests
-- **Latency** - Response time
-- **4XXError** - Client errors
-- **5XXError** - Server errors
-
----
-
-## 8. Troubleshooting
-
-### Error: 502 Bad Gateway
-
-**Penyebab:**
-- VPC Link tidak configured dengan benar
-- Backend tidak running
-- Security Group blocking traffic
-
-**Solusi:**
-1. Cek VPC Link status: Harus **Available**
-2. SSH ke EC2 via Bastion, cek: `docker ps`
-3. Verify Security Group inbound rules
-
-### Error: 504 Gateway Timeout
-
-**Penyebab:**
-- Backend terlalu lambat merespon
-- Network connectivity issue
-
-**Solusi:**
-1. API Gateway default timeout: 29 detik
-2. Check Backend logs: `docker logs finlapor-backend`
-3. Verify VPC Link subnets match EC2 subnet
-
-### CORS Error di Browser
-
-**Penyebab:**
-- Origin tidak ada di allow list
-- Preflight (OPTIONS) gagal
-
-**Solusi:**
-1. Tambah origin ke CORS config
-2. Verify dengan `curl -X OPTIONS`
-
-### Error: 403 Forbidden
-
-**Penyebab:**
-- Route tidak match
-- Integration tidak attached
-
-**Solusi:**
-1. Check Routes → pastikan `/api/{proxy+}` ada
-2. Verify integration attached ke route
 
 ---
 
 ## Ringkasan Konfigurasi
 
-| Komponen | Value |
-|----------|-------|
-| API Type | HTTP API |
-| Endpoint | `https://api.finlapor.airi.click` |
-| Route | `ANY /api/{proxy+}` → Backend:8080 |
-| VPC Link | Required (Private Subnet) |
-| CORS | Enabled untuk frontend origins |
-| Auth | Pass-through ke Backend (JWT) |
-
----
-
-## Koneksi Backend → Lambda
-
-> **📖 Untuk setup koneksi Backend ke Lambda**, lihat:
-> 
-> **[07-lambda-ai-setup.md](./07-lambda-ai-setup.md)** - Section 5 & 6:
-> - Setup VPC Endpoint untuk Lambda
-> - Backend environment variables
-> - AWS SDK configuration
-
-Lambda **TIDAK** menggunakan API Gateway. Backend memanggil Lambda langsung via AWS SDK.
+| Komponen | Rute Utama | Alternatif |
+|----------|------------|------------|
+| API Gateway | ✅ HTTP API | ✅ HTTP API |
+| Route Backend | `/api/{proxy+}` | `/api/{proxy+}` |
+| Route Lambda | ❌ (via Backend SDK) | ✅ `/ai/{proxy+}` |
+| VPC Link | ✅ Required | ✅ Required |
+| Cloud Map / NLB | ✅ Pilih salah satu | ✅ Pilih salah satu |
+| Biaya | ~$1-9/bulan | ~$2-10/bulan |
 
 ---
 
 ## Next Steps
 
-Setelah API Gateway selesai:
-
-- → [CloudFlare Setup](./08-cloudflare-setup.md) - Update `NEXT_PUBLIC_API_URL`
-- → [Domain & SSL Setup](./09-domain-ssl-setup.md) - Custom domain
-- → [Monitoring](./10-monitoring.md) - Setup alerts
+- → [07-lambda-ai-setup.md](./07-lambda-ai-setup.md) - Setup Lambda dan VPC Endpoint
+- → [08-cloudflare-setup.md](./08-cloudflare-setup.md) - Update `NEXT_PUBLIC_API_URL`
+- → [10-monitoring.md](./10-monitoring.md) - Setup CloudWatch Alerts
 
 ---
 
 > **📌 Tips:**
-> - Gunakan **HTTP API** untuk menghemat biaya (~$1/juta requests)
-> - **Cloud Map gratis** - lebih hemat dari NLB (~$6/bulan)
-> - Enable **access logging** untuk debugging
-> - Lambda dipanggil dari Backend, bukan dari API Gateway
-
----
-
-## Alternatif Koneksi (Opsional)
-
-### Alternatif 1: API Gateway + NLB (~$7-9/bulan)
-
-Jika Cloud Map tidak bekerja atau butuh health check:
-
-**Step 1:** Create Target Group
-```
-EC2 Console → Target Groups → Create
-Type: Instances
-Port: 8080
-Health check: /api/health
-```
-
-**Step 2:** Create NLB
-```
-EC2 Console → Load Balancers → Create
-Type: Network Load Balancer
-Scheme: Internal
-Listener: TCP:80 → Target Group
-```
-
-**Step 3:** Integration di API Gateway
-```
-Target service: ALB/NLB
-Load balancer: finlapor-nlb
-```
-
----
-
-### Alternatif 2: CloudFlare Tunnel ($0 - Tanpa API Gateway)
-
-Jika tidak ingin biaya sama sekali:
-
-```mermaid
-flowchart LR
-    CF["CloudFlare Pages"] --> Tunnel["CloudFlare Tunnel"]
-    Tunnel --> EC2["EC2 Private"]
-```
-
-**Step 1:** Install cloudflared di EC2
-```bash
-# SSH ke EC2 via Bastion
-curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
-chmod +x cloudflared
-sudo mv cloudflared /usr/local/bin/
-
-# Login
-cloudflared tunnel login
-```
-
-**Step 2:** Create Tunnel
-```bash
-cloudflared tunnel create finlapor-backend
-cloudflared tunnel route dns finlapor-backend api.finlapor.airi.click
-```
-
-**Step 3:** Config file
-```yaml
-# ~/.cloudflared/config.yml
-tunnel: finlapor-backend
-credentials-file: /root/.cloudflared/xxx.json
-
-ingress:
-  - hostname: api.finlapor.airi.click
-    service: http://localhost:8080
-  - service: http_status:404
-```
-
-**Step 4:** Run as service
-```bash
-sudo cloudflared service install
-sudo systemctl start cloudflared
-```
-
-> **⚠️ Catatan:** CloudFlare Tunnel tidak menggunakan API Gateway - kehilangan fitur throttling dan monitoring AWS.
+> - Gunakan **Cloud Map** untuk biaya minimal (~$1-3/bulan)
+> - Gunakan **CloudFlare Tunnel** jika tidak butuh API Gateway ($0)
+> - Gunakan **NLB** jika butuh auto health check
