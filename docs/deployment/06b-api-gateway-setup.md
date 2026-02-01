@@ -359,7 +359,12 @@ curl https://api.finlapor.airi.click/api/health
 
 4. Click **Create**
 
-### Step 4: Create Route
+### Step 4: Create Routes
+
+> **📌 Penting:** Route `/api/{proxy+}` hanya menangkap path yang dimulai dengan `/api/`. 
+> Jika backend punya endpoint `/health`, perlu buat route terpisah.
+
+#### Route 1: API Routes (Semua endpoint `/api/*`)
 
 1. Sidebar: **Routes** → **Create**
 2. Isi form:
@@ -370,18 +375,72 @@ curl https://api.finlapor.airi.click/api/health
 | Path | `/api/{proxy+}` |
 
 3. Click **Create**
-4. Click route yang dibuat → **Attach integration**
-5. Pilih integration → Click **Attach**
+4. Click route → **Attach integration** → Pilih integration
 
-### Step 5: Test
+#### Route 2: Health Check (Opsional - jika backend punya `/health`)
+
+1. **Routes** → **Create**
+2. Isi form:
+
+| Field | Value |
+|-------|-------|
+| Method | **GET** |
+| Path | `/health` |
+
+3. Click **Create**
+4. Attach ke integration yang sama
+
+#### Atau: Catch-All Route (Alternatif)
+
+Jika ingin semua path di-forward ke backend:
+
+| Field | Value |
+|-------|-------|
+| Method | **ANY** |
+| Path | `/{proxy+}` |
+
+> ⚠️ **Catatan:** Catch-all akan forward semua request, termasuk path yang tidak ada di backend.
+
+### Step 5: Deploy & Test
+
+1. Klik tombol **Deploy** (pojok kanan atas)
+
+#### Test Endpoints:
 
 ```bash
-# Catat API Gateway URL dari console
-curl https://[API_ID].execute-api.ap-southeast-1.amazonaws.com/api/health
+# Dapatkan API Gateway URL dari Stages → $default → Invoke URL
+API_URL="https://[API_ID].execute-api.ap-southeast-1.amazonaws.com"
 
-# Expected:
-{"status":"ok","service":"finlapor-backend"}
+# Test health (jika buat route /health)
+curl $API_URL/health
+# Expected: {"status":"ok","timestamp":"..."}
+
+# Test API endpoint (butuh auth)
+curl $API_URL/api/health
+# Expected: {"error":{"code":"UNAUTHORIZED",...}} (normal, butuh token)
+
+# Test dengan token
+curl $API_URL/api/health -H "Authorization: Bearer [TOKEN]"
+# Expected: {"status":"ok",...}
+
+# Test register user
+curl -X POST $API_URL/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","password":"pass123","name":"Test","age":25}'
+
+# Test login
+curl -X POST $API_URL/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","password":"pass123"}'
 ```
+
+### Troubleshooting Routes
+
+| Error | Penyebab | Solusi |
+|-------|----------|--------|
+| `Not Found` | Path tidak match route | Cek route path, pastikan ada `{proxy+}` |
+| `Internal Server Error` | Backend error atau VPC issue | Cek backend logs, Security Group |
+| `UNAUTHORIZED` | Endpoint butuh auth | Normal untuk protected endpoints |
 
 ---
 
