@@ -487,52 +487,129 @@ curl -X POST $API_URL/api/auth/login \
 
 ## Custom Domain & CORS
 
-### Custom Domain
+### Langkah 1: Request SSL Certificate (ACM)
 
-#### Step 1: Request ACM Certificate
+1. **AWS Console** → Search "**Certificate Manager**" (ACM)
+2. Pastikan region: **ap-southeast-1** (Singapore)
+3. Click **Request certificate** → **Request a public certificate** → **Next**
+4. Isi form:
 
-1. **AWS Console** → **Certificate Manager** (ACM)
-2. **Request certificate** → Public certificate
-3. Domain: `api.finlapor.airi.click`
-4. Validation: **DNS validation**
-5. Tambahkan CNAME record ke CloudFlare DNS
-6. Tunggu status: **Issued**
+| Field | Value |
+|-------|-------|
+| Domain names | `api.finlapor.airi.click` |
+| Validation method | **DNS validation** (recommended) |
+| Key algorithm | RSA 2048 |
 
-#### Step 2: Create Custom Domain
+5. Click **Request**
 
-1. **API Gateway** → **Custom domain names**
+### Langkah 2: DNS Validation di CloudFlare
+
+Setelah certificate dibuat, status akan **Pending validation**:
+
+1. Click certificate yang baru dibuat
+2. Di section **Domains**, lihat kolom **CNAME name** dan **CNAME value**
+3. Copy kedua value tersebut
+
+**Contoh:**
+```
+CNAME name:  _eccce75a256b81b142f167b672d738c5.api.finlapor.airi.click
+CNAME value: _a1b2c3d4e5f6.acm-validations.aws.
+```
+
+4. Login **CloudFlare** → Domain `airi.click` → **DNS**
+5. Click **Add record**:
+
+| Type | Name | Target | Proxy |
+|------|------|--------|-------|
+| CNAME | `_eccce75a256b81b142f167b672d738c5.api.finlapor` | `_a1b2c3d4e5f6.acm-validations.aws.` | **DNS Only** ⚪ |
+
+> **⚠️ Penting:** 
+> - Name: Hanya bagian sebelum `.airi.click`
+> - Proxy: Harus **OFF** (DNS Only / gray cloud)
+
+6. Tunggu 5-30 menit, refresh ACM → Status berubah ke **Issued** ✅
+
+### Langkah 3: Create Custom Domain di API Gateway
+
+1. **API Gateway** → **Custom domain names** (sidebar)
 2. Click **Create**
 3. Isi form:
 
 | Field | Value |
 |-------|-------|
 | Domain name | `api.finlapor.airi.click` |
-| Endpoint type | Regional |
-| ACM certificate | Pilih yang sudah issued |
-| API mapping | finlapor-api, $default stage |
+| Type | **Public** |
+| Routing mode | **API mappings only** |
+| API endpoint type | **Regional** |
+| IP address type | IPv4 |
+| Security policy | TLS 1.3 (recommended) |
+| Endpoint access mode | **Basic** |
+| ACM certificate | Pilih `api.finlapor.airi.click` (yang sudah Issued) |
 
-4. Click **Create**
-5. Catat **API Gateway domain name**
-6. Tambahkan CNAME di CloudFlare:
+4. Click **Add domain name**
+
+### Langkah 4: API Mapping
+
+1. Click domain `api.finlapor.airi.click` yang baru dibuat
+2. Tab **API mappings** → **Configure API mappings**
+3. Click **Add mapping**:
+
+| Field | Value |
+|-------|-------|
+| API | `finlapor-api` |
+| Stage | `$default` |
+| Path | *(kosongkan)* |
+
+4. Click **Save**
+
+### Langkah 5: DNS Record untuk Custom Domain
+
+1. Di halaman Custom domain, catat **API Gateway domain name**:
+```
+d-xxxxxxxxxx.execute-api.ap-southeast-1.amazonaws.com
+```
+
+2. Kembali ke **CloudFlare DNS** → **Add record**:
 
 | Type | Name | Target | Proxy |
 |------|------|--------|-------|
-| CNAME | api | d-xxx.execute-api... | **DNS Only** (gray) |
+| CNAME | `api` | `d-xxxxxxxxxx.execute-api.ap-southeast-1.amazonaws.com` | **DNS Only** ⚪ |
+
+> **⚠️ Proxy harus OFF** untuk menghindari SSL issues dengan API Gateway.
+
+### Langkah 6: Test Custom Domain
+
+```bash
+# Test dengan custom domain
+curl https://api.finlapor.airi.click/health
+
+# Expected:
+{"status":"ok","timestamp":"..."}
+```
+
+---
 
 ### CORS Configuration
 
-1. **API Gateway** → finlapor-api → **CORS**
+1. **API Gateway** → `finlapor-api` → **CORS** (sidebar)
 2. Click **Configure**
-3. Isi:
+3. Isi form:
 
 | Field | Value |
 |-------|-------|
 | Access-Control-Allow-Origin | `https://finlapor.pages.dev`, `https://finlapor.airi.click`, `http://localhost:3000` |
-| Access-Control-Allow-Headers | `content-type, authorization` |
-| Access-Control-Allow-Methods | `GET, POST, PUT, DELETE, OPTIONS` |
-| Access-Control-Max-Age | 300 |
+| Access-Control-Allow-Headers | `content-type, authorization, x-requested-with` |
+| Access-Control-Allow-Methods | `GET, POST, PUT, DELETE, PATCH, OPTIONS` |
+| Access-Control-Expose-Headers | *(kosong atau sesuai kebutuhan)* |
+| Access-Control-Max-Age | `300` |
+| Access-Control-Allow-Credentials | ✅ (jika pakai cookies) |
 
 4. Click **Save**
+
+> **📝 Tips CORS:**
+> - Jika masih error CORS, pastikan backend juga handle CORS
+> - Untuk development, bisa tambah `http://localhost:3000`
+> - Jangan gunakan `*` untuk production, selalu list origins secara explicit
 
 ---
 
