@@ -14,8 +14,13 @@ Panduan lengkap untuk menghubungkan **CloudFlare Pages (Frontend)** ke **Backend
    - [Opsi 3: CloudFlare Tunnel (Gratis, Tanpa API Gateway)](#opsi-3-cloudflare-tunnel-gratis-tanpa-api-gateway)
 4. [Setup API Gateway](#setup-api-gateway)
 5. [Custom Domain & CORS](#custom-domain--cors)
-6. [Monitoring & Troubleshooting](#monitoring--troubleshooting)
-7. [Alternatif: API Gateway → Backend + Lambda](#-alternatif-api-gateway--backend--lambda)
+6. [ACM Certificate Troubleshooting](#-acm-certificate-troubleshooting) ← **BARU**
+   - [Solusi 1: CloudFlare Proxy](#solusi-1-cloudflare-proxy-recommended)
+   - [Solusi 2: URL Default](#solusi-2-gunakan-url-default-paling-cepat)
+   - [Solusi 3: Fix CAA Records](#solusi-3-fix-caa-records)
+   - [Solusi 4: CloudFlare Tunnel](#solusi-4-cloudflare-tunnel-bypass-api-gateway)
+7. [Monitoring & Troubleshooting](#monitoring--troubleshooting)
+8. [Alternatif: API Gateway → Backend + Lambda](#-alternatif-api-gateway--backend--lambda)
 
 ---
 
@@ -610,6 +615,330 @@ curl https://api.finlapor.airi.click/health
 > - Jika masih error CORS, pastikan backend juga handle CORS
 > - Untuk development, bisa tambah `http://localhost:3000`
 > - Jangan gunakan `*` untuk production, selalu list origins secara explicit
+
+---
+
+## 🔧 ACM Certificate Troubleshooting
+
+> **⚠️ Jika ACM Certificate terus Failed**, gunakan salah satu alternatif berikut.
+
+### Perbandingan Solusi
+
+| Solusi | Kompleksitas | Biaya | Custom Domain? | SSL Provider |
+|--------|--------------|-------|----------------|--------------|
+| **1. CloudFlare Proxy** | 🟢 Mudah | Gratis | ✅ Ya | CloudFlare |
+| **2. URL Default** | 🟢 Sangat Mudah | Gratis | ❌ Tidak | AWS |
+| **3. Fix CAA Records** | 🟡 Menengah | Gratis | ✅ Ya | AWS ACM |
+| **4. CloudFlare Tunnel** | 🟡 Menengah | Gratis | ✅ Ya | CloudFlare |
+
+---
+
+### Solusi 1: CloudFlare Proxy (Recommended)
+
+Gunakan CloudFlare sebagai SSL termination point. **Tidak butuh ACM Certificate.**
+
+```mermaid
+flowchart LR
+    Browser -->|HTTPS| CF["CloudFlare<br/>SSL Termination"]
+    CF -->|HTTPS| APIGW["API Gateway<br/>(Default URL)"]
+```
+
+**Kelebihan:**
+- ✅ Custom domain berfungsi (`api.finlapor.airi.click`)
+- ✅ SSL otomatis dari CloudFlare
+- ✅ Tidak butuh ACM
+- ✅ Gratis
+
+**Kekurangan:**
+- ⚠️ Double SSL hop (CloudFlare → API Gateway)
+- ⚠️ Perlu CloudFlare account
+
+#### Langkah-langkah:
+
+**Step 1: Hapus Custom Domain di API Gateway** (jika ada)
+
+Karena kita tidak pakai ACM, hapus custom domain di API Gateway.
+
+**Step 2: Tambah CNAME di CloudFlare**
+
+1. **CloudFlare Dashboard** → Domain → **DNS**
+2. **Add record**:
+
+| Type | Name | Target | Proxy |
+|------|------|--------|-------|
+| CNAME | `api.finlapor` | `[API_ID].execute-api.ap-southeast-1.amazonaws.com` | **Proxied** 🟠 |
+
+> **📝 Contoh Target:** `adr0tc7r2j.execute-api.ap-southeast-1.amazonaws.com`
+
+**Step 3: Konfigurasi SSL/TLS**
+
+1. **CloudFlare** → **SSL/TLS** → **Overview**
+2. Mode: Pilih **Full** atau **Full (strict)**
+
+| Mode | Deskripsi |
+|------|-----------|
+| **Flexible** | CloudFlare→Origin pakai HTTP (tidak secure) |
+| **Full** | CloudFlare→Origin pakai HTTPS (self-signed OK) |
+| **Full (strict)** | CloudFlare→Origin pakai HTTPS (valid cert required) |
+
+Pilih **Full** karena API Gateway sudah punya valid SSL.
+
+**Step 4: Tunggu Propagasi**
+
+- DNS: 1-5 menit
+- SSL certificate: 15-30 menit (CloudFlare auto-generate)
+
+**Step 5: Test**
+
+```bash
+# Test custom domain
+curl https://api.finlapor.airi.click/health
+
+# Expected:
+{"status":"ok","timestamp":"..."}
+```
+
+**Step 6: Update Frontend**
+
+Di CloudFlare Pages → Settings → Environment variables:
+
+```
+NEXT_PUBLIC_API_URL=https://api.finlapor.airi.click
+```
+
+---
+
+### Solusi 2: Gunakan URL Default (Paling Cepat)
+
+Skip custom domain sepenuhnya dan gunakan URL default API Gateway.
+
+**Kelebihan:**
+- ✅ Paling cepat dan mudah
+- ✅ Tidak ada konfigurasi tambahan
+- ✅ SSL sudah built-in
+
+**Kekurangan:**
+- ❌ URL tidak user-friendly
+- ❌ URL bisa berubah jika recreate API
+
+#### Langkah-langkah:
+
+**Step 1: Dapatkan API Gateway URL**
+
+1. **API Gateway Console** → `finlapor-api`
+2. **Stages** → `$default`
+3. Copy **Invoke URL**:
+   ```
+   https://[API_ID].execute-api.ap-southeast-1.amazonaws.com
+   ```
+
+**Step 2: Update Frontend**
+
+Di CloudFlare Pages → Settings → Environment variables:
+
+```
+NEXT_PUBLIC_API_URL=https://adr0tc7r2j.execute-api.ap-southeast-1.amazonaws.com
+```
+
+**Step 3: Redeploy Frontend**
+
+1. CloudFlare Pages → Deployments
+2. Click latest deployment → **Retry deployment**
+
+**Step 4: Test**
+
+```bash
+curl https://adr0tc7r2j.execute-api.ap-southeast-1.amazonaws.com/health
+# Expected: {"status":"ok",...}
+```
+
+---
+
+### Solusi 3: Fix CAA Records
+
+Jika ingin tetap pakai ACM, pastikan CAA records di DNS mengizinkan Amazon.
+
+**Kelebihan:**
+- ✅ Custom domain berfungsi dengan benar
+- ✅ Certificate valid langsung dari AWS
+- ✅ Tidak ada double hop
+
+**Kekurangan:**
+- ⚠️ CAA configuration bisa kompleks
+- ⚠️ Jika ada banyak CAA records, perlu tambah semua CA Amazon
+
+#### Langkah-langkah:
+
+**Step 1: Cek CAA Records yang Ada**
+
+```bash
+dig airi.click CAA +short
+```
+
+Jika ada output, berarti ada CAA restriction.
+
+**Step 2: Tambah CAA untuk Amazon**
+
+Di CloudFlare DNS, tambahkan **semua** CAA berikut dengan tag **"Only allow specific hostnames"** (issue):
+
+| Name | Tag | CA Domain |
+|------|-----|-----------|
+| `airi.click` | issue | `amazon.com` |
+| `airi.click` | issue | `amazontrust.com` |
+| `airi.click` | issue | `awstrust.com` |
+| `airi.click` | issue | `amazonaws.com` |
+
+> **⚠️ Penting:** Jika pakai "Only allow wildcards" (issuewild), ACM akan gagal!
+
+**Step 3: ATAU Hapus Semua CAA Records**
+
+Jika tidak ada CAA records, semua CA diizinkan (termasuk Amazon).
+
+1. CloudFlare DNS → Hapus semua CAA records
+2. Request ACM certificate baru
+3. Tambah CNAME validation
+4. Tunggu status **Issued**
+
+**Step 4: Request ACM Certificate Baru**
+
+1. **ACM Console** → Delete certificate lama yang Failed
+2. **Request certificate** → Public
+3. Domain: `api.finlapor.airi.click`
+4. Validation: DNS
+5. Copy CNAME → Tambah di CloudFlare
+6. Tunggu status: **Issued**
+
+**Step 5: Setup Custom Domain di API Gateway**
+
+Setelah certificate Issued:
+1. **API Gateway** → **Custom domain names** → **Create**
+2. Domain: `api.finlapor.airi.click`
+3. ACM certificate: Pilih yang Issued
+4. **Create**
+5. Setup **API Mapping**
+6. Tambah CNAME `api.finlapor` → `d-xxx.execute-api...` di CloudFlare
+
+---
+
+### Solusi 4: CloudFlare Tunnel (Bypass API Gateway)
+
+Tidak menggunakan API Gateway sama sekali. CloudFlare Tunnel langsung ke backend.
+
+```mermaid
+flowchart LR
+    Browser -->|HTTPS| CF["CloudFlare<br/>Edge"]
+    CF -->|Tunnel| EC2["EC2 Backend<br/>Private Subnet"]
+```
+
+**Kelebihan:**
+- ✅ Tidak butuh API Gateway
+- ✅ Tidak butuh ACM
+- ✅ Backend bisa di private subnet tanpa VPC Link
+- ✅ Gratis
+
+**Kekurangan:**
+- ❌ Kehilangan fitur API Gateway (throttling, monitoring AWS)
+- ⚠️ Perlu install cloudflared di EC2
+- ⚠️ Perlu manage tunnel
+
+#### Langkah-langkah:
+
+**Step 1: Install cloudflared di EC2**
+
+SSH ke EC2 backend:
+
+```bash
+# Download cloudflared
+curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
+chmod +x cloudflared
+sudo mv cloudflared /usr/local/bin/
+
+# Verify
+cloudflared --version
+```
+
+**Step 2: Login ke CloudFlare**
+
+```bash
+cloudflared tunnel login
+```
+
+Browser akan terbuka untuk authorize. Pilih domain `airi.click`.
+
+**Step 3: Create Tunnel**
+
+```bash
+# Create tunnel
+cloudflared tunnel create finlapor-api
+
+# Output akan menampilkan Tunnel ID
+# Contoh: a1b2c3d4-5678-90ab-cdef-ghijklmnopqr
+```
+
+**Step 4: Route DNS**
+
+```bash
+cloudflared tunnel route dns finlapor-api api.finlapor.airi.click
+```
+
+**Step 5: Create Config File**
+
+```bash
+mkdir -p ~/.cloudflared
+nano ~/.cloudflared/config.yml
+```
+
+Isi:
+
+```yaml
+tunnel: finlapor-api
+credentials-file: /home/ubuntu/.cloudflared/[TUNNEL_ID].json
+
+ingress:
+  - hostname: api.finlapor.airi.click
+    service: http://localhost:8080
+  - service: http_status:404
+```
+
+> Ganti `[TUNNEL_ID]` dengan ID tunnel Anda.
+
+**Step 6: Run as Service**
+
+```bash
+# Install service
+sudo cloudflared service install
+
+# Enable dan start
+sudo systemctl enable cloudflared
+sudo systemctl start cloudflared
+
+# Cek status
+sudo systemctl status cloudflared
+```
+
+**Step 7: Test**
+
+```bash
+curl https://api.finlapor.airi.click/health
+# Expected: {"status":"ok",...}
+```
+
+**Step 8: Update Frontend**
+
+```
+NEXT_PUBLIC_API_URL=https://api.finlapor.airi.click
+```
+
+---
+
+### Rangkuman Solusi
+
+| Situasi | Solusi Terbaik |
+|---------|----------------|
+| Butuh cepat, custom domain tidak penting | **Solusi 2** (URL Default) |
+| Butuh custom domain, tidak mau ribet | **Solusi 1** (CloudFlare Proxy) |
+| Ingin setup yang "benar" dengan ACM | **Solusi 3** (Fix CAA) |
+| Tidak butuh fitur API Gateway | **Solusi 4** (CloudFlare Tunnel) |
 
 ---
 
