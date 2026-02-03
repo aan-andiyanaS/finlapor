@@ -71,14 +71,16 @@ func (h *UploadHandler) GetPresignedURL(c *fiber.Ctx) error {
 	return SuccessResponse(c, result)
 }
 
-// OCRHandler handles receipt scanning with HuggingFace
+// OCRHandler handles receipt scanning with HuggingFace or Lambda fallback
 type OCRHandler struct {
-	hfService *services.HuggingFaceService
+	hfService     *services.HuggingFaceService
+	lambdaService *services.LambdaService
 }
 
 func NewOCRHandler() *OCRHandler {
 	return &OCRHandler{
-		hfService: services.NewHuggingFaceService(),
+		hfService:     services.NewHuggingFaceService(),
+		lambdaService: services.NewLambdaService(),
 	}
 }
 
@@ -95,20 +97,36 @@ func (h *OCRHandler) ScanReceipt(c *fiber.Ctx) error {
 		return ErrorResponse(c, fiber.StatusBadRequest, "EMPTY_IMAGE", "Image URL is required")
 	}
 
-	result, err := h.hfService.ScanReceipt(req.ImageURL)
+	var result *services.OCRResult
+	var err error
+	aiProvider := "mock"
+
+	// Priority: HuggingFace → Lambda → Mock
+	if h.hfService.IsConfigured() {
+		aiProvider = "huggingface"
+		result, err = h.hfService.ScanReceipt(req.ImageURL)
+	} else if h.lambdaService.IsConfigured() {
+		aiProvider = "lambda"
+		result, err = h.lambdaService.ScanReceipt(req.ImageURL)
+	} else {
+		// Fallback to mock via HuggingFace (which returns mock when not configured)
+		result, err = h.hfService.ScanReceipt(req.ImageURL)
+	}
+
 	if err != nil {
 		return ErrorResponse(c, fiber.StatusInternalServerError, "OCR_ERROR", err.Error())
 	}
 
 	return SuccessResponse(c, fiber.Map{
-		"vendor":     result.Vendor,
-		"date":       result.Date,
-		"total":      result.Total,
-		"items":      result.Items,
-		"category":   result.Category,
-		"confidence": result.Confidence,
-		"raw_text":   result.RawText,
-		"ai_enabled": h.hfService.IsConfigured(),
+		"vendor":      result.Vendor,
+		"date":        result.Date,
+		"total":       result.Total,
+		"items":       result.Items,
+		"category":    result.Category,
+		"confidence":  result.Confidence,
+		"raw_text":    result.RawText,
+		"ai_enabled":  h.hfService.IsConfigured() || h.lambdaService.IsConfigured(),
+		"ai_provider": aiProvider,
 	})
 }
 
@@ -121,27 +139,49 @@ func (h *OCRHandler) Categorize(c *fiber.Ctx) error {
 		return ErrorResponse(c, fiber.StatusBadRequest, "VALIDATION_ERROR", "Invalid request body")
 	}
 
-	category, confidence := h.hfService.Categorize(req.Description)
+	var category string
+	var confidence float64
+	aiProvider := "mock"
+
+	// Priority: HuggingFace → Lambda → Mock
+	if h.hfService.IsConfigured() {
+		aiProvider = "huggingface"
+		category, confidence = h.hfService.Categorize(req.Description)
+	} else if h.lambdaService.IsConfigured() {
+		aiProvider = "lambda"
+		var err error
+		category, confidence, err = h.lambdaService.Categorize(req.Description)
+		if err != nil {
+			// Fallback to mock
+			category, confidence = h.hfService.Categorize(req.Description)
+			aiProvider = "mock"
+		}
+	} else {
+		category, confidence = h.hfService.Categorize(req.Description)
+	}
 
 	return SuccessResponse(c, fiber.Map{
-		"category":   category,
-		"confidence": confidence,
-		"ai_enabled": h.hfService.IsConfigured(),
+		"category":    category,
+		"confidence":  confidence,
+		"ai_enabled":  h.hfService.IsConfigured() || h.lambdaService.IsConfigured(),
+		"ai_provider": aiProvider,
 	})
 }
 
-// ChatHandler handles AI chat with HuggingFace
+// ChatHandler handles AI chat with HuggingFace or Lambda fallback
 type ChatHandler struct {
-	hfService   *services.HuggingFaceService
-	txService   *services.TransactionService
-	userService *services.UserService
+	hfService     *services.HuggingFaceService
+	lambdaService *services.LambdaService
+	txService     *services.TransactionService
+	userService   *services.UserService
 }
 
 func NewChatHandler(txService *services.TransactionService, userService *services.UserService) *ChatHandler {
 	return &ChatHandler{
-		hfService:   services.NewHuggingFaceService(),
-		txService:   txService,
-		userService: userService,
+		hfService:     services.NewHuggingFaceService(),
+		lambdaService: services.NewLambdaService(),
+		txService:     txService,
+		userService:   userService,
 	}
 }
 
@@ -178,15 +218,40 @@ func (h *ChatHandler) Chat(c *fiber.Ctx) error {
 	}
 	req.Context["financial_data"] = financialContext
 
-	result, err := h.hfService.Chat(req.Message, req.Context)
-	if err != nil {
-		return ErrorResponse(c, fiber.StatusInternalServerError, "CHAT_ERROR", err.Error())
+	var result *services.ChatResponse
+	var chatErr error
+	aiProvider := "mock"
+	userAge := 0
+	if user != nil && user.Age != nil {
+		userAge = *user.Age
+	}
+
+	// Priority: HuggingFace → Lambda → Mock
+	if h.hfService.IsConfigured() {
+		aiProvider = "huggingface"
+		result, chatErr = h.hfService.Chat(req.Message, req.Context)
+	} else if h.lambdaService.IsConfigured() {
+		aiProvider = "lambda"
+		result, chatErr = h.lambdaService.Chat(req.Message, req.Context, userAge)
+		if chatErr != nil {
+			// Fallback to mock
+			result, chatErr = h.hfService.Chat(req.Message, req.Context)
+			aiProvider = "mock"
+		}
+	} else {
+		// Use mock via HuggingFace
+		result, chatErr = h.hfService.Chat(req.Message, req.Context)
+	}
+
+	if chatErr != nil {
+		return ErrorResponse(c, fiber.StatusInternalServerError, "CHAT_ERROR", chatErr.Error())
 	}
 
 	return SuccessResponse(c, fiber.Map{
-		"response":   result.Response,
-		"timestamp":  result.Timestamp,
-		"ai_enabled": h.hfService.IsConfigured(),
+		"response":    result.Response,
+		"timestamp":   result.Timestamp,
+		"ai_enabled":  h.hfService.IsConfigured() || h.lambdaService.IsConfigured(),
+		"ai_provider": aiProvider,
 	})
 }
 
