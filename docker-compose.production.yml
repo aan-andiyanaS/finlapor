@@ -2,6 +2,9 @@
 # Jalankan: docker compose -f docker-compose.production.yml up -d
 # Backend membaca konfigurasi dari: backend/.env.production
 # Menggunakan AWS RDS untuk PostgreSQL dan AWS S3 untuk storage
+#
+# PENTING: Menggunakan host network untuk S3 VPC Endpoint access
+# Pastikan REDIS_URL=redis://localhost:6379 di .env.production
 
 services:
   # Backend (Go) - reads from backend/.env.production
@@ -9,8 +12,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    ports:
-      - "8080:8080"
+    network_mode: host # Required for S3 VPC Endpoint access
     env_file:
       - ./backend/.env.production
     depends_on:
@@ -25,8 +27,7 @@ services:
   # Redis Cache (lokal di EC2)
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
+    network_mode: host # Must use host network to match backend
     volumes:
       - redis_data:/data
     restart: always
