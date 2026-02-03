@@ -7,12 +7,13 @@ Deploy Python AI service ke AWS Lambda untuk OCR dan chat functionality.
 ## 📑 Daftar Isi
 
 1. [Overview](#overview)
-2. [Persiapan](#1-persiapan)
-3. [Create Lambda Function](#2-create-lambda-function)
-4. [Deploy Code](#3-deploy-code)
-5. [Konfigurasi Function URL](#4-konfigurasi-function-url)
-6. [Connect ke Backend](#5-connect-ke-backend)
-7. [Troubleshooting](#6-troubleshooting)
+2. [AI Fallback Mechanism](#ai-fallback-mechanism) ← **BARU**
+3. [Persiapan](#1-persiapan)
+4. [Create Lambda Function](#2-create-lambda-function)
+5. [Deploy Code](#3-deploy-code)
+6. [Konfigurasi Function URL](#4-konfigurasi-function-url)
+7. [Connect ke Backend](#5-connect-ke-backend)
+8. [Troubleshooting](#6-troubleshooting)
 
 ---
 
@@ -52,6 +53,55 @@ Frontend ──► Backend (Go) ──► AWS Lambda ──► HuggingFace API
 | `chat` | Financial assistant | `message`, `context`, `user_age` | Reply, suggestions |
 | `categorize` | Auto-categorize transaction | `description` | Category, confidence |
 | `insight` | Spending insights | `transactions` array | Insights, summary |
+
+---
+
+## AI Fallback Mechanism
+
+Backend secara otomatis memilih AI provider dengan prioritas berikut:
+
+```mermaid
+flowchart LR
+    Request --> Check{"HF_TOKEN<br/>configured?"}
+    Check -->|Ya| HF[HuggingFace API]
+    Check -->|Tidak| Check2{"AWS credentials<br/>configured?"}
+    Check2 -->|Ya| Lambda[AWS Lambda]
+    Check2 -->|Tidak| Mock[Mock Response]
+    
+    HF --> Response
+    Lambda --> Response
+    Mock --> Response
+```
+
+### Priority Order
+
+| Priority | Provider | Env Variables Required |
+|----------|----------|------------------------|
+| 1️⃣ | **HuggingFace** | `HF_TOKEN` |
+| 2️⃣ | **AWS Lambda** | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `LAMBDA_FUNCTION_NAME` |
+| 3️⃣ | **Mock** | *(none - fallback)* |
+
+### Response Field
+
+Setiap response AI endpoint akan menyertakan:
+
+```json
+{
+  "ai_enabled": true,      // true jika HuggingFace atau Lambda aktif
+  "ai_provider": "lambda"  // "huggingface", "lambda", atau "mock"
+}
+```
+
+### Kapan Menggunakan Lambda vs HuggingFace?
+
+| Situasi | Rekomendasi |
+|---------|-------------|
+| Development/Testing | Mock (tanpa env) |
+| Production budget rendah | Lambda (pay-per-use) |
+| Production high-traffic | HuggingFace (faster) |
+| HuggingFace rate-limited | Lambda sebagai backup |
+
+> **💡 Tip:** Jika tidak ingin setup Lambda, cukup set `HF_TOKEN` saja. Lambda hanya digunakan jika HuggingFace tidak dikonfigurasi.
 
 ---
 
