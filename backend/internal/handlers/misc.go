@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -22,17 +23,22 @@ func (h *UploadHandler) Upload(c *fiber.Ctx) error {
 	// Get file from form
 	file, err := c.FormFile("file")
 	if err != nil {
+		log.Printf("⚠️ Upload: No file in form - %v", err)
 		return ErrorResponse(c, fiber.StatusBadRequest, "VALIDATION_ERROR", "No file uploaded")
 	}
 
+	log.Printf("📤 Upload: Received file '%s' (%d bytes, type: %s)", file.Filename, file.Size, file.Header.Get("Content-Type"))
+
 	// Validate file size (max 10MB)
 	if file.Size > 10*1024*1024 {
+		log.Printf("⚠️ Upload: File too large (%d bytes)", file.Size)
 		return ErrorResponse(c, fiber.StatusBadRequest, "VALIDATION_ERROR", "File too large (max 10MB)")
 	}
 
 	// Open file
 	src, err := file.Open()
 	if err != nil {
+		log.Printf("⚠️ Upload: Failed to open file - %v", err)
 		return ErrorResponse(c, fiber.StatusInternalServerError, "UPLOAD_ERROR", "Failed to read file")
 	}
 	defer src.Close()
@@ -47,9 +53,11 @@ func (h *UploadHandler) Upload(c *fiber.Ctx) error {
 	)
 
 	if err != nil {
+		log.Printf("❌ Upload: Failed to upload to storage - %v", err)
 		return ErrorResponse(c, fiber.StatusInternalServerError, "UPLOAD_ERROR", err.Error())
 	}
 
+	log.Printf("✅ Upload: Success - URL: %s", result.URL)
 	return SuccessResponse(c, result)
 }
 
