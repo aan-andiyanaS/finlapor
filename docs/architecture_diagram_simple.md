@@ -149,7 +149,7 @@ flowchart TD
 ```
 
 ```mermaid
-activityDiagram
+graph TD;
     start
     :Terima Data dari ESP32;
     fork
