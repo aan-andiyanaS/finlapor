@@ -107,35 +107,43 @@ flowchart LR
 flowchart TD
     START([Mulai]) --> INIT[Inisialisasi Hardware:\nESP32, Kamera, VL53L5CX]
     INIT --> CEK_WIFI{Cek Koneksi WiFi?}
-
+    
     %% LOGIKA OFFLINE / FAIL-SAFE
     CEK_WIFI -- Putus > 5 Detik --> MODE_SAFETY[MODE SAFETY / OFFLINE]
     MODE_SAFETY --> CAM_OFF[Matikan Kamera]
-    MODE_SAFETY --> BACA_SENSOR[Baca Sensor Jarak VL53L5CX]
-    BACA_SENSOR --> LOGIKA_BUZZER{Jarak < 1 Meter?}
+    MODE_SAFETY --> BACA_SENSOR_OFF[Baca Sensor Jarak VL53L5CX]
+    BACA_SENSOR_OFF --> LOGIKA_BUZZER{Jarak < 1 Meter?}
     LOGIKA_BUZZER -- Ya --> BUZZ_ON[Bunyikan Buzzer]
     LOGIKA_BUZZER -- Tidak --> BUZZ_OFF[Buzzer Diam]
     BUZZ_ON --> RETRY[Coba Reconnect WiFi]
     BUZZ_OFF --> RETRY
     RETRY --> CEK_WIFI
 
-    %% LOGIKA ONLINE - GELAP
+    %% LOGIKA ONLINE
     CEK_WIFI -- Terhubung --> CEK_CAHAYA{Cek Kecerahan?}
+    
+    %% LOGIKA GELAP
     CEK_CAHAYA -- Gelap --> MODE_LOW[MODE LOW-LIGHT]
     MODE_LOW --> CAM_LOW[Kamera Low FPS]
     MODE_LOW --> STOP_STREAM[Stop Video Streaming]
-    MODE_LOW --> BACA_SENSOR
-
-    CEK_CAHAYA -- Terang --> MODE_SMART([Lanjut ke\nDiagram Mode Smart])
-
-    %% Styling
-    classDef research fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
-    classDef design fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px;
-    classDef impl fill:#fff3e0,stroke:#e65100,stroke-width:2px;
-    classDef decision fill:#fce4ec,stroke:#c62828,stroke-width:2px;
-
-    class INIT,BACA_SENSOR,CAM_OFF,CAM_LOW,STOP_STREAM research;
-    class MODE_SAFETY,MODE_LOW,RETRY design;
-    class BUZZ_ON,BUZZ_OFF impl;
-    class CEK_WIFI,CEK_CAHAYA,LOGIKA_BUZZER decision;
+    MODE_LOW --> BACA_SENSOR_OFF
+    
+    %% LOGIKA TERANG (SMART)
+    CEK_CAHAYA -- Terang --> MODE_SMART[MODE SMART / AI]
+    MODE_SMART --> KIRIM_DATA[Kirim Video + Data Jarak ke HP]
+    KIRIM_DATA --> YOLO[Proses AI YOLOv11]
+    YOLO --> MAPPING[Mapping Grid Sensor & Arah Jam]
+    MAPPING --> CEK_MODE{Mode Otonom?}
+    
+    %% LOGIKA OUTPUT
+    CEK_MODE -- Ya --> FILTER_BAHAYA{Objek < 1 Meter & Depan?}
+    FILTER_BAHAYA -- Ya --> TTS_WARN[Suara Peringatan: AWAS]
+    FILTER_BAHAYA -- Tidak --> SILENT[Diam]
+    
+    CEK_MODE -- Tidak (Tanya) --> TTS_INFO[Suara Info: Objek + Arah Jam]
+    
+    TTS_WARN --> LOOP((Loop))
+    SILENT --> LOOP
+    TTS_INFO --> LOOP
+    LOOP --> CEK_WIFI 
 ```
