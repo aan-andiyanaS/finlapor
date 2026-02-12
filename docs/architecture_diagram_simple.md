@@ -1,59 +1,104 @@
-# FinLapor AWS Architecture Diagram (Option A: Simple)
+# System Workflow & Architecture
+
+This document explains the system architecture based on `diagram-block-sistem.png` and details the initial setup workflow.
+
+## 1. System Block Diagram Overview
+
+The system consists of three main units:
+
+1.  **Wearable Head Unit (IoT Device)**
+    *   **ESP32-S3 (N16R8):** The core controller.
+    *   **OV2640 Camera:** Captures visual data.
+    *   **VL53L5CX ToF Sensor:** Measures distance (depth sensing).
+    *   **Connectivity:** Communicates via WiFi (WebSocket) and Bluetooth (Provisioning).
+
+2.  **Processing Unit (Smartphone)**
+    *   **Kotlin App:** Acts as the central hub and WebSocket Server.
+    *   **AI Processing:** Uses NPU/GPU to run YOLOv11 Nano (TFLite) for object detection.
+    *   **Logic Fusion:** Combines visual data and distance data to make decisions.
+
+3.  **User Interaction Unit**
+    *   **Audio Output:** Text-to-Speech feedback via Bluetooth earphones.
+    *   **Audio Input:** Voice commands via microphone.
+
+## 2. Initial Setup Workflow (Provisioning)
+
+The following flowchart illustrates the process when the device is turned on for the first time.
 
 ```mermaid
-graph TB
-    User((User))
-    
-    subgraph CloudFlare Network
+%%{init: {"flowchart": {"defaultRenderer": "elk"}} }%%
+flowchart LR
+    %% Phase 1: Inisialisasi
+    subgraph P1["Inisialisasi"]
         direction TB
-        CF_Pages[CloudFlare Pages<br/>Next.js Frontend]
-        CF_Proxy[CloudFlare CDN<br/>Security & Caching]
-    end
-    
-    subgraph AWS_Cloud [AWS Cloud (ap-southeast-1)]
-        direction TB
-        
-        subgraph VPC [VPC 10.0.0.0/16]
-            
-            subgraph Public_Subnet [Public Subnet]
-                
-                subgraph EC2_Server [EC2 t3.micro]
-                    Backend[Go Fiber Backend]
-                    Docker[Docker Runtime]
-                    DB[(PostgreSQL 16)]
-                    Redis[(Redis 7)]
-                end
-                
-            end
-        end
-        
-        S3[S3 Bucket]
-    end
-    
-    subgraph External_AI [HuggingFace]
-        HF[HuggingFace API<br/>Donut OCR + Mistral 7B]
+        Start([Mulai:<br/>Nyalakan Perangkat])
+        ActivateBLE[BLE Aktif]
+        UserAction[/User: Nyalakan<br/>Bluetooth & Hotspot/]
+        Start --> ActivateBLE --> UserAction
     end
 
-    %% Connections
-    User ==>|HTTPS| CF_Pages
-    User ==>|HTTPS| CF_Proxy
-    CF_Proxy ==>|HTTP :8080| Backend
-    
-    %% Internal Monolith
-    Backend <-->|Localhost| DB
-    Backend <-->|Localhost| Redis
-    
-    %% External Services
-    Backend ==>|SDK| S3
-    Backend ==>|Invoke| HF
+    %% Phase 2: Koneksi BLE
+    subgraph P2["Koneksi BLE"]
+        direction TB
+        OpenApp[User: Buka Aplikasi]
+        ScanBLE[App: Menu Scan BLE]
+        SelectDev[User: Pilih<br/>Perangkat IoT]
+        ConnectBLE[Terkoneksi via BLE]
+        OpenApp --> ScanBLE --> SelectDev --> ConnectBLE
+    end
+
+    %% Phase 3: Provisioning WiFi
+    subgraph P3["Provisioning WiFi"]
+        direction TB
+        ScanWiFi[IoT: Scan WiFi]
+        ListWiFi[App: Daftar WiFi]
+        SelectWiFi[User: Pilih Hotspot]
+        SendCreds[Kirim Kredensial WiFi]
+        ConnectWiFi[IoT: Koneksi WiFi]
+        CheckConn{Terkoneksi?}
+        ScanWiFi --> ListWiFi --> SelectWiFi --> SendCreds --> ConnectWiFi --> CheckConn
+        CheckConn -- Tidak --> ScanWiFi
+    end
+
+    %% Phase 4: Aktivasi
+    subgraph P4["Aktivasi"]
+        direction TB
+        SaveCreds[Simpan WiFi<br/>ke NVS]
+        ActivateSystem[Sistem Aktif]
+        End([Selesai])
+        SaveCreds --> ActivateSystem --> End
+    end
+
+    %% Inter-phase connections
+    UserAction --> OpenApp
+    ConnectBLE --> ScanWiFi
+    CheckConn -- Ya --> SaveCreds
 
     %% Styling
-    classDef aws fill:#FF9900,stroke:#232F3E,color:white;
-    classDef db fill:#336791,stroke:#232F3E,color:white;
-    classDef cloudflare fill:#F38020,stroke:#232F3E,color:white;
-    classDef go fill:#00ADD8,stroke:#232F3E,color:white;
-    
-    class S3,EC2_Server,Backend aws;
-    class DB,Redis db;
-    class CF_Pages,CF_Proxy cloudflare;
+    classDef mobile fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
+    classDef iot fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px;
+    classDef user fill:#fff3e0,stroke:#e65100,stroke-width:2px;
+
+    class OpenApp,ScanBLE,ListWiFi,SendCreds,ActivateSystem mobile;
+    class Start,ActivateBLE,ScanWiFi,ConnectWiFi,SaveCreds,End iot;
+    class UserAction,SelectDev,SelectWiFi user;
 ```
+
+### Penjelasan Alur:
+
+1.  **Memulai Program:**
+    *   Nyalakan perangkat IoT.
+    *   BLE pada perangkat IoT akan otomatis aktif (advertising).
+2.  **Aksi User:**
+    *   User menyalakan Bluetooth dan Hotspot pada smartphone.
+    *   User membuka aplikasi Android.
+3.  **Scanning & Koneksi BLE:**
+    *   Aplikasi menampilkan menu scan BLE.
+    *   User memilih perangkat IoT yang muncul di daftar scan.
+4.  **Provisioning WiFi:**
+    *   Setelah terkoneksi via BLE, perangkat IoT melakukan scanning WiFi di sekitar.
+    *   Hasil scan dikirim ke aplikasi via BLE.
+    *   User memilih WiFi (Hotspot Smartphone) dan perangkat IoT akan mencoba terhubung.
+5.  **Aktivasi Sistem:**
+    *   Jika koneksi WiFi berhasil, perangkat IoT menyimpan kredensial WiFi ke memori (NVS).
+    *   Sistem pada blok Mobile (Processing Unit) akan aktif sepenuhnya (siap menerima stream data).
