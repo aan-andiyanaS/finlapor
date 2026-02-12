@@ -149,38 +149,14 @@ flowchart TD
 ```
 
 ```mermaid
-graph TD;
-    start
-    :Terima Data dari ESP32;
-    fork
-        :Proses Citra (YOLOv11);
-        :Dapatkan Bounding Box Objek;
-    fork again
-        :Proses Sensor (VL53L5CX);
-        :Dapatkan Matriks Jarak 8x8;
-    end fork
-    
-    :Hitung Posisi Horizontal (X) Objek;
-    
-    if (X < 20% ATAU X > 80%) then (Luar Jangkauan Sensor)
-        :Set Status: Jarak Tidak Diketahui;
-        if (X < 20%) then (Jam 10)
-            :Set Arah: Jam 10;
-        else (Jam 2)
-            :Set Arah: Jam 2;
-        endif
-    else (Dalam Jangkauan Sensor)
-        :Mapping Grid (Pixel / 60);
-        :Ambil Data Jarak dari Array;
-        if (X < 40%) then (Jam 11)
-            :Set Arah: Jam 11;
-        elseif (X < 60%) then (Jam 12)
-            :Set Arah: Jam 12;
-        else (Jam 1)
-            :Set Arah: Jam 1;
-        endif
-    endif
-    
-    :Generate Kalimat Output;
-    stop
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#ffcccc'}}}%%
+stateDiagram-v2
+    [*] --> Mulai
+    Mulai --> MengisiForm
+    MengisiForm --> CekData
+    CekData --> |Data Valid| ProsesSelesai
+    CekData --> |Data Salah| MengisiForm
+    ProsesSelesai --> [*]
 ```
+
+
