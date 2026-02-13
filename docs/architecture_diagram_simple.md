@@ -149,14 +149,73 @@ flowchart TD
 ```
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#ffcccc'}}}%%
-stateDiagram-v2
-    [*] --> Mulai
-    Mulai --> MengisiForm
-    MengisiForm --> CekData
-    CekData --> |Data Valid| ProsesSelesai
-    CekData --> |Data Salah| MengisiForm
-    ProsesSelesai --> [*]
+---
+config:
+  layout: dagre
+---
+flowchart LR
+    MODE_SMART(["Mode <br>Smart / AI"]) --> CEK_GERAK{"Accelerometer:<br>User Bergerak?"}
+    CEK_GERAK -- Diam <br>&gt; 10 Detik --> PAUSE_YOLO["Pause <br>YOLO<br>&amp; <br>Streaming"]
+    PAUSE_YOLO --> SENSOR_ONLY["Sensor <br>VL53L5CX <br>Tetap Aktif<br>+<br>Buzzer"]
+    SENSOR_ONLY -- User <br>Bergerak <br>Lagi --> CEK_GERAK
+    CEK_GERAK -- Ya --> KIRIM_DATA["Kirim <br>Video <br>+ <br>Data <br>Jarak ke HP"]
+    KIRIM_DATA --> YOLO["Proses <br>Citra AI<br>YOLOv11"] & ToF["Proses <br>Matriks <br>Jarak <br>VL53L5CX"]
+    YOLO --> MAPPING{"Logika <br>Mapping  Arah <br>Jam 10-2"}
+    ToF --> MAPPING
+    MAPPING -- X &lt; 20% <br>/<br>X &gt; 80% --> LUAR["Set: <br>Arah Jam 10<br>atau <br>2  Status:<br>Jarak <br>Tidak <br>Diketahui"]
+    MAPPING -- "X <br>= <br>20% - 80%" --> DALAM["Set: <br>Arah Jam <br>11, 12, atau 1"]
+    DALAM --> HITUNG_GRID["Hitung Grid<br>Pixel/60 <br>Ambil <br>Data <br>Array Jarak"]
+    LUAR --> GOTO_OUTPUT(["Lanjut ke<br>Diagram 3b: <br>Mode Aplikasi"])
+    HITUNG_GRID --> GOTO_OUTPUT
+
+     CEK_GERAK:::decision
+     PAUSE_YOLO:::design
+     SENSOR_ONLY:::design
+     KIRIM_DATA:::research
+     YOLO:::research
+     ToF:::research
+     MAPPING:::decision
+     LUAR:::design
+     DALAM:::design
+     HITUNG_GRID:::research
+    classDef research fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    classDef design fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    classDef impl fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    classDef decision fill:#fce4ec,stroke:#c62828,stroke-width:2px
 ```
 
+```mermaid
+---
+config:
+  layout: elk
+---
+flowchart LR
+    ENTRY_OFF(["WiFi <br>Putus <br>&gt; 5 Detik"]) --> MODE_SAFETY["MODE SAFETY <br>/ OFFLINE"]
+    MODE_SAFETY --> CAM_OFF["Matikan <br>Kamera"] & BACA_SENSOR["Baca <br>Sensor <br>Jarak <br>VL53L5CX"]
+    BACA_SENSOR --> LOGIKA_BUZZER{"Jarak <br>&lt; 1 Meter?"}
+    LOGIKA_BUZZER -- Ya --> BUZZ_ON["Bunyikan <br>Buzzer"]
+    LOGIKA_BUZZER -- Tidak --> BUZZ_OFF["Buzzer<br>Diam"]
+    BUZZ_ON --> RETRY["Coba <br>Reconnect <br>WiFi"]
+    BUZZ_OFF --> RETRY
+    RETRY --> CEK_ULANG{"Reconnect <br>Berhasil?"}
+    CEK_ULANG -- Ya --> KEMBALI_UTAMA(["Kembali ke <br>Diagram 2: <br>Cek Kecerahan"])
+    CEK_ULANG -- Tidak --> BACA_SENSOR
+    ENTRY_GELAP(["Cahaya <br>Gelap"]) --> MODE_LOW["MODE <br>LOW-LIGHT"]
+    MODE_LOW --> CAM_LOW["Kamera <br>Low FPS"] & STOP_STREAM["Stop <br>Video <br>Streaming"] & BACA_SENSOR
 
+     MODE_SAFETY:::design
+     CAM_OFF:::research
+     BACA_SENSOR:::research
+     LOGIKA_BUZZER:::decision
+     BUZZ_ON:::impl
+     BUZZ_OFF:::impl
+     RETRY:::design
+     CEK_ULANG:::decision
+     MODE_LOW:::design
+     CAM_LOW:::research
+     STOP_STREAM:::research
+    classDef research fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    classDef design fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    classDef impl fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    classDef decision fill:#fce4ec,stroke:#c62828,stroke-width:2px
+```
