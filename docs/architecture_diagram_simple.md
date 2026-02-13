@@ -295,3 +295,67 @@ flowchart TB
     classDef impl fill:#fff3e0,stroke:#e65100,stroke-width:2px
     classDef decision fill:#fce4ec,stroke:#c62828,stroke-width:2px
 ```
+```mermaid
+---
+config:
+  layout: dagre
+---
+flowchart TB
+    START(["Mulai"]) --> IDENTIFIKASI["Identifikasi Masalah:
+Keterbatasan Tongkat Putih & Risiko Cedera Kepala"]
+    IDENTIFIKASI --> STUDI_LIT["Studi Literatur:
+1. Alat Bantu Tunanetra Smart Stick/Glasses
+2. Deep Learning YOLOv11
+3. Sensor ToF &amp; IoT ESP32"]
+    STUDI_LIT --> PENGUMPULAN_DATA["Pengumpulan Data:
+1. Dataset Sekunder: COCO/Open Images
+2. Dataset Primer: Foto Rintangan Lokal
+3. Observasi Perilaku Tunanetra"]
+    PENGUMPULAN_DATA --> ANALISIS["Analisis Kebutuhan Sistem"]
+    ANALISIS --> KEBUTUHAN_HW["Kebutuhan Hardware:
+ESP32-S3, Kamera, VL53L5CX, Baterai"] & KEBUTUHAN_SW["Kebutuhan Software:
+Android App, Dataset YOLO, Library"]
+    KEBUTUHAN_HW --> PERANCANGAN["Perancangan Sistem"]
+    KEBUTUHAN_SW --> PERANCANGAN
+    PERANCANGAN --> DESAIN_ARSITEKTUR["Desain Arsitektur:
+Diagram Blok & Wiring Skematik"] & DESAIN_MEKANIK["Desain Mekanik:
+Casing Kacamata & Tata Letak"] & DESAIN_LOGIKA["Desain Logika:
+Flowchart, UML, Mapping Sensor 8x8"]
+    DESAIN_ARSITEKTUR --> IMPLEMENTASI["Implementasi & Pembuatan Alat"]
+    DESAIN_MEKANIK --> IMPLEMENTASI
+    DESAIN_LOGIKA --> IMPLEMENTASI
+    IMPLEMENTASI --> TRAINING["Training Model AI:
+YOLOv11 Nano Custom Dataset"] & RAKIT["Perakitan Hardware & Coding Android"]
+    RAKIT --> PENGUJIAN{"Pengujian Sistem"}
+    TRAINING --> PENGUJIAN
+    PENGUJIAN -- Gagal / Error --> DEBUG["Perbaikan & Debugging"]
+    DEBUG --> IMPLEMENTASI
+    PENGUJIAN -- Berhasil --> ANALISIS_HASIL["Analisis Hasil Pengujian:
+1. Akurasi Deteksi & Jarak
+2. Latensi & Kinerja
+3. Usability User"]
+    ANALISIS_HASIL --> KESIMPULAN["Penarikan Kesimpulan & Saran"]
+    KESIMPULAN --> SELESAI(["Selesai"])
+
+     IDENTIFIKASI:::research
+     STUDI_LIT:::research
+     PENGUMPULAN_DATA:::research
+     ANALISIS:::design
+     KEBUTUHAN_HW:::design
+     KEBUTUHAN_SW:::design
+     PERANCANGAN:::design
+     DESAIN_ARSITEKTUR:::design
+     DESAIN_MEKANIK:::design
+     DESAIN_LOGIKA:::design
+     IMPLEMENTASI:::impl
+     TRAINING:::impl
+     RAKIT:::impl
+     PENGUJIAN:::decision
+     DEBUG:::impl
+     ANALISIS_HASIL:::research
+     KESIMPULAN:::research
+    classDef research fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    classDef design fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    classDef impl fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    classDef decision fill:#fce4ec,stroke:#c62828,stroke-width:2px
+```
