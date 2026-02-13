@@ -219,3 +219,79 @@ flowchart LR
     classDef impl fill:#fff3e0,stroke:#e65100,stroke-width:2px
     classDef decision fill:#fce4ec,stroke:#c62828,stroke-width:2px
 ```
+
+```mermaid
+---
+config:
+  layout: dagre
+---
+flowchart TB
+ subgraph ANALISIS["Analisis Kebutuhan Sistem"]
+        KEBUTUHAN_SW["Kebutuhan Software: Android App, Dataset YOLO, Library"]
+        KEBUTUHAN_HW["Kebutuhan Hardware: ESP32-S3, Kamera, VL53L5CX, Baterai"]
+  end
+ subgraph PERANCANGAN["Perancangan Sistem"]
+        DESAIN_LOGIKA["Desain Logika:
+        Flowchart, UML, Mapping Sensor 8x8"]
+        DESAIN_MEKANIK["Desain Mekanik:
+        Casing Kacamata & Tata Letak"]
+        DESAIN_ARSITEKTUR["Desain Arsitektur:
+        Diagram Blok & Wiring Skematik"]
+  end
+ subgraph IMPLEMENTASI["Implementasi & Pembuatan Alat"]
+        RAKIT["Perakitan Hardware & Coding Android"]
+        TRAINING["Training Model AI: YOLOv11 Nano Custom Dataset"]
+  end
+ subgraph AWAL[" "]
+        PENGUMPULAN_DATA["Pengumpulan Data:
+        1. Dataset Sekunder: COCO/Open Images
+        2. Dataset Primer: Foto Rintangan Lokal
+        3. Observasi Perilaku Tunanetra"]
+        IDENTIFIKASI["Identifikasi Masalah: Keterbatasan Tongkat Putih & Risiko Cedera Kepala"]
+        STUDI_LIT["Studi Literatur:
+        1. Alat Bantu Tunanetra Smart Stick/Glasses
+        2. Deep Learning YOLOv11
+        3. Sensor ToF &amp; IoT ESP32"]
+  end
+    DESAIN_ARSITEKTUR <--> DESAIN_MEKANIK
+    DESAIN_MEKANIK <--> DESAIN_LOGIKA
+    TRAINING <--> RAKIT
+    STUDI_LIT --> IDENTIFIKASI
+    IDENTIFIKASI --> PENGUMPULAN_DATA
+    KEBUTUHAN_HW <--> KEBUTUHAN_SW
+    START(["Mulai"]) --> AWAL
+    AWAL --> ANALISIS
+    ANALISIS --> PERANCANGAN
+    PERANCANGAN --> IMPLEMENTASI
+    IMPLEMENTASI --> PENGUJIAN{"Pengujian <br>Sistem"}
+    PENGUJIAN -- Gagal / Error --> DEBUG["Perbaikan & Debugging"]
+    DEBUG --> IMPLEMENTASI
+    PENGUJIAN -- Berhasil --> ANALISIS_HASIL["Analisis Hasil Pengujian:
+1. Akurasi Deteksi & Jarak
+2. Latensi & Kinerja
+3. Usability User"]
+    ANALISIS_HASIL --> KESIMPULAN["Penarikan Kesimpulan & Saran"]
+    KESIMPULAN --> SELESAI(["Selesai"])
+
+     KEBUTUHAN_SW:::design
+     KEBUTUHAN_HW:::design
+     DESAIN_LOGIKA:::design
+     DESAIN_MEKANIK:::design
+     DESAIN_ARSITEKTUR:::design
+     RAKIT:::impl
+     TRAINING:::impl
+     PENGUMPULAN_DATA:::research
+     IDENTIFIKASI:::research
+     STUDI_LIT:::research
+     ANALISIS:::design
+     PERANCANGAN:::design
+     IMPLEMENTASI:::impl
+     PENGUJIAN:::decision
+     DEBUG:::impl
+     ANALISIS_HASIL:::research
+     KESIMPULAN:::research
+    classDef research fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    classDef design fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    classDef impl fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    classDef decision fill:#fce4ec,stroke:#c62828,stroke-width:2px
+```
